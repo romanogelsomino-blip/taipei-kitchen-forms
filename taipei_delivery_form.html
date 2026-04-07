@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Taipei Kitchen · Delivery Form</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--red:#C0392B;--red-dk:#922B21;--red-lt:#FADBD8;--cream:#FDF5E6;--dark:#1C1C1C;--mid:#4A4A4A;--soft:#9B9B9B;--border:#DEDBD6;--yellow:#F5C518;--green:#27AE60;--surface:#FFFFFF;--row-alt:#F7F4EF;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--dark);min-height:100vh;font-size:15px;}
+.topbar{background:var(--dark);padding:0 20px;height:54px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid var(--red);position:sticky;top:0;z-index:50;}
+.brand{font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:1rem;display:flex;align-items:center;gap:8px;}
+.brand span{color:var(--red);}
+.page{max-width:680px;margin:0 auto;padding:20px 16px 60px;}
+.form-card{background:var(--surface);border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:20px;}
+.card-header{background:var(--red);color:#fff;padding:16px 20px;}
+.card-header h2{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800;}
+.card-header p{font-family:'DM Mono',monospace;font-size:.72rem;opacity:.8;margin-top:2px;}
+.store-badge{display:inline-block;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:4px;padding:3px 10px;font-family:'DM Mono',monospace;font-size:.75rem;margin-top:6px;}
+.field-group{padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;border-bottom:1px solid var(--border);}
+.field-group.three{grid-template-columns:1fr 1fr 1fr;}
+@media(max-width:480px){.field-group,.field-group.three{grid-template-columns:1fr 1fr;}}
+.field{display:flex;flex-direction:column;gap:4px;}
+.field label{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--soft);letter-spacing:.1em;text-transform:uppercase;}
+.field input,.field select,.field textarea{border:1.5px solid var(--border);border-radius:5px;padding:8px 10px;font-family:'Inter',sans-serif;font-size:.88rem;color:var(--dark);background:var(--row-alt);outline:none;transition:border-color .15s;}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--red);background:#fff;}
+.field textarea{resize:vertical;min-height:60px;}
+.dish-table{width:100%;border-collapse:collapse;}
+.dish-table th{background:#2C2C2C;color:#fff;font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;padding:9px 8px;text-align:center;border-right:1px solid rgba(255,255,255,.1);}
+.dish-table th:first-child{text-align:left;padding-left:14px;}
+.dish-table td{padding:6px 5px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.dish-table tr:nth-child(even) td{background:var(--row-alt);}
+.dish-name{font-size:.82rem;font-weight:500;padding:6px 8px 6px 14px;white-space:nowrap;color:var(--dark);}
+.dish-table input[type="number"]{width:100%;border:1.5px solid transparent;background:transparent;font-family:'Inter',sans-serif;font-size:.85rem;color:var(--dark);padding:6px 4px;border-radius:4px;text-align:center;outline:none;transition:border-color .15s,background .15s;}
+.dish-table input[type="number"]:focus{border-color:var(--red);background:#fff;}
+.dish-table input[type="text"]{width:100%;border:1.5px solid transparent;background:transparent;font-family:'Inter',sans-serif;font-size:.78rem;color:var(--dark);padding:5px 6px;border-radius:4px;outline:none;transition:border-color .15s;}
+.dish-table input[type="text"]:focus{border-color:var(--red);background:#fff;}
+.calc-cell{font-family:'DM Mono',monospace;font-size:.82rem;color:#E67E22;text-align:center;padding:6px 4px;font-weight:500;}
+tfoot td{background:var(--dark);color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:.82rem;padding:8px 6px;text-align:center;}
+tfoot td:first-child{text-align:left;padding-left:14px;}
+
+/* Photo upload */
+.photo-section{padding:16px 20px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:440px){.photo-section{grid-template-columns:1fr;}}
+.photo-section h4{font-family:'DM Mono',monospace;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mid);margin-bottom:8px;}
+.upload-zone{border:2px dashed var(--border);border-radius:6px;padding:14px 10px;text-align:center;cursor:pointer;position:relative;background:var(--row-alt);transition:border-color .2s,background .2s;}
+.upload-zone:hover{border-color:var(--red);background:var(--red-lt);}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.upload-zone .icon{font-size:1.6rem;display:block;margin-bottom:4px;}
+.upload-zone span{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--soft);pointer-events:none;display:block;}
+.photo-previews{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.photo-previews img{width:64px;height:64px;object-fit:cover;border-radius:4px;border:2px solid var(--border);}
+
+/* Submit button */
+.submit-area{padding:20px;display:flex;flex-direction:column;gap:10px;align-items:stretch;}
+.btn-submit{background:var(--red);color:#fff;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;letter-spacing:.04em;border:none;border-radius:7px;padding:14px;cursor:pointer;transition:background .15s;text-transform:uppercase;}
+.btn-submit:hover{background:var(--red-dk);}
+.btn-submit:disabled{background:#ccc;cursor:not-allowed;}
+.btn-clear{background:transparent;color:var(--soft);font-family:'Inter',sans-serif;font-size:.82rem;border:1.5px solid var(--border);border-radius:5px;padding:8px;cursor:pointer;}
+
+/* Status overlay */
+#status-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;}
+#status-overlay.show{display:flex;}
+.status-box{background:#fff;border-radius:12px;padding:32px;text-align:center;max-width:300px;width:90%;}
+.status-box .s-icon{font-size:3rem;margin-bottom:12px;}
+.status-box h3{font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800;margin-bottom:8px;}
+.status-box p{font-size:.85rem;color:var(--mid);}
+.status-box button{margin-top:20px;background:var(--red);color:#fff;border:none;border-radius:6px;padding:10px 24px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;font-size:.9rem;}
+
+/* Config banner */
+.config-banner{background:#FEF9E7;border:1px solid #F9E79F;border-left:4px solid var(--yellow);border-radius:4px;padding:10px 14px;font-size:.8rem;color:#7D6608;margin-bottom:16px;}
+.config-banner code{background:#FEF3C7;padding:1px 5px;border-radius:3px;font-family:'DM Mono',monospace;font-size:.78rem;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span>▲</span> Taipei Kitchen</div>
+  <span style="font-family:'DM Mono',monospace;font-size:.72rem;color:#888">Delivery Form</span>
+</div>
+
+<div class="page">
+  <div id="config-banner" class="config-banner">
+    ⚙️ <strong>Setup needed:</strong> Replace <code>YOUR_GOOGLE_SCRIPT_URL</code> in the script below with your Apps Script URL. See the Setup Guide for instructions.
+  </div>
+
+  <!-- Store auto-detected from URL param -->
+  <div id="store-header" style="margin-bottom:16px;display:none;">
+    <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--dark);" id="store-title"></div>
+    <div style="font-family:'DM Mono',monospace;font-size:.78rem;color:var(--soft);margin-top:2px;" id="store-location"></div>
+  </div>
+
+  <!-- Meta info -->
+  <div class="form-card">
+    <div class="card-header">
+      <h2>Delivery Information</h2>
+      <p>Fill out before starting the store drop</p>
+    </div>
+    <div class="field-group three">
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="field">
+        <label>Driver</label>
+        <input type="text" id="f-driver" placeholder="Your name">
+      </div>
+      <div class="field">
+        <label>Arrival Time</label>
+        <input type="time" id="f-arrive">
+      </div>
+    </div>
+    <div class="field-group three">
+      <div class="field">
+        <label>Cooler Temp °F</label>
+        <input type="number" id="f-cooler-temp" placeholder="e.g. 38">
+      </div>
+      <div class="field">
+        <label>Cooler Condition</label>
+        <select id="f-cooler-cond">
+          <option value="">— Select —</option>
+          <option>Good</option>
+          <option>Fair</option>
+          <option>Poor – Flag</option>
+          <option>Not Checked</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Vehicle #</label>
+        <input type="text" id="f-vehicle" placeholder="TK-01">
+      </div>
+    </div>
+  </div>
+
+  <!-- Dish quantities -->
+  <div class="form-card">
+    <div class="card-header">
+      <h2>Bento Inventory</h2>
+      <p>Enter quantities for each dish at this stop</p>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="dish-table">
+        <thead>
+          <tr>
+            <th style="min-width:180px">Dish</th>
+            <th>Added<br>to Shelf</th>
+            <th>On Shelf<br>(Before)</th>
+            <th>Removed<br>(Expired)</th>
+            <th>Expire<br>Reason</th>
+            <th>After<br>Total</th>
+          </tr>
+        </thead>
+        <tbody id="dish-tbody"></tbody>
+        <tfoot>
+          <tr>
+            <td>TOTALS</td>
+            <td id="total-added">0</td>
+            <td></td>
+            <td id="total-removed">0</td>
+            <td></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- Photos -->
+  <div class="form-card">
+    <div class="card-header">
+      <h2>Cooler Photos</h2>
+      <p>Required — take photo before and after stocking</p>
+    </div>
+    <div class="photo-section">
+      <div>
+        <h4>📷 Before Stocking</h4>
+        <div class="upload-zone">
+          <input type="file" accept="image/*" capture="environment" onchange="previewPhoto(this,'before-previews')">
+          <span class="icon">📸</span>
+          <span>Tap to take photo</span>
+        </div>
+        <div class="photo-previews" id="before-previews"></div>
+      </div>
+      <div>
+        <h4>📷 After Stocking</h4>
+        <div class="upload-zone">
+          <input type="file" accept="image/*" capture="environment" onchange="previewPhoto(this,'after-previews')">
+          <span class="icon">📷</span>
+          <span>Tap to take photo</span>
+        </div>
+        <div class="photo-previews" id="after-previews"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notes -->
+  <div class="form-card">
+    <div class="card-header">
+      <h2>Notes</h2>
+    </div>
+    <div class="field-group" style="grid-template-columns:1fr;padding:16px 20px;">
+      <div class="field">
+        <label>Store Notes / Issues / Feedback</label>
+        <textarea id="f-notes" placeholder="Equipment issues, store requests, expired product details, anything unusual…"></textarea>
+      </div>
+      <div class="field">
+        <label>Received By (Store Staff — print name)</label>
+        <input type="text" id="f-received-by" placeholder="Store employee name">
+      </div>
+    </div>
+  </div>
+
+  <div class="submit-area">
+    <button class="btn-submit" id="submit-btn" onclick="submitForm()">Submit Delivery Log</button>
+    <button class="btn-clear" onclick="clearAll()">Clear Form</button>
+  </div>
+</div>
+
+<!-- Status overlay -->
+<div id="status-overlay">
+  <div class="status-box" id="status-box">
+    <div class="s-icon" id="s-icon">⏳</div>
+    <h3 id="s-title">Submitting…</h3>
+    <p id="s-msg">Sending to Google Sheets</p>
+    <button onclick="closeStatus()" id="s-btn" style="display:none">Done</button>
+  </div>
+</div>
+
+<script>
+// ─── CONFIGURATION ─── Replace this URL after running the Apps Script setup ──
+const GOOGLE_SCRIPT_URL = 'YOUR_GOOGLE_SCRIPT_URL';
+
+const DISHES = ['General Tso Chicken Bento', 'Sesame Chicken Bento', 'Bento Chicken Lo Mein', 'Bento Shrimp Lo Mein', 'Bento Smoked Pork Lo Mein', 'Bento Sweet & Sour Chicken', 'Bourbon Chicken Bento', 'Broccoli Chicken Bento', 'Hot Spicy Chicken Bento', 'Bento Steamed Dumplings', 'Chicken Egg Roll', 'Pork Egg Roll', 'Shrimp Egg Roll'];
+
+const STORES = [{'id': '6006', 'name': 'Store 6006', 'location': 'Kline Village, Harrisburg, PA'}, {'id': '6061', 'name': 'Store 6061', 'location': 'Shippensburg, PA'}, {'id': '6253', 'name': 'Store 6253', 'location': 'New Cumberland, PA'}, {'id': '6331', 'name': 'Store 6331', 'location': 'Mechanicsburg, PA'}, {'id': '6443', 'name': 'Store 6443', 'location': 'Chambersburg, PA'}, {'id': '6542', 'name': 'Store 6542', 'location': 'Carlisle, PA'}, {'id': '6564', 'name': 'Store 6564', 'location': 'Harrisburg (Gayson Rd), PA'}];
+
+// Detect store from URL param (?store=6542)
+const params = new URLSearchParams(window.location.search);
+const storeId = params.get('store') || '';
+const storeData = STORES.find(s => s.id === storeId);
+
+window.addEventListener('DOMContentLoaded', () => {
+  // Set store header
+  if (storeData) {
+    document.getElementById('store-title').textContent = storeData.name + ' · ' + storeData.location;
+    document.getElementById('store-location').textContent = 'Giant Food Stores — Bento Program';
+    document.getElementById('store-header').style.display = 'block';
+    document.title = 'Taipei Kitchen · Delivery · ' + storeData.name;
+  }
+
+  // Hide config banner if URL is set
+  if (GOOGLE_SCRIPT_URL !== 'YOUR_GOOGLE_SCRIPT_URL') {
+    document.getElementById('config-banner').style.display = 'none';
+  }
+
+  // Today's date + current time
+  const now = new Date();
+  document.getElementById('f-date').value = now.toISOString().slice(0,10);
+  const hh = String(now.getHours()).padStart(2,'0');
+  const mm = String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('f-arrive').value = `${hh}:${mm}`;
+
+  buildDishTable();
+});
+
+function buildDishTable() {
+  const tbody = document.getElementById('dish-tbody');
+  DISHES.forEach((dish, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="dish-name">${dish}</td>
+      <td><input type="number" min="0" placeholder="0" class="d-added" oninput="recalc(this)" style="width:56px"></td>
+      <td><input type="number" min="0" placeholder="0" class="d-before" oninput="recalc(this)" style="width:56px"></td>
+      <td><input type="number" min="0" placeholder="0" class="d-removed" oninput="recalc(this)" style="width:56px"></td>
+      <td><input type="text" placeholder="e.g. Expired" style="min-width:100px;font-size:.75rem"></td>
+      <td class="calc-cell d-after">—</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function recalc(el) {
+  const tr = el.closest('tr');
+  const added   = parseInt(tr.querySelector('.d-added').value)||0;
+  const before  = parseInt(tr.querySelector('.d-before').value)||0;
+  const removed = parseInt(tr.querySelector('.d-removed').value)||0;
+  const after   = before + added - removed;
+  const cell = tr.querySelector('.d-after');
+  cell.textContent = after >= 0 ? after : '⚠ Check';
+  cell.style.color = after < 0 ? 'var(--red)' : 'var(--green)';
+
+  let totalAdded = 0, totalRemoved = 0;
+  document.querySelectorAll('.d-added').forEach(i => totalAdded += parseInt(i.value)||0);
+  document.querySelectorAll('.d-removed').forEach(i => totalRemoved += parseInt(i.value)||0);
+  document.getElementById('total-added').textContent = totalAdded;
+  document.getElementById('total-removed').textContent = totalRemoved;
+}
+
+function previewPhoto(input, previewId) {
+  const container = document.getElementById(previewId);
+  container.innerHTML = '';
+  Array.from(input.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      container.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function buildPayload() {
+  const rows = [];
+  const date    = document.getElementById('f-date').value;
+  const driver  = document.getElementById('f-driver').value;
+  const arrive  = document.getElementById('f-arrive').value;
+  const ctTemp  = document.getElementById('f-cooler-temp').value;
+  const ctCond  = document.getElementById('f-cooler-cond').value;
+  const vehicle = document.getElementById('f-vehicle').value;
+  const notes   = document.getElementById('f-notes').value;
+  const rcvd    = document.getElementById('f-received-by').value;
+  const store   = storeData ? storeData.name + ' – ' + storeData.location : storeId;
+
+  document.querySelectorAll('#dish-tbody tr').forEach((tr, i) => {
+    const dish    = DISHES[i];
+    const added   = tr.querySelector('.d-added').value || '0';
+    const before  = tr.querySelector('.d-before').value || '0';
+    const removed = tr.querySelector('.d-removed').value || '0';
+    const reason  = tr.querySelectorAll('input')[3]?.value || '';
+    const after   = tr.querySelector('.d-after').textContent;
+    rows.push({ date, driver, vehicle, store, arrive, coolerTemp: ctTemp, coolerCond: ctCond,
+                dish, added, before, removed, reason, after, notes, receivedBy: rcvd,
+                formType: 'delivery', submittedAt: new Date().toISOString() });
+  });
+  return rows;
+}
+
+async function submitForm() {
+  const driver = document.getElementById('f-driver').value.trim();
+  if (!driver) { alert('Please enter the driver name before submitting.'); return; }
+  if (!storeId) { alert('No store ID in URL. Please scan the correct QR code for your store.'); return; }
+
+  showStatus('⏳', 'Submitting…', 'Sending to Google Sheets…');
+  document.getElementById('submit-btn').disabled = true;
+
+  const payload = buildPayload();
+
+  if (GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_SCRIPT_URL') {
+    // Demo mode — show what would be sent
+    console.log('DEMO MODE — would send:', payload);
+    setTimeout(() => {
+      showStatus('⚠️', 'Demo Mode', 'Form data logged to browser console. Configure Google Script URL to enable live submission.');
+      document.getElementById('s-btn').style.display = 'block';
+      document.getElementById('submit-btn').disabled = false;
+    }, 800);
+    return;
+  }
+
+  try {
+    await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows: payload, formType: 'delivery' })
+    });
+    showStatus('✅', 'Submitted!', `${payload.length} dish rows sent to Google Sheets for ${store}.`);
+    document.getElementById('s-btn').style.display = 'block';
+  } catch(e) {
+    showStatus('❌', 'Error', 'Could not reach Google Sheets. Check internet connection and try again. Data saved locally.');
+    localStorage.setItem('tk_del_backup_' + Date.now(), JSON.stringify(payload));
+    document.getElementById('s-btn').style.display = 'block';
+    document.getElementById('submit-btn').disabled = false;
+  }
+}
+
+function showStatus(icon, title, msg) {
+  document.getElementById('s-icon').textContent = icon;
+  document.getElementById('s-title').textContent = title;
+  document.getElementById('s-msg').textContent = msg;
+  document.getElementById('status-overlay').classList.add('show');
+}
+function closeStatus() {
+  document.getElementById('status-overlay').classList.remove('show');
+}
+
+function clearAll() {
+  if (!confirm('Clear all entries?')) return;
+  document.querySelectorAll('input:not([type=file]), select, textarea').forEach(el => el.value = '');
+  document.querySelectorAll('.d-after').forEach(el => { el.textContent = '—'; el.style.color=''; });
+  document.getElementById('total-added').textContent = '0';
+  document.getElementById('total-removed').textContent = '0';
+  document.getElementById('before-previews').innerHTML = '';
+  document.getElementById('after-previews').innerHTML = '';
+  const now = new Date();
+  document.getElementById('f-date').value = now.toISOString().slice(0,10);
+}
+</script>
+</body>
+</html>
