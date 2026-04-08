@@ -82,7 +82,7 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
 
 <div class="page">
   <div id="config-banner" class="config-banner">
-    ⚙️ <strong>Setup needed:</strong> Replace <code>YOUR_GOOGLE_SCRIPT_URL</code> in the script below with your Apps Script URL.
+    ⚙️ <strong>Setup needed:</strong> Replace <code>https://script.google.com/macros/s/AKfycbzt-b5ZVYoqeYt-1XnOnLFCdGcB1trlNiLbL8wcFagWO6ul5wqS-cJj3wInEdsI5uamyg/exec</code> in the script below with your Apps Script URL.
   </div>
 
   <div id="store-header" style="margin-bottom:16px;display:none;">
@@ -758,7 +758,7 @@ async function submitForm() {
 
   const payload = buildPayload();
 
-  if (GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_SCRIPT_URL') {
+  if (GOOGLE_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbzt-b5ZVYoqeYt-1XnOnLFCdGcB1trlNiLbL8wcFagWO6ul5wqS-cJj3wInEdsI5uamyg/exec') {
     console.log('DEMO MODE:', payload);
     setTimeout(() => {
       showStatus('⚠️', 'Demo Mode', 'Script URL not configured yet. See setup guide.');
