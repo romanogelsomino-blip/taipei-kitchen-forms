@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Taipei Kitchen · Production Log</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --red:#C0392B; --red-dk:#922B21; --red-lt:#FADBD8;
+  --cream:#FDF5E6; --dark:#1C1C1C; --mid:#4A4A4A;
+  --soft:#9B9B9B; --border:#DEDBD6; --yellow:#F5C518;
+  --green:#27AE60; --orange:#E67E22; --surface:#FFFFFF;
+  --row-alt:#F7F4EF;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--dark);min-height:100vh;font-size:15px;}
+
+/* ── TOPBAR ── */
+.topbar{
+  background:var(--dark);padding:0 20px;height:54px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:3px solid var(--red);position:sticky;top:0;z-index:50;
+}
+.brand{font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:1rem;display:flex;align-items:center;gap:8px;}
+.brand span{color:var(--red);}
+.topbar-right{font-family:'DM Mono',monospace;font-size:.72rem;color:#888;}
+
+/* ── PAGE ── */
+.page{max-width:1100px;margin:0 auto;padding:20px 16px 80px;}
+
+/* ── BANNERS ── */
+.haccp-banner{
+  background:#FFF3CD;border:1px solid #FFEAA7;border-left:4px solid var(--yellow);
+  border-radius:5px;padding:11px 16px;font-size:.82rem;color:#7D6608;
+  margin-bottom:16px;display:flex;gap:10px;align-items:flex-start;
+}
+.config-banner{
+  background:#FEF9E7;border:1px solid #F9E79F;border-left:4px solid var(--yellow);
+  border-radius:4px;padding:10px 14px;font-size:.8rem;color:#7D6608;margin-bottom:16px;
+}
+.config-banner code{background:#FEF3C7;padding:1px 5px;border-radius:3px;font-family:'DM Mono',monospace;font-size:.78rem;}
+
+/* ── CARDS ── */
+.form-card{background:var(--surface);border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:20px;}
+.card-header{background:var(--red);color:#fff;padding:16px 20px;}
+.card-header h2{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800;}
+.card-header p{font-family:'DM Mono',monospace;font-size:.72rem;opacity:.8;margin-top:3px;}
+
+/* ── META FIELDS ── */
+.field-group{padding:16px 20px;display:grid;gap:12px;border-bottom:1px solid var(--border);}
+.fg-4{grid-template-columns:repeat(4,1fr);}
+.fg-3{grid-template-columns:repeat(3,1fr);}
+.fg-2{grid-template-columns:repeat(2,1fr);}
+.fg-1{grid-template-columns:1fr;}
+@media(max-width:600px){.fg-4,.fg-3{grid-template-columns:1fr 1fr;} .fg-2{grid-template-columns:1fr;}}
+.field{display:flex;flex-direction:column;gap:4px;}
+.field label{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--soft);letter-spacing:.1em;text-transform:uppercase;}
+.field input,.field select,.field textarea{
+  border:1.5px solid var(--border);border-radius:5px;
+  padding:8px 10px;font-family:'Inter',sans-serif;
+  font-size:.88rem;color:var(--dark);background:var(--row-alt);
+  outline:none;transition:border-color .15s,background .15s;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--red);background:#fff;}
+.field textarea{resize:vertical;min-height:72px;}
+
+/* ── PRODUCTION TABLE ── */
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:.8rem;}
+thead th{
+  background:#2C2C2C;color:#fff;
+  font-family:'DM Mono',monospace;font-size:.64rem;
+  letter-spacing:.07em;text-transform:uppercase;
+  padding:10px 7px;text-align:center;
+  border-right:1px solid rgba(255,255,255,.1);
+  white-space:nowrap;
+}
+thead th:first-child{text-align:left;padding-left:14px;min-width:185px;}
+tbody tr:nth-child(even) td{background:var(--row-alt);}
+tbody tr:hover td{background:#EEE8DF;}
+tbody td{padding:4px 4px;border-bottom:1px solid var(--border);border-right:1px solid #eee;vertical-align:middle;}
+.dish-label{font-size:.82rem;font-weight:500;padding:7px 8px 7px 14px;white-space:nowrap;color:var(--dark);}
+
+/* inputs inside table */
+tbody input[type="number"],
+tbody input[type="time"],
+tbody input[type="text"],
+tbody select,
+tbody textarea{
+  width:100%;border:1.5px solid transparent;background:transparent;
+  font-family:'Inter',sans-serif;font-size:.8rem;color:var(--dark);
+  padding:6px 5px;border-radius:4px;text-align:center;
+  outline:none;transition:border-color .15s,background .15s;
+}
+tbody input:focus,tbody select:focus,tbody textarea:focus{border-color:var(--red);background:#fff;}
+tbody textarea{resize:none;height:34px;text-align:left;line-height:1.4;}
+
+/* auto-calc cells */
+.calc-cell{
+  font-family:'DM Mono',monospace;font-size:.78rem;
+  color:var(--orange);text-align:center;padding:6px 4px;
+  font-weight:500;white-space:nowrap;
+}
+.calc-warn{color:var(--red)!important;}
+.calc-ok{color:var(--green)!important;}
+
+/* QA select */
+select.qa-select option[value="pass"]{color:var(--green);}
+select.qa-select option[value="fail"]{color:var(--red);}
+
+/* tfoot */
+tfoot td{
+  background:var(--dark);color:#fff;
+  font-family:'Syne',sans-serif;font-weight:700;
+  font-size:.82rem;padding:9px 7px;text-align:center;
+}
+tfoot td:first-child{text-align:left;padding-left:14px;}
+
+/* ── NOTES SECTION ── */
+.notes-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 20px;}
+@media(max-width:540px){.notes-grid{grid-template-columns:1fr;}}
+
+/* ── SUBMIT ── */
+.submit-area{padding:20px;display:flex;flex-direction:column;gap:10px;}
+.btn-submit{
+  background:var(--red);color:#fff;
+  font-family:'Syne',sans-serif;font-weight:800;
+  font-size:1rem;letter-spacing:.04em;text-transform:uppercase;
+  border:none;border-radius:7px;padding:14px;
+  cursor:pointer;transition:background .15s;
+}
+.btn-submit:hover{background:var(--red-dk);}
+.btn-submit:disabled{background:#ccc;cursor:not-allowed;}
+.btn-secondary{
+  background:transparent;color:var(--soft);
+  font-family:'Inter',sans-serif;font-size:.82rem;
+  border:1.5px solid var(--border);border-radius:5px;
+  padding:8px;cursor:pointer;transition:border-color .15s,color .15s;
+}
+.btn-secondary:hover{border-color:var(--mid);color:var(--mid);}
+
+/* ── STATUS OVERLAY ── */
+#status-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;}
+#status-overlay.show{display:flex;}
+.status-box{background:#fff;border-radius:12px;padding:32px;text-align:center;max-width:300px;width:90%;}
+.status-box .s-icon{font-size:3rem;margin-bottom:12px;}
+.status-box h3{font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800;margin-bottom:8px;}
+.status-box p{font-size:.85rem;color:var(--mid);}
+.status-box button{margin-top:20px;background:var(--red);color:#fff;border:none;border-radius:6px;padding:10px 24px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;font-size:.9rem;}
+
+/* ── TEMP COLOR HINT ── */
+.temp-hint{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--soft);text-align:center;padding:6px;border-top:1px solid var(--border);}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span>▲</span> Taipei Kitchen</div>
+  <span class="topbar-right">Production Log</span>
+</div>
+
+<div class="page">
+
+  <div id="config-banner" class="config-banner">
+    ⚙️ <strong>Setup needed:</strong> Replace <code>YOUR_GOOGLE_SCRIPT_URL</code> in the script section with your Apps Script deployment URL. See the Setup Guide.
+  </div>
+
+  <div class="haccp-banner">
+    <span style="font-size:1.2rem;flex-shrink:0">🌡️</span>
+    <div>
+      <strong>HACCP Cooling Rule:</strong> Hot foods must cool from 135°F → 70°F within <strong>2 hours</strong>, then 70°F → 41°F within <strong>4 more hours</strong>.
+      Cooling time cells turn <span style="color:var(--red);font-weight:600">red</span> if they exceed these windows.
+      Final temp must be ≤ 41°F before packaging.
+    </div>
+  </div>
+
+  <!-- ── META ── -->
+  <div class="form-card">
+    <div class="card-header">
+      <h2>Production Run Information</h2>
+      <p>Fill out at the start of each production session · all times apply to the full batch</p>
+    </div>
+    <div class="field-group fg-4">
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="f-date" onchange="updateBatchId()">
+      </div>
+      <div class="field">
+        <label>Shift</label>
+        <select id="f-shift">
+          <option value="">— Select —</option>
+          <option>AM (Opening)</option>
+          <option>MID (Day)</option>
+          <option>PM (Evening)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Production Kitchen</label>
+        <select id="f-kitchen">
+          <option value="">— Select —</option>
+          <option>Legacy Park</option>
+          <option>Store 6112</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Head Chef / Supervisor</label>
+        <input type="text" id="f-supervisor" placeholder="Name">
+      </div>
+    </div>
+
+    <!-- Batch ID row -->
+    <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--row-alt);">
+      <div style="display:flex;flex-direction:column;gap:4px;">
+        <label style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--soft);letter-spacing:.1em;text-transform:uppercase;">Batch ID</label>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div id="batch-id-display" style="font-family:'DM Mono',monospace;font-size:1rem;font-weight:500;color:var(--dark);background:#fff;border:1.5px solid var(--border);border-radius:5px;padding:7px 14px;min-width:180px;text-align:center;"></div>
+          <button onclick="changeBatch(-1)" style="background:var(--border);border:none;border-radius:4px;width:28px;height:28px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">−</button>
+          <button onclick="changeBatch(1)"  style="background:var(--red);color:#fff;border:none;border-radius:4px;width:28px;height:28px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;">+</button>
+        </div>
+        <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--soft);">Auto-set from date · + to start a second batch same day</span>
+      </div>
+    </div>
+
+    <!-- Cook times row -->
+    <div style="padding:14px 20px;border-top:1px solid var(--border);">
+      <div style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--soft);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;">🔥 Batch Cook Times — applies to all dishes</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+        <div class="field">
+          <label>Cook Temp °F</label>
+          <input type="number" id="b-cook-temp" min="100" max="500" placeholder="°F">
+        </div>
+        <div class="field">
+          <label>Cook Start</label>
+          <input type="time" id="b-cook-start" onchange="calcBatchCook()">
+        </div>
+        <div class="field">
+          <label>Cook End</label>
+          <input type="time" id="b-cook-end" onchange="calcBatchCook()">
+        </div>
+        <div class="field">
+          <label>Cook Time</label>
+          <div id="b-cook-time" style="font-family:'DM Mono',monospace;font-size:.95rem;font-weight:500;color:var(--orange);background:var(--row-alt);border:1.5px solid var(--border);border-radius:5px;padding:8px 10px;text-align:center;">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cool times row -->
+    <div style="padding:14px 20px;border-top:1px solid var(--border);">
+      <div style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--soft);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;">❄️ Batch Cooling Times — applies to all dishes</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+        <div class="field">
+          <label>Cool Start</label>
+          <input type="time" id="b-cool-start" onchange="calcBatchCool()">
+        </div>
+        <div class="field">
+          <label>Cool End</label>
+          <input type="time" id="b-cool-end" onchange="calcBatchCool()">
+          <label style="display:flex;align-items:center;gap:5px;margin-top:5px;cursor:pointer;">
+            <input type="checkbox" id="b-cool-next-am" onchange="toggleBatchNextAM()" style="cursor:pointer;">
+            <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--soft);">Next Morning</span>
+          </label>
+        </div>
+        <div class="field">
+          <label>Cool Time</label>
+          <div id="b-cool-time" style="font-family:'DM Mono',monospace;font-size:.95rem;font-weight:500;color:var(--orange);background:var(--row-alt);border:1.5px solid var(--border);border-radius:5px;padding:8px 10px;text-align:center;">—</div>
+        </div>
+        <div class="field">
+          <label>Final Batch Temp °F</label>
+          <input type="number" id="b-final-temp" min="30" max="212" placeholder="°F" oninput="flagBatchTemp(this)">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PRODUCTION TABLE ── -->
+  <div class="form-card">
+    <div class="card-header">
+      <h2>Dish-by-Dish Production Log</h2>
+      <p>One row per dish · batch cook and cooling times are set above and apply to all</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width:185px;">Dish</th>
+            <th>Qty<br>Produced</th>
+            <th>Qty<br>Discarded</th>
+            <th style="min-width:130px;">Discard<br>Reason</th>
+            <th>Final<br>Temp °F</th>
+            <th>QA</th>
+            <th style="min-width:160px;">QA / Quality Notes</th>
+            <th>Initials</th>
+          </tr>
+        </thead>
+        <tbody id="prod-tbody"></tbody>
+        <tfoot>
+          <tr>
+            <td>TOTALS</td>
+            <td id="total-produced">0</td>
+            <td id="total-discarded">0</td>
+            <td colspan="5"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="temp-hint">
+      Cooling time color guide — <span style="color:var(--green);font-weight:600">Green</span>: within window &nbsp;|&nbsp;
+      <span style="color:var(--orange);font-weight:600">Orange</span>: approaching limit &nbsp;|&nbsp;
+      <span style="color:var(--red);font-weight:600">Red</span>: HACCP violation — escalate to supervisor
+    </div>
+  </div>
+
+  <!-- ── BATCH NOTES ── -->
+  <div class="form-card">
+    <div class="card-header">
+      <h2>Batch-Level Notes</h2>
+    </div>
+    <div class="notes-grid">
+      <div class="field">
+        <label>General Production Notes</label>
+        <textarea id="f-general-notes" placeholder="Equipment issues, ingredient substitutions, timing delays, supplier problems…"></textarea>
+      </div>
+      <div class="field">
+        <label>Quality Issues / Hold Items</label>
+        <textarea id="f-quality-notes" placeholder="Any items held, rejected, or escalated to supervisor — include dish name and batch number…"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="submit-area">
+    <button class="btn-submit" id="submit-btn" onclick="submitForm()">Submit Production Log</button>
+    <button class="btn-secondary" onclick="clearAll()">Clear Form</button>
+  </div>
+
+</div><!-- end .page -->
+
+<!-- STATUS OVERLAY -->
+<div id="status-overlay">
+  <div class="status-box">
+    <div class="s-icon" id="s-icon">⏳</div>
+    <h3 id="s-title">Submitting…</h3>
+    <p id="s-msg">Sending to Google Sheets</p>
+    <button onclick="closeStatus()" id="s-btn" style="display:none">Done</button>
+  </div>
+</div>
+
+<script>
+// ─── CONFIGURATION ────────────────────────────────────────
+// Replace with your Google Apps Script deployment URL (see Setup Guide)
+const GOOGLE_SCRIPT_URL = 'YOUR_GOOGLE_SCRIPT_URL';
+
+const DISHES = ['General Tso Chicken Bento', 'Sesame Chicken Bento', 'Bento Chicken Lo Mein', 'Bento Shrimp Lo Mein', 'Bento Smoked Pork Lo Mein', 'Bento Sweet & Sour Chicken', 'Bourbon Chicken Bento', 'Broccoli Chicken Bento', 'Hot Spicy Chicken Bento', 'Bento Steamed Dumplings', 'Chicken Egg Roll', 'Pork Egg Roll', 'Shrimp Egg Roll'];
+
+// ─── Build table ──────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+  buildTable();
+  updateBatchId();
+});
+
+// ─── Batch ID management ─────────────────────────────────
+let batchCounter = 1;
+
+function updateBatchId() {
+  const date = document.getElementById('f-date').value || new Date().toISOString().slice(0,10);
+  const formatted = date.replace(/-/g, '/');
+  document.getElementById('batch-id-display').textContent = formatted + '  ·  B' + batchCounter;
+}
+
+function changeBatch(dir) {
+  batchCounter = Math.max(1, batchCounter + dir);
+  updateBatchId();
+}
+
+function calcBatchCook() {
+  const start = document.getElementById('b-cook-start').value;
+  const end   = document.getElementById('b-cook-end').value;
+  const cell  = document.getElementById('b-cook-time');
+  if (start && end) {
+    let diff = timeDiff(start, end);
+    if (diff < 0) diff += 1440;
+    cell.textContent = diff + ' min';
+    cell.style.color = diff > 0 ? 'var(--orange)' : 'var(--red)';
+  }
+}
+
+function calcBatchCool() {
+  const nextAM = document.getElementById('b-cool-next-am').checked;
+  const cell   = document.getElementById('b-cool-time');
+  if (nextAM) { cell.textContent = 'Overnight'; cell.style.color = 'var(--green)'; return; }
+  const start = document.getElementById('b-cool-start').value;
+  const end   = document.getElementById('b-cool-end').value;
+  if (start && end) {
+    let diff = timeDiff(start, end);
+    if (diff < 0) diff += 1440;
+    cell.textContent = diff + ' min';
+    if (diff > 360)      cell.style.color = 'var(--red)';
+    else if (diff > 240) cell.style.color = 'var(--orange)';
+    else                 cell.style.color = 'var(--green)';
+  }
+}
+
+function toggleBatchNextAM() {
+  const checked = document.getElementById('b-cool-next-am').checked;
+  const coolEnd = document.getElementById('b-cool-end');
+  coolEnd.disabled = checked;
+  coolEnd.style.opacity = checked ? '0.3' : '1';
+  if (checked) {
+    document.getElementById('b-cool-time').textContent = 'Overnight';
+    document.getElementById('b-cool-time').style.color = 'var(--green)';
+  } else {
+    document.getElementById('b-cool-time').textContent = '—';
+    document.getElementById('b-cool-time').style.color = 'var(--orange)';
+  }
+}
+
+function flagBatchTemp(el) {
+  const val = parseFloat(el.value);
+  el.style.borderColor = val > 41 ? 'var(--red)' : (val > 0 ? 'var(--green)' : '');
+  el.style.background  = val > 41 ? 'var(--red-lt)' : '';
+}
+
+function buildTable() {
+  const tbody = document.getElementById('prod-tbody');
+  DISHES.forEach((dish, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="dish-label">${dish}</td>
+      <td><input type="number" min="0" placeholder="0" class="qty-produced" oninput="updateTotals()" style="width:60px"></td>
+      <td><input type="number" min="0" placeholder="0" class="qty-discarded" oninput="updateTotals()" style="width:60px"></td>
+      <td><input type="text" placeholder="Reason if any…" style="min-width:120px;text-align:left"></td>
+      <td><input type="number" min="30" max="212" placeholder="°F" class="final-temp" style="width:60px" oninput="flagTemp(this)"></td>
+      <td>
+        <select class="qa-select" style="width:72px">
+          <option value="">—</option>
+          <option value="pass">✓ Pass</option>
+          <option value="fail">✗ Fail</option>
+          <option value="na">N/A</option>
+        </select>
+      </td>
+      <td><textarea placeholder="Notes…" style="min-width:150px;text-align:left"></textarea></td>
+      <td><input type="text" placeholder="Init" style="width:46px"></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ─── Time calculations ────────────────────────────────────
+function timeDiff(t1, t2) {
+  const [h1, m1] = t1.split(':').map(Number);
+  const [h2, m2] = t2.split(':').map(Number);
+  return (h2 * 60 + m2) - (h1 * 60 + m1);
+}
+
+function flagTemp(el) {
+  const val = parseFloat(el.value);
+  el.style.borderColor = val > 41 ? 'var(--red)' : (val > 0 ? 'var(--green)' : '');
+  el.style.background  = val > 41 ? 'var(--red-lt)' : '';
+}
+
+function updateTotals() {
+  let prod = 0, disc = 0;
+  document.querySelectorAll('.qty-produced').forEach(i => prod += parseInt(i.value) || 0);
+  document.querySelectorAll('.qty-discarded').forEach(i => disc += parseInt(i.value) || 0);
+  document.getElementById('total-produced').textContent  = prod;
+  document.getElementById('total-discarded').textContent = disc;
+}
+
+// ─── Build payload ────────────────────────────────────────
+function buildPayload() {
+  const date       = document.getElementById('f-date').value;
+  const shift      = document.getElementById('f-shift').value;
+  const kitchen    = document.getElementById('f-kitchen').value;
+  const supervisor = document.getElementById('f-supervisor').value;
+  const genNotes   = document.getElementById('f-general-notes').value;
+  const qaNotes    = document.getElementById('f-quality-notes').value;
+
+  // Shared batch values
+  const batchId    = document.getElementById('batch-id-display').textContent;
+  const cookTemp   = document.getElementById('b-cook-temp').value;
+  const cookStart  = document.getElementById('b-cook-start').value;
+  const cookEnd    = document.getElementById('b-cook-end').value;
+  const cookTime   = document.getElementById('b-cook-time').textContent.replace(' min','').replace('—','');
+  const coolStart  = document.getElementById('b-cool-start').value;
+  const nextAM     = document.getElementById('b-cool-next-am').checked;
+  const coolEnd    = nextAM ? 'Next Morning' : document.getElementById('b-cool-end').value;
+  const coolTime   = nextAM ? 'Overnight' : document.getElementById('b-cool-time').textContent.replace(' min','').replace('—','');
+  const finalTemp  = document.getElementById('b-final-temp').value;
+
+  const rows = [];
+  document.querySelectorAll('#prod-tbody tr').forEach((tr, i) => {
+    const cells = tr.querySelectorAll('input:not([type=checkbox]), select, textarea');
+    rows.push({
+      date, shift, kitchen, supervisor,
+      dish:          DISHES[i],
+      batch:         batchId,
+      cookTemp:      cookTemp,
+      cookStart:     cookStart,
+      cookEnd:       cookEnd,
+      cookTime:      cookTime,
+      qtyProduced:   cells[0].value || '0',
+      qtyDiscarded:  cells[1].value || '0',
+      discardReason: cells[2].value,
+      coolStart:     coolStart,
+      coolEnd:       coolEnd,
+      coolTime:      coolTime,
+      finalTemp:     finalTemp || cells[3].value,
+      qa:            cells[4].value,
+      qaNotes:       cells[5].value,
+      initials:      cells[6].value,
+      generalNotes:  genNotes,
+      batchQANotes:  qaNotes,
+      formType:      'production',
+      submittedAt:   new Date().toISOString()
+    });
+  });
+  return rows;
+}
+
+// ─── Submit ───────────────────────────────────────────────
+async function submitForm() {
+  const supervisor = document.getElementById('f-supervisor').value.trim();
+  const kitchen    = document.getElementById('f-kitchen').value;
+  if (!supervisor) { alert('Please enter the supervisor name before submitting.'); return; }
+  if (!kitchen)    { alert('Please select the production kitchen before submitting.'); return; }
+
+  showStatus('⏳', 'Submitting…', 'Sending to Google Sheets…');
+  document.getElementById('submit-btn').disabled = true;
+
+  const payload = buildPayload();
+
+  if (GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_SCRIPT_URL') {
+    console.log('DEMO MODE — would send:', payload);
+    setTimeout(() => {
+      showStatus('⚠️', 'Demo Mode', 'Configure GOOGLE_SCRIPT_URL to enable live submission. Data logged to browser console.');
+      document.getElementById('s-btn').style.display = 'block';
+      document.getElementById('submit-btn').disabled = false;
+    }, 700);
+    return;
+  }
+
+  try {
+    await fetch(GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows: payload, formType: 'production' })
+    });
+    showStatus('✅', 'Submitted!', payload.length + ' dish rows saved to Google Sheets.');
+    document.getElementById('s-btn').style.display = 'block';
+  } catch(e) {
+    localStorage.setItem('tk_prod_backup_' + Date.now(), JSON.stringify(payload));
+    showStatus('❌', 'Connection Error', 'Could not reach Google Sheets. Data saved locally — retry when connected.');
+    document.getElementById('s-btn').style.display = 'block';
+    document.getElementById('submit-btn').disabled = false;
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────
+function showStatus(icon, title, msg) {
+  document.getElementById('s-icon').textContent  = icon;
+  document.getElementById('s-title').textContent = title;
+  document.getElementById('s-msg').textContent   = msg;
+  document.getElementById('status-overlay').classList.add('show');
+}
+function closeStatus() {
+  document.getElementById('status-overlay').classList.remove('show');
+}
+function clearAll() {
+  if (!confirm('Clear all entries on this form?')) return;
+  document.querySelectorAll('input:not([type=file]), select, textarea').forEach(el => {
+    if (el.type === 'checkbox') el.checked = false;
+    else el.value = '';
+  });
+  document.querySelectorAll('.final-temp').forEach(el => { el.style.borderColor=''; el.style.background=''; });
+  // Reset batch display fields
+  ['b-cook-time','b-cool-time'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = '—'; el.style.color = 'var(--orange)'; }
+  });
+  document.getElementById('b-final-temp').style.borderColor = '';
+  document.getElementById('b-final-temp').style.background  = '';
+  document.getElementById('b-cool-end').disabled = false;
+  document.getElementById('b-cool-end').style.opacity = '1';
+  batchCounter = 1;
+  updateTotals();
+  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+  updateBatchId();
+}
+
+// Hide config banner if URL is configured
+if (GOOGLE_SCRIPT_URL !== 'YOUR_GOOGLE_SCRIPT_URL') {
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('config-banner').style.display = 'none';
+  });
+}
+</script>
+</body>
+</html>
