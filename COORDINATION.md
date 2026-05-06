@@ -76,7 +76,7 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-006 | Copy current Apps Script from sheet's Apps Script editor into repo at apps_script/Code.gs | @browser | TODO | Paste raw, no edits. After commit, follow-up tasks reassign to @code. |
 | T-007 | Offline-resilient submission: queue in localStorage on network fail, retry on reconnect | @code | TODO | Addresses README Known Issue #1. Branch: task/T-007-offline-queue. |
 | T-008 | Client-side image compression before upload (target <500KB, max 1600px) | @code | TODO | Addresses README Known Issue #3. |
-| T-009 | Driver auth: lightweight PIN or per-driver QR with signed token | @code | NEEDS-OWNER | Addresses README Known Issue #2. Need owner input on Google sign-in vs simple PIN before coding. |
+| T-009 | Driver auth: lightweight PIN or per-driver QR with signed token | @code | NEEDS-OWNER | Addresses README Known Issue #2. Proposal ready at docs/T-009-AUTH-PROPOSAL.md comparing 3 approaches. Owner decision required before V2 implementation. |
 | T-010 | Move store list out of HTML into a JSON file fetched at form load | @code | TODO | Addresses README Known Issue #4. New file: data/stores.json. |
 | T-011 | Add new-store onboarding doc | @code | TODO | docs/ADD_A_STORE.md. Depends on T-010. |
 | T-012 | Verify HACCP cooling-rule logic against current FSIS / FDA Food Code 2022 guidance | @browser | TODO | Output: comment block under T-012 below. |
