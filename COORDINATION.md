@@ -1,5 +1,9 @@
 # COORDINATION — Taipei Kitchen Bento Ops System
 
+> ⚠️ **DEADLINE — per docs/SCOPE.md:** Working prototype within 72 hours of payment. Full system live within **10 BUSINESS DAYS** of payment. Acceptance window 14 calendar days post-go-live.
+>
+> **Read docs/SCOPE.md FIRST every session.** Both agents must reconcile this task board against SCOPE.md §1–7 at the start of every working session and add tasks for any scope item without coverage before doing other work.
+
 This file is the single source of truth for who is doing what on this project. Two AI agents collaborate here:
 
 - Browser Claude (@browser) — runs in the Chrome extension. Has access to Google Sheets, Google Docs, Gmail, App Store Connect, Play Console, and the deployed forms in a real browser. Cannot run code locally or push commits via CLI.
@@ -89,6 +93,16 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-019 | End-to-end smoke test on staging after each merge: scan QR → fill form on phone-sized viewport → verify row in sandbox sheet → verify photo in Drive | @browser | TODO | Run after every PR merge before promotion to live. |
 | T-020 | Regression pass before promoting staging to main: HACCP flag still trips, all 7 stores load, weak-network simulation (DevTools Slow 3G), photo upload under 500KB | @browser | TODO | Blocks the final merge to main. |
 | T-021 | UAT with Romano on one pilot location before rolling to all 7 stores | @browser | NEEDS-OWNER | Owner picks the pilot store and schedules with Romano. |
+| T-022 | Repair broken sheet tabs (Store Lookup, Production Timeline, Delivery Summary, Production Summary, Weekly Snapshot, Waste Tracker) so each populates correctly when filtered | @code | TODO | SCOPE.md §5. Apps Script + formula fixes. Pair with @browser to verify in the live sheet. |
+| T-023 | Split Waste Tracker by store so per-location patterns can be analyzed | @code | TODO | SCOPE.md §5. Likely a pivot or a per-store tab driven by Apps Script. |
+| T-024 | Build Consolidated Dashboard tab in master sheet — production, waste, delivery (sales when available) across all locations, auto-refreshed | @code | TODO | SCOPE.md §6. New sheet tab + Apps Script triggers for refresh. |
+| T-025 | Build daily reconciliation view: produced vs delivered vs sold per dish per day to surface inventory loss | @code | TODO | SCOPE.md §6. Depends on T-024 layout. |
+| T-026 | Build weekly food-safety summary per store, regulator/corporate-ready | @code | TODO | SCOPE.md §6. PDF or printable view. |
+| T-027 | Lock submission timestamps at moment of entry (regulatory requirement) | @code | TODO | SCOPE.md §3. Capture client time + server time on submit; store both. |
+| T-028 | Cleanup of existing production log: dedupe + remove orphaned data | @browser | TODO | SCOPE.md §1. Coordinate with owner before deletions; archive first. |
+| T-029 | Reorganize Drive photo folder by store and date for easy Giant corporate sharing | @browser | TODO | SCOPE.md §2. Owner approval required for permission changes. |
+| T-030 | Update README with QR code system, deployment workflow, and safe-edit guide | @code | TODO | SCOPE.md §7. Should reference SCOPE.md and COORDINATION.md. |
+| T-031 | Written handoff doc: daily ops procedures + how to share Drive photo link with Giant corporate (Microsoft Teams compatible) | @code | TODO | SCOPE.md §7. Output: docs/HANDOFF.md. |
 
 ---
 
