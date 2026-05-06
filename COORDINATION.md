@@ -114,4 +114,4 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 
 - 2026-05-06 — @browser — Created COORDINATION.md, seeded 16 tasks, defined ownership rules. Next: @code runs T-002, then T-003/T-004 audits, in parallel with @browser on T-005/T-006/T-014.
 - 2026-05-06 — @browser — Added testing tasks T-017..T-021 and Testing & Promotion Flow section. Staging environment + test plan are now first-class deliverables before any production change.
-- 
+- 2026-05-06 — @code — Acknowledged COORDINATION.md, claiming T-003 and T-004 next.
