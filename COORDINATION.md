@@ -82,7 +82,7 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-012 | Verify HACCP cooling-rule logic against current FSIS / FDA Food Code 2022 guidance | @browser | TODO | Output: comment block under T-012 below. |
 | T-013 | Inventory App Store Connect / Play Console for any Taipei Kitchen app entry | @browser | NEEDS-OWNER | Open ASC tab currently shows PokerPro app; confirm with owner whether a Taipei Kitchen mobile app is in scope at all. |
 | T-014 | Draft kickoff email to Romano confirming payment received and timeline | @browser | TODO | Save as Gmail draft only. Do not send. Owner sends. |
-| T-015 | Define v1 milestone scope and acceptance criteria | @code | TODO | Output: docs/MILESTONE_V1.md mirroring proposal Scope of Work. |
+| T-015 | Define v1 milestone scope and acceptance criteria | @code | IN-PROGRESS | Output: docs/MILESTONE_V1.md mirroring proposal Scope of Work. |
 | T-016 | Mirror this board into GitHub Issues (one issue per task, labels owner:browser / owner:code) | @code | TODO | After this file is merged. |
 | T-017 | Set up staging: duplicate GitHub Pages branch (gh-pages-staging) + duplicate sandbox sheet TaipeiKitchen_BentoOps_v2_STAGING | @code | TODO | Forms must respect a STAGING flag that points at the sandbox sheet's webhook. Owner approval required to create the duplicate sheet (@browser will copy the live sheet on owner OK). |
 | T-018 | Write docs/TEST_PLAN.md — acceptance checklist per feature (offline queue, image compression, store JSON, driver auth, HACCP flag) | @code | TODO | One section per feature with explicit pass/fail criteria. Source of truth for T-019/T-020/T-021. |
