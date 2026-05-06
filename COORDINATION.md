@@ -101,7 +101,7 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-027 | Lock submission timestamps at moment of entry (regulatory requirement) | @code | TODO | SCOPE.md §3. Capture client time + server time on submit; store both. |
 | T-028 | Cleanup of existing production log: dedupe + remove orphaned data | @browser | TODO | SCOPE.md §1. Coordinate with owner before deletions; archive first. |
 | T-029 | Reorganize Drive photo folder by store and date for easy Giant corporate sharing | @browser | TODO | SCOPE.md §2. Owner approval required for permission changes. |
-| T-030 | Update README with QR code system, deployment workflow, and safe-edit guide | @code | TODO | SCOPE.md §7. Should reference SCOPE.md and COORDINATION.md. |
+| T-030 | Update README with QR code system, deployment workflow, and safe-edit guide | @code | IN-PROGRESS | SCOPE.md §7. Should reference SCOPE.md and COORDINATION.md. |
 | T-031 | Written handoff doc: daily ops procedures + how to share Drive photo link with Giant corporate (Microsoft Teams compatible) | @code | TODO | SCOPE.md §7. Output: docs/HANDOFF.md. |
 
 ---
