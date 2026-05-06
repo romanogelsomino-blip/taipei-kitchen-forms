@@ -71,7 +71,7 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-001 | Establish this coordination file in repo | @browser | DONE | Initial seed. |
 | T-002 | Read & confirm coordination protocol; add @code's acknowledgement line to Handoff Log | @code | TODO | First action on next Claude Code run. |
 | T-003 | Audit taipei_production_form3.html — fields, validations, submission endpoint | @code | TODO | Output: docs/PRODUCTION_FORM_AUDIT.md. |
-| T-004 | Audit taipei_delivery_form3.html — same | @code | TODO | Output: docs/DELIVERY_FORM_AUDIT.md. |
+| T-004 | Audit taipei_delivery_form3.html — same | @code | IN-PROGRESS | Output: docs/DELIVERY_FORM_AUDIT.md. |
 | T-005 | Audit master sheet TaipeiKitchen_BentoOps_v2 — list all 10 tabs, headers, write vs read | @browser | TODO | Tabs: Delivery Log - Live, Store Lookup, Production Log - Live, Production Timeline, Delivery Summary, Production Summary, Weekly Snapshot, Waste Tracker, Editing Guide, Apps Script Code. Output appended below under Sheet Audit. |
 | T-006 | Copy current Apps Script from sheet's Apps Script editor into repo at apps_script/Code.gs | @browser | TODO | Paste raw, no edits. After commit, follow-up tasks reassign to @code. |
 | T-007 | Offline-resilient submission: queue in localStorage on network fail, retry on reconnect | @code | TODO | Addresses README Known Issue #1. Branch: task/T-007-offline-queue. |
