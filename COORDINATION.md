@@ -77,7 +77,7 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-007 | Offline-resilient submission: queue in localStorage on network fail, retry on reconnect | @code | TODO | Addresses README Known Issue #1. Branch: task/T-007-offline-queue. |
 | T-008 | Client-side image compression before upload (target <500KB, max 1600px) | @code | TODO | Addresses README Known Issue #3. |
 | T-009 | Driver auth: lightweight PIN or per-driver QR with signed token | @code | NEEDS-OWNER | Addresses README Known Issue #2. Need owner input on Google sign-in vs simple PIN before coding. |
-| T-010 | Move store list out of HTML into a JSON file fetched at form load | @code | TODO | Addresses README Known Issue #4. New file: data/stores.json. |
+| T-010 | Move store list out of HTML into a JSON file fetched at form load | @code | IN-PROGRESS | Addresses README Known Issue #4. New file: data/stores.json. |
 | T-011 | Add new-store onboarding doc | @code | TODO | docs/ADD_A_STORE.md. Depends on T-010. |
 | T-012 | Verify HACCP cooling-rule logic against current FSIS / FDA Food Code 2022 guidance | @browser | TODO | Output: comment block under T-012 below. |
 | T-013 | Inventory App Store Connect / Play Console for any Taipei Kitchen app entry | @browser | NEEDS-OWNER | Open ASC tab currently shows PokerPro app; confirm with owner whether a Taipei Kitchen mobile app is in scope at all. |
