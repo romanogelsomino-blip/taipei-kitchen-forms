@@ -146,6 +146,18 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
           <div class="drive-link" id="link-before"></div>
         </div>
       </div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+        <div class="field">
+          <label>Case Fill Level Before Stocking</label>
+          <select id="f-case-prefill">
+            <option value="">— Select fill level —</option>
+            <option value="0-25%">0-25% (Nearly Empty)</option>
+            <option value="25-50%">25-50% (Low)</option>
+            <option value="50-75%">50-75% (Moderate)</option>
+            <option value="75-100%">75-100% (Nearly Full)</option>
+          </select>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -659,6 +671,7 @@ function buildPayload() {
   const ctTemp    = document.getElementById('f-cooler-temp').value;
   const ctCond    = document.getElementById('f-cooler-cond').value;
   const arrTemp   = document.getElementById('f-arrival-temp').value;
+  const casePrefill = document.getElementById('f-case-prefill').value;
   const notes  = document.getElementById('f-notes').value;
   const rcvd   = document.getElementById('f-received-by').value;
   const store  = storeData ? storeData.name + ' – ' + storeData.location : storeId;
@@ -707,6 +720,7 @@ function buildPayload() {
       date, driver, store, storeId: storeIdClean, arrive,
       arrivalProductTemp: arrTemp,
       coolerTemp: ctTemp, coolerCond: ctCond,
+      casePrefillPercent: casePrefill,
       dish, added, before, removed, reason, after,
       notes, receivedBy: rcvd,
       transitDepartTemp:       transit.departTemp,
