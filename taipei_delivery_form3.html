@@ -478,7 +478,16 @@ function buildDishTable() {
       <td><input type="number" min="0" placeholder="0" class="d-added" oninput="recalc(this)" style="width:56px"></td>
       <td><input type="number" min="0" placeholder="0" class="d-before" oninput="recalc(this)" style="width:56px"></td>
       <td><input type="number" min="0" placeholder="0" class="d-removed" oninput="recalc(this)" style="width:56px"></td>
-      <td><input type="text" placeholder="e.g. Expired" style="min-width:100px;font-size:.75rem"></td>
+      <td>
+        <select class="expire-reason" onchange="handleExpireReasonChange(this)" style="min-width:100px;font-size:.75rem;width:100%">
+          <option value="">—</option>
+          <option value="Out of date">Out of date</option>
+          <option value="Damaged">Damaged</option>
+          <option value="Quality issue">Quality issue</option>
+          <option value="__other__">Other (specify)</option>
+        </select>
+        <input type="text" class="expire-reason-custom" placeholder="Specify reason" style="display:none;margin-top:4px;width:100%;font-size:.75rem">
+      </td>
       <td class="calc-cell d-after">—</td>
     `;
     tbody.appendChild(tr);
@@ -499,6 +508,18 @@ function recalc(el) {
   document.querySelectorAll('.d-removed').forEach(i => tr2 += parseInt(i.value)||0);
   document.getElementById('total-added').textContent   = ta;
   document.getElementById('total-removed').textContent = tr2;
+}
+
+function handleExpireReasonChange(select) {
+  const td = select.closest('td');
+  const customInput = td.querySelector('.expire-reason-custom');
+  if (select.value === '__other__') {
+    customInput.style.display = 'block';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
 }
 
 // ── Photo handling ─────────────────────────────────────────
@@ -701,7 +722,9 @@ function buildPayload() {
     const added   = tr.querySelector('.d-added').value   || '0';
     const before  = tr.querySelector('.d-before').value  || '0';
     const removed = tr.querySelector('.d-removed').value || '0';
-    const reason  = tr.querySelectorAll('input')[3]?.value || '';
+    const reasonSelect = tr.querySelector('.expire-reason');
+    const reasonCustom = tr.querySelector('.expire-reason-custom');
+    const reason = reasonSelect.value === '__other__' ? reasonCustom.value.trim() : reasonSelect.value;
     const after   = tr.querySelector('.d-after').textContent;
     rows.push({
       date, driver, store, storeId: storeIdClean, arrive,
