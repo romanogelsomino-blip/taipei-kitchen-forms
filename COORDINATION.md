@@ -13,6 +13,10 @@ The human owner (Leander) approves merges to main, sensitive permission changes,
 
 ---
 
+## Client Visibility Rule
+
+**Romano (the client) does not see any changes until the full 72-hour prototype is complete.** All in-progress work lives on the staging sheet (TaipeiKitchen_BentoOps_v2_STAGING), the staging GitHub Pages branch, and feature branches in this repo. No promotion to live, no client-facing demo, no preview links shared with Romano until every task scoped into the 72-hour prototype is REVIEW or DONE. Mid-flight client requests (e.g. T-047) are folded into the prototype delivery rather than being shipped piecemeal.
+
 ## How we avoid stepping on each other
 
 ### 1. The task board below is the lock
@@ -118,7 +122,7 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-044 | F-13 P1: Photo upload status feedback + retry queue + verify Drive link writes back to sheet | @code | TODO | FRICTION_AUDIT.md F-13. Photo Link columns currently blank in live data. |
 | T-045 | F-14 P1: Trip Summary final screen on delivery form with single confirm tap | @code | TODO | FRICTION_AUDIT.md F-14. Replaces 13-row visit confusion. |
 | T-046 | F-15 P1: Disable Submit button until required fields filled (no end-of-form alerts) | @code | TODO | FRICTION_AUDIT.md F-15. |
-| T-047 | Pre-load case fill-level dropdown on delivery form, tied to the pre-load photo upload (options: 0-25%, 25-50%, 50-75%, 75-100%) | @code | TODO | Client request from Romano via email 2026-05-07 3:39 PM. New field captures case quantity prior to filling with the day's delivery. Bound to existing pre-load photo step. Persist to Delivery Log - Live as a new column (proposed: Case Pre-Fill %). Update apps_script doPost append accordingly. |
+| T-047 | Pre-load case fill-level dropdown on delivery form, tied to the pre-load photo upload (options: 0-25%, 25-50%, 50-75%, 75-100%) | @code | TODO | Client request from Romano. Confirmed verbally with owner; Romano emailed it 2026-05-07 3:39 PM as paper-trail only — NO REPLY NEEDED. New field captures case quantity prior to filling with the day's delivery. Bound to existing pre-load photo step. Persist to Delivery Log - Live as a new column (proposed: Case Pre-Fill %). Update apps_script doPost append accordingly. Folded into 72-hour prototype scope per Client Visibility Rule. |
 
 ---
 
@@ -152,3 +156,4 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
   - 2026-05-07 - @browser - Pivot moment. Did a friction & UX audit against live data (Delivery Log 499 rows, Production Log 403 rows). Found Owen vs Owen-with-trailing-space driver split, OOD vs Out of date, anna/Anna/lucia/Lucia supervisor splits, empty Initials/QA/Discard fields across 403 production rows, blank Photo Link columns across all sampled delivery rows. Committed docs/FRICTION_AUDIT.md (P0/P1/P2 fix list F-01..F-15) and added tasks T-032..T-046 mapped to those fixes. Reclassified T-009 (driver auth) as DEFERRED to v2 - F-01 driver dropdown handles the real-world need without QR cards. @code: pull latest, read FRICTION_AUDIT.md, start P0 batch (T-032, T-033, T-036, T-040, T-042) in parallel feature branches.
 - 2026-05-06 — @code — Pulled latest. Reading docs/SCOPE.md now to reconcile task board against §1–7. Will prioritize work per deadline (10 business days).
 - 2026-05-07 — @browser — Resumed session after browser crash. Created staging sheet copy TaipeiKitchen_BentoOps_v2_STAGING (https://docs.google.com/spreadsheets/d/1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E/edit) per T-017; flipped T-017 to IN-PROGRESS pending @code's gh-pages-staging branch + STAGING-flag wiring. Logged Romano's 2026-05-07 email request as new task T-047 (case pre-fill % dropdown on delivery form). @code: when T-017 wiring is done, point form STAGING flag at this sheet ID. T-006 and T-042 will resume on the staging sheet next.
+- 2026-05-07 — @browser — Added Client Visibility Rule (no client-facing changes until full 72-hour prototype is complete). Updated T-047 notes: Romano's email is paper-trail only, no reply needed; folded into prototype scope. Next: @code resumes T-017 wiring (gh-pages-staging branch + STAGING flag), then prototype-scope tasks proceed on staging sheet.
