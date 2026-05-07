@@ -206,7 +206,10 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
       </div>
       <div class="field">
         <label>Head Chef / Supervisor</label>
-        <input type="text" id="f-supervisor" placeholder="Name">
+        <select id="f-supervisor" onchange="handleSupervisorChange()">
+          <option value="">— Select Supervisor —</option>
+        </select>
+        <input type="text" id="f-supervisor-custom" placeholder="Enter supervisor name" style="display:none;margin-top:8px;">
       </div>
     </div>
 
@@ -389,6 +392,63 @@ async function loadStoresData() {
   }
 }
 
+// Load supervisors from JSON
+let SUPERVISORS = [];
+async function loadSupervisors() {
+  try {
+    const response = await fetch('data/supervisors.json');
+    const data = await response.json();
+    SUPERVISORS = data.supervisors || [];
+    populateSupervisorDropdown();
+  } catch (e) {
+    console.error('Failed to load supervisors:', e);
+    // Fallback to hardcoded list
+    SUPERVISORS = ["Anna", "Lucia", "Jiang", "Guy"];
+    populateSupervisorDropdown();
+  }
+}
+
+function populateSupervisorDropdown() {
+  const select = document.getElementById('f-supervisor');
+  // Clear existing options except first
+  while (select.options.length > 1) {
+    select.remove(1);
+  }
+  // Add supervisors
+  SUPERVISORS.forEach(supervisor => {
+    const option = document.createElement('option');
+    option.value = supervisor;
+    option.textContent = supervisor;
+    select.appendChild(option);
+  });
+  // Add "Other (specify)" option
+  const otherOption = document.createElement('option');
+  otherOption.value = '__custom__';
+  otherOption.textContent = '+ Add new supervisor';
+  select.appendChild(otherOption);
+}
+
+function handleSupervisorChange() {
+  const select = document.getElementById('f-supervisor');
+  const customInput = document.getElementById('f-supervisor-custom');
+  if (select.value === '__custom__') {
+    customInput.style.display = 'block';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
+}
+
+function getSupervisorValue() {
+  const select = document.getElementById('f-supervisor');
+  const customInput = document.getElementById('f-supervisor-custom');
+  if (select.value === '__custom__') {
+    return customInput.value.trim();
+  }
+  return select.value;
+}
+
 // ─── Build table ──────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   // Load dishes from JSON (if available)
@@ -404,6 +464,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
   buildTable();
   updateBatchId();
+
+  // Load supervisor dropdown
+  loadSupervisors();
 });
 
 // ─── Batch ID management ─────────────────────────────────
@@ -519,7 +582,7 @@ function buildPayload() {
   const date       = document.getElementById('f-date').value;
   const shift      = document.getElementById('f-shift').value;
   const kitchen    = document.getElementById('f-kitchen').value;
-  const supervisor = document.getElementById('f-supervisor').value;
+  const supervisor = getSupervisorValue();
   const genNotes   = document.getElementById('f-general-notes').value;
   const qaNotes    = document.getElementById('f-quality-notes').value;
 
@@ -567,9 +630,9 @@ function buildPayload() {
 
 // ─── Submit ───────────────────────────────────────────────
 async function submitForm() {
-  const supervisor = document.getElementById('f-supervisor').value.trim();
+  const supervisor = getSupervisorValue();
   const kitchen    = document.getElementById('f-kitchen').value;
-  if (!supervisor) { alert('Please enter the supervisor name before submitting.'); return; }
+  if (!supervisor) { alert('Please select a supervisor before submitting.'); return; }
   if (!kitchen)    { alert('Please select the production kitchen before submitting.'); return; }
 
   showStatus('⏳', 'Submitting…', 'Sending to Google Sheets…');
