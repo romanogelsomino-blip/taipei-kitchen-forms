@@ -80,7 +80,7 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-002 | Read & confirm coordination protocol; add @code's acknowledgement line to Handoff Log | @code | TODO | First action on next Claude Code run. |
 | T-003 | Audit taipei_production_form3.html — fields, validations, submission endpoint | @code | TODO | Output: docs/PRODUCTION_FORM_AUDIT.md. |
 | T-004 | Audit taipei_delivery_form3.html — same | @code | TODO | Output: docs/DELIVERY_FORM_AUDIT.md. |
-| T-005 | Audit master sheet TaipeiKitchen_BentoOps_v2 — list all 10 tabs, headers, write vs read | @browser | TODO | Tabs: Delivery Log - Live, Store Lookup, Production Log - Live, Production Timeline, Delivery Summary, Production Summary, Weekly Snapshot, Waste Tracker, Editing Guide, Apps Script Code. Output appended below under Sheet Audit. |
+| T-005 | Audit master sheet TaipeiKitchen_BentoOps_v2 — list all 10 tabs, headers, write vs read | @browser | REVIEW | Done 2026-05-08. Live tabs (Delivery Log – Live: 2,054 rows / 44 cols A–AR; Production Log – Live: 429 rows / 23 cols A–W) deeply audited with full column lists in `## Sheet Audit` below. Store Lookup + Production Timeline structurally observed (filter-driven, currently empty/broken — SCOPE §5 / T-022). Delivery Summary, Production Summary, Weekly Snapshot, Waste Tracker queued for re-walk on staging sheet during T-042/T-043. Reviewer: @code (use this for T-049 doGet schema). |
 | T-006 | Copy current Apps Script from sheet's Apps Script editor into repo at apps_script/Code.gs | @browser | TODO | Paste raw, no edits. After commit, follow-up tasks reassign to @code. |
 | T-007 | Offline-resilient submission: queue in localStorage on network fail, retry on reconnect | @code | TODO | Addresses README Known Issue #1. Branch: task/T-007-offline-queue. |
 | T-008 | Client-side image compression before upload (target <500KB, max 1600px) | @code | TODO | Addresses README Known Issue #3. |
@@ -148,7 +148,122 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 ---
 
 ## Sheet Audit
-(populated by T-005)
+
+> **T-005 — completed 2026-05-08 by @browser.** Read directly from master sheet `TaipeiKitchen_BentoOps_v2` (id `1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI`) in Comment-only session. Live tabs deeply audited (headers + last data row); summary/lookup tabs structurally confirmed (filter-driven views, currently empty or broken per SCOPE §5 / T-022). Will be re-walked under edit access during T-042/T-043 work on the staging sheet.
+
+### Tabs at a glance
+
+| # | Tab name | Type | Last data row | Cols | Status | Feeds |
+|---|---|---|---|---|---|---|
+| 1 | Delivery Log – Live | Live data (form-written) | 2056 (≈2,054 rows) | 44 (A–AR) | ✅ Working — actively receiving submissions | Source for dashboard delivery panels (T-051/T-053/T-054) |
+| 2 | 🏪 Store Lookup | Filter-driven view | (empty results) | ~10 visible | ❌ Filter formula not returning rows for default Store 6006 / 04/15–04/17 range. SCOPE §5 / T-022. | Once repaired, becomes a per-store drilldown (replaced by web dashboard T-052) |
+| 3 | Production Log – Live | Live data (form-written) | 431 (≈429 rows) | 23 (A–W) | ✅ Working — actively receiving submissions. Last entry 2026-05-08T17:20Z. | Source for dashboard production panels (T-051/T-053) |
+| 4 | 📅 Production Timeline | Filter-driven view | (empty) | ~10 visible | ❌ Empty. Filter inputs at rows 3–4, headers at row 6, no result rows. SCOPE §5 / T-022. | Replaced by web dashboard T-052 |
+| 5 | Delivery Summary | Summary view | (not yet inspected) | — | ⚠ Pending re-walk on staging | Replaced by web dashboard T-051/T-053 |
+| 6 | Production Summary | Summary view | (not yet inspected) | — | ⚠ Pending re-walk on staging | Replaced by web dashboard T-051/T-053 |
+| 7 | Weekly Snapshot | Summary view | (not yet inspected) | — | ⚠ Pending re-walk on staging | Replaced by web dashboard T-054 (weekly food-safety) |
+| 8 | Waste Tracker | Live data + summary | (not yet inspected) | — | ⚠ Pending re-walk; SCOPE §5 / T-023 splits this by store | Source for dashboard waste panel (T-052) |
+| 9 | ✏ Editing Guide | Documentation | — | — | ℹ Static doc | None — dashboard does not consume |
+| 10 | ⚙ Apps Script Code | Apps Script paste | — | — | ℹ Code-paste tab; @code authoritative copy lives in repo `apps_script/Code.gs` (T-006) | Source for T-049 (`doGet` endpoint) |
+
+### Delivery Log – Live — full column list (A–AR, 44 columns)
+
+```
+A   Submitted At
+B   Date
+C   Driver
+D   Strore #            <- TYPO: "Store #" misspelled in production sheet
+E   Arrival time
+F   Arrival Temp
+G   Cooler Temp °F
+H   Cooler Condition
+I   Dish
+J   Qty Added
+K   On Shelf Before
+L   Qty Removed (Expired)   <- header literally contains a newline inside quotes
+M   Expire Reason
+N   Shelf Total After
+O   Store Notes
+P   Received By
+Q   Before Photo Link
+R   After Photo Link
+S   Departure Product Temp
+T   Transit Depart Time
+U   Tranist Depart store    <- TYPO: "Transit" misspelled
+V   Transit Depart Location
+W   Check (1) time
+X   Check (1) Temp
+Y   Check (1) Location
+Z   Check (2) Time
+AA  Check (2) Temp
+AB  Check (2) Location
+AC  Violation Check
+AD  Time
+AE  Temp
+AF  Correction Action Time
+AG  recovery location
+AH  recovered time
+AI  recovered temp
+AJ  Disacard Time           <- TYPO: "Discard Time" misspelled
+AK  Discard QTY
+AL  Discard Items
+AM  Reason                  <- ambiguous header (collides with column M Expire Reason and AC Violation Check context)
+AN  Supervisor Notified
+AO  Superviosr Name         <- TYPO: "Supervisor Name" misspelled
+AP  Time                    <- duplicate header (also AD)
+AQ  Incident Notes
+AR  Time Above Safe Temp
+```
+
+**Header issues to address (queued for T-049 `doGet` to normalize, and for the staging sheet repair):**
+- 4 typos in production headers: `Strore #` (D), `Tranist Depart store` (U), `Disacard Time` (AJ), `Superviosr Name` (AO).
+- Duplicate `Time` headers (AD and AP) and ambiguous `Reason` (M and AM).
+- `Qty Removed (Expired)` (L) is stored with a literal newline inside quotes — will break naive CSV/JSON consumers.
+- `Before Photo Link` (Q) and `After Photo Link` (R) are blank across sampled rows per FRICTION_AUDIT F-13.
+
+T-049 (`doGet`) should map all 44 columns to camelCase JSON keys with corrected spellings (e.g. `storeNumber`, `transitDepartStore`, `discardTime`, `supervisorName`) so the dashboard never has to touch the typos.
+
+### Production Log – Live — full column list (A–W, 23 columns)
+
+```
+A   Submitted At
+B   Date
+C   Shift
+D   Kitchen
+E   Supervisor
+F   Dish
+G   Batch #
+H   Cook Temp °F
+I   Cook Start
+J   Cook End
+K   Cook Time (min)
+L   Qty Produced
+M   Qty Discarded
+N   Discard Reason
+O   Cool Start
+P   Cool End
+Q   Cool Time (min)
+R   Final Temp °F
+S   QA Result
+T   QA Notes
+U   Initials
+V   General Notes
+W   Batch QA Notes
+```
+
+**Findings:**
+- 429 production rows (up from FRICTION_AUDIT's 403 sampled — actively receiving).
+- Last entry observed: 2026-05-08T17:20:19.998Z, Lucia / Store 6112 / Shrimp Egg Roll. Note **Store 6112 is NOT on the canonical 7-store list** (6006, 6061, 6253, 6331, 6443, 6542, 6564) — flagged in FRICTION_AUDIT F-06.
+- Initials (U), QA Result (S), Discard Reason (N) reported as frequently empty in FRICTION_AUDIT — confirmed by glance at sample rows. T-040 (default QA Result to Pass) and T-038 (auto-derive Initials) address these.
+
+### Notes for @code
+
+1. **Authoritative data lives in tabs 1 and 3 only.** Everything else is either documentation (Editing Guide, Apps Script Code) or derived/broken summary tabs. The web dashboard (T-048+) reads from tabs 1 and 3 (and 8 once Waste Tracker is repaired) via `doGet` (T-049); it does NOT read from the broken summary tabs.
+2. **Header normalization is T-049's job.** Don't propagate typos into JSON keys. Map `Strore #` → `storeNumber`, `Tranist Depart store` → `transitDepartStoreId`, `Disacard Time` → `discardTime`, `Superviosr Name` → `supervisorName`. The dashboard then presents clean labels.
+3. **Duplicates need column-position keys.** The two `Time` headers (AD violation-time, AP supervisor-notification-time) must be disambiguated by position: `violationTime` vs `supervisorNotifiedTime`. Same for `Reason` (M expireReason vs AM violationReason).
+4. **Last-data-row detection.** Use `SpreadsheetApp.getActiveSheet().getLastRow()` not `Cmd+End`-equivalent — formatted-but-empty cells extend the range past actual data (saw Z1000/Z909 in canvas but real data ends earlier).
+5. **Comment-only access on this session.** T-005 was read-only. T-042/T-043/T-028 will run on the staging sheet `1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E` where @browser has edit rights. Production master sheet stays untouched until staging proves out.
+
 
 ## Apps Script Snapshot
 (populated by T-006 — paste current Code.gs verbatim below this line)
@@ -188,6 +303,8 @@ Proposed bundles for remaining @code TODOs:
 
 
 - 2026-05-08 — @browser — Owner pivot on SCOPE.md §6: replaced sheet-tab dashboard with a beautiful web dashboard, viewable on localhost during dev and updating in real-time as drivers submit. Cancelled T-024/T-025/T-026 (sheet-tab versions). Added T-048 (shell) + T-049 (doGet JSON endpoint) + T-050 (@browser paste & deploy Web App) + T-051 (Overview) + T-052 (Filters & drilldowns by driver/store/dish/arrival-time, Month filter) + T-053 (Daily Reconciliation) + T-054 (Weekly Food-Safety) + T-055 (10s auto-refresh polling) + T-056 (forecasts STRETCH, ship if time). New @code bundle: `task/web-dashboard`. @browser inserts T-050 after T-006 in own queue. No SCOPE CHANGE block — web dashboard fits inside §6 'single dashboard pulling sales, production, waste, and delivery data, refreshed automatically and viewable in one place'. Forecasts (T-056) are the only stretch item beyond literal §6 text.
+
+- 2026-05-08 — @browser — T-005 sheet audit done (REVIEW). Delivery Log – Live = 44 cols / 2,054 rows; Production Log – Live = 23 cols / 429 rows. Documented full column lists with 4 production-header typos flagged (Strore #, Tranist Depart store, Disacard Time, Superviosr Name) plus duplicate Time/Reason headers — T-049 doGet must normalize to camelCase. Summary tabs (Store Lookup, Production Timeline) confirmed broken/empty (SCOPE §5 / T-022). Next: T-006 Apps Script copy.
 
 ## Run-Straight-Through Task Lists — 2026-05-08
 
