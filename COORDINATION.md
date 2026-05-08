@@ -89,7 +89,7 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-011 | Add new-store onboarding doc | @code | TODO | docs/ADD_A_STORE.md. Depends on T-010. |
 | T-012 | Verify HACCP cooling-rule logic against current FSIS / FDA Food Code 2022 guidance | @browser | TODO | Output: comment block under T-012 below. |
 | T-013 | Inventory App Store Connect / Play Console for any Taipei Kitchen app entry | @browser | DONE | Confirmed with owner 2026-05-07: no Taipei Kitchen mobile app in scope. ASC PokerPro entry unrelated. Closed. |
-| T-014 | Draft kickoff email to Romano confirming payment received and timeline | @browser | TODO | Save as Gmail draft only. Do not send. Owner sends. |
+| T-014 | Draft kickoff email to Romano confirming payment received and timeline | @browser | CANCELLED | Cancelled per owner 2026-05-08. No kickoff email needed — client sees prototype only when complete (Client Visibility Rule). |
 | T-015 | Define v1 milestone scope and acceptance criteria | @code | TODO | Output: docs/MILESTONE_V1.md mirroring proposal Scope of Work. |
 | T-016 | Mirror this board into GitHub Issues (one issue per task, labels owner:browser / owner:code) | @code | TODO | After this file is merged. |
 | T-017 | Set up staging: duplicate GitHub Pages branch (gh-pages-staging) + duplicate sandbox sheet TaipeiKitchen_BentoOps_v2_STAGING | @code | IN-PROGRESS | @browser portion DONE 2026-05-07: staging sheet copy created at https://docs.google.com/spreadsheets/d/1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E/edit (in leandertoney@gmail.com Drive). Apps Script copied with sheet. Remaining @code work: create gh-pages-staging branch and wire forms to a STAGING flag pointing at the sandbox sheet's webhook. |
@@ -174,3 +174,58 @@ Proposed bundles for remaining @code TODOs:
   Each bundle PR description must list the task IDs it closes, the acceptance criteria from docs/TEST_PLAN.md it satisfies, and a section-by-section diff summary. Owner reviews the cumulative diff once per bundle.
 
   
+
+- 2026-05-08 — @browser — Owner directive: run straight through without permission stops. T-014 cancelled (no kickoff email). Added explicit Run-Straight-Through Task Lists section below with end-to-end queues for @code and @browser, plus end-of-day collaboration checklist. @code: pull and execute its queue. @browser: executing T-005 → T-006 → T-042 → T-043 → T-028 → T-029 → T-019/T-020. PRs handled in tiered order (foundations → docs → P0 friction → client request) per existing PR Bundling Strategy.
+
+
+## Run-Straight-Through Task Lists — 2026-05-08
+
+> **Purpose.** Owner directive 2026-05-08: "Work straight through without needing to keep asking for permissions and stopping." Both agents now have explicit end-to-end queues below. Run them in order, do not wait for owner check-ins between items, and only stop at the hard rules listed in *End-of-Day Collaboration*. We are continuing from existing progress — all task IDs, statuses, PRs, and the Handoff Log above remain authoritative.
+
+### @code — run straight through (in this order)
+
+1. **Pull main**, re-read `docs/SCOPE.md` and this file. Reconcile board against SCOPE §1–7 (already covered, no new tasks needed).
+2. **T-017 finish** — create `gh-pages-staging` branch from `main`. Add a `STAGING` flag to `taipei_production_form3.html` and `taipei_delivery_form3.html` that points the webhook to the staging sheet (sheet id: `1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E`). Flag value flips by branch (main = live sheet, gh-pages-staging = staging sheet). Flip T-017 to REVIEW with @browser as reviewer.
+3. **PR consolidation pass** — keep all 12 open PRs alive but rebase / re-describe in tier order so owner can review as cumulative diffs:
+   - Tier 1 (Foundations): #4 TEST_PLAN.md, #5 stores.json.
+   - Tier 2 (Docs): #1 production form audit, #2 delivery form audit, #3 MILESTONE_V1.md, #6 T-009 driver-auth proposal (merges as doc only — T-009 stays DEFERRED to v2), #7 README overhaul.
+   - Tier 3 (P0 friction): #8 T-032 Driver dropdown, #9 T-033 Expire Reason dropdown, #10 T-036 Supervisor dropdown, #11 T-040 QA Result default Pass.
+   - Tier 4 (Client request): #12 T-047 case pre-fill % dropdown.
+   For each PR, edit the description to: list task IDs closed, link relevant TEST_PLAN.md sections, and indicate which tier it belongs to. No self-merges.
+4. **Bundle PR `task/friction-p1p2-batch`** — single PR closing T-034, T-035, T-037, T-038, T-039, T-041, T-044, T-045, T-046. Description lists task IDs + TEST_PLAN.md acceptance criteria + section-by-section diff summary.
+5. **Bundle PR `task/reporting-layer`** — single PR closing T-022 (sheet repairs), T-023 (waste-by-store), T-024 (consolidated dashboard), T-025 (daily reconciliation), T-026 (weekly food-safety summary). Apps Script triggers + new tabs.
+6. **Bundle PR `task/qol-resilience`** — single PR closing T-007 (offline queue), T-008 (image compression), T-027 (locked submission timestamps).
+7. **Bundle PR `task/onboarding-docs`** — single PR closing T-011 (docs/ADD_A_STORE.md), T-016 (mirror board to GitHub Issues), T-031 (docs/HANDOFF.md). Note: T-030 README overhaul already in PR #7; do not duplicate.
+8. **Tag @browser** on each bundle PR for staging verification (T-019/T-020). Do not self-merge — owner approves merges to main per COORDINATION rules.
+9. **Append Handoff Log entry** when queue is complete: timestamp, what shipped, what's queued for @browser verification.
+
+**@code stop conditions:** none on this queue. If something genuinely blocks, set BLOCKED in the task notes and continue down the list.
+
+### @browser — run straight through (in this order)
+
+1. **T-005 Sheet Audit** — open master sheet `TaipeiKitchen_BentoOps_v2`, read all 10 tabs (Delivery Log – Live, Store Lookup, Production Log – Live, Production Timeline, Delivery Summary, Production Summary, Weekly Snapshot, Waste Tracker, Editing Guide, Apps Script Code). Document: tab name, header row, row count, write source (form vs formula vs manual), read consumers. Append findings under the `## Sheet Audit` section above.
+2. **T-006 Apps Script copy** — open the master sheet's Apps Script editor, copy current `Code.gs` verbatim into `apps_script/Code.gs` in repo via web edit on main. No edits, just paste. Append under `## Apps Script Snapshot`. Flip to REVIEW.
+3. **T-042 Data Validation rules on staging** — on the staging sheet, add Data Validation dropdowns to Driver, Supervisor, Received By columns, sourced from the same lists `data/drivers.json`, `data/supervisors.json`, `data/stores.json` will use. Mirrors form-side dropdowns from T-032/T-036.
+4. **T-043 Backfill cleanup on staging** — duplicate raw Driver/Supervisor/Reason columns to a snapshot tab `_archive_raw_2026-05-08` first, then trim trailing whitespace and normalize case in place on the staging sheet. Owen-with-trailing-space, anna→Anna, lucia→Lucia, OOD→Out of date.
+5. **T-028 Production-log dedupe on staging** — first copy entire Production Log to `_archive_ProductionLog_2026-05-08`, then dedupe in place by (Submitted At + Date + Dish + Batch ID) composite key. No permanent deletes.
+6. **T-029 Drive photo folder reorg prep** — build `/Store-{ID}/{YYYY}/{MM}/{DD}` subfolder tree under the existing delivery-photo root, move existing photos into matching subfolders by submission date and store. **Stop at the share button** — owner clicks share to expose to Giant corporate.
+7. **T-019 Staging smoke test** — once @code's Tier 1–3 PRs are merged to gh-pages-staging: open the deployed delivery form on a phone-sized viewport (DevTools 390×844), submit one full delivery, verify row lands in staging sheet, verify photo lands in Drive subfolder.
+8. **T-020 Regression pass** — DevTools Slow 3G simulation + run full TEST_PLAN.md regression checklist: HACCP flag still trips on >41°F, all 7 stores load from `data/stores.json`, photo upload stays under 500KB, offline queue retries on reconnect.
+9. **Append Handoff Log entry** when queue is complete: timestamp, what shipped, what's queued for owner approval (Drive sharing, staging→live promotion, T-021 pilot store pick).
+
+**@browser stop conditions (hard rules, not project rules):**
+- Drive/Sheet sharing changes — prep done, owner clicks share.
+- OAuth re-authorization prompt during T-006 if Apps Script asks for fresh scopes — owner clicks Allow once.
+- Staging→live promotion (release tag, flipping URLs) — owner-gated.
+
+### End-of-Day Collaboration
+
+When both queues are drained, we reconcile here. Owner pass needed on:
+
+- **T-021 UAT pilot store** — owner picks one of: 6006, 6061, 6253, 6331, 6443, 6542, 6564.
+- **T-029 Drive sharing** — owner clicks share on the reorganized photo folder once Giant corporate distribution is desired.
+- **Staging → live promotion** — owner approves a `release/*` tag; @code cuts the tag once T-019 + T-020 pass.
+- **Anything @code flagged as NEEDS-OWNER** in a bundle PR description.
+
+After this is merged, neither agent waits between items in their own queue. Cross-queue dependencies (e.g. T-042 reads from JSON files @code is publishing) are pulled live when ready, not blocked on synchronous handoff.
+
