@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taipei Kitchen · Live Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<!-- Chart.js via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- Top Header -->
+<header class="top-header">
+  <div class="brand"><span class="brand-icon">▲</span> Taipei Kitchen</div>
+  <div class="header-right">
+    <span class="status-dot" id="status-dot"></span>
+    <span class="status-text" id="status-text">Connecting...</span>
+    <button class="btn-refresh" id="btn-refresh" onclick="fetchData()">↻ Refresh</button>
+  </div>
+</header>
+
+<!-- Main Layout -->
+<div class="main-layout">
+  <!-- Side Navigation -->
+  <nav class="side-nav">
+    <a href="#overview" class="nav-link active" data-panel="overview">
+      <span class="nav-icon">📊</span>
+      <span class="nav-label">Overview</span>
+    </a>
+    <a href="#reconciliation" class="nav-link" data-panel="reconciliation">
+      <span class="nav-icon">🔄</span>
+      <span class="nav-label">Reconciliation</span>
+    </a>
+    <a href="#food-safety" class="nav-link" data-panel="food-safety">
+      <span class="nav-icon">🌡️</span>
+      <span class="nav-label">Food Safety</span>
+    </a>
+    <a href="#filters" class="nav-link" data-panel="filters">
+      <span class="nav-icon">🔍</span>
+      <span class="nav-label">Filters</span>
+    </a>
+  </nav>
+
+  <!-- Content Area -->
+  <main class="content">
+    <!-- Overview Panel -->
+    <section id="panel-overview" class="panel active">
+      <h1 class="panel-title">Overview</h1>
+
+      <!-- Metrics Tiles -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Deliveries Today</div>
+          <div class="metric-value" id="metric-deliveries">—</div>
+          <div class="metric-sub">Across all stores</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Production Batches Today</div>
+          <div class="metric-value" id="metric-production">—</div>
+          <div class="metric-sub">Total batches logged</div>
+        </div>
+        <div class="metric-card alert">
+          <div class="metric-label">HACCP Violations Today</div>
+          <div class="metric-value" id="metric-violations">—</div>
+          <div class="metric-sub">Temperature exceedances</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Waste This Week</div>
+          <div class="metric-value" id="metric-waste">—</div>
+          <div class="metric-sub">Discarded units</div>
+        </div>
+      </div>
+
+      <!-- Top Stores -->
+      <div class="section-card">
+        <h2 class="section-title">Top 5 Stores by Volume</h2>
+        <div id="top-stores-list" class="top-stores-list">
+          <div class="loading">Loading...</div>
+        </div>
+      </div>
+
+      <!-- Recent Submissions -->
+      <div class="section-card">
+        <h2 class="section-title">Recent Submissions</h2>
+        <div id="recent-feed" class="recent-feed">
+          <div class="loading">Loading...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reconciliation Panel -->
+    <section id="panel-reconciliation" class="panel">
+      <h1 class="panel-title">Daily Reconciliation</h1>
+      <p class="panel-subtitle">Produced vs Delivered vs Sold per Dish</p>
+
+      <div class="date-selector">
+        <label>View Date:</label>
+        <input type="date" id="recon-date" onchange="loadReconciliation()">
+      </div>
+
+      <div class="section-card">
+        <table class="data-table" id="recon-table">
+          <thead>
+            <tr>
+              <th>Dish</th>
+              <th>Produced</th>
+              <th>Delivered</th>
+              <th>Sold</th>
+              <th>Loss</th>
+            </tr>
+          </thead>
+          <tbody id="recon-tbody">
+            <tr><td colspan="5" class="loading">Select a date to view reconciliation</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Food Safety Panel -->
+    <section id="panel-food-safety" class="panel">
+      <h1 class="panel-title">Weekly Food Safety Summary</h1>
+      <p class="panel-subtitle">HACCP Cooling Violations & Delivery Temp Violations</p>
+
+      <div class="week-selector">
+        <label>Week Ending:</label>
+        <input type="date" id="safety-week-end" onchange="loadFoodSafety()">
+      </div>
+
+      <div id="safety-summary" class="safety-summary">
+        <div class="loading">Select a week to view food safety summary</div>
+      </div>
+    </section>
+
+    <!-- Filters Panel -->
+    <section id="panel-filters" class="panel">
+      <h1 class="panel-title">Filters & Drilldowns</h1>
+
+      <div class="filter-controls">
+        <div class="filter-row">
+          <div class="filter-field">
+            <label>Month</label>
+            <select id="filter-month">
+              <option value="">All Time</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Driver</label>
+            <select id="filter-driver">
+              <option value="">All Drivers</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Store</label>
+            <select id="filter-store">
+              <option value="">All Stores</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Date Range</label>
+            <input type="date" id="filter-date-start">
+            <span style="margin:0 6px;">to</span>
+            <input type="date" id="filter-date-end">
+          </div>
+        </div>
+        <button class="btn-apply-filters" onclick="applyFilters()">Apply Filters</button>
+        <button class="btn-clear-filters" onclick="clearFilters()">Clear</button>
+      </div>
+
+      <div class="section-card">
+        <h2 class="section-title">Filtered Results</h2>
+        <div id="filtered-results" class="filtered-results">
+          <p class="hint">Apply filters above to see results</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

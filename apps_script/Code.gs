@@ -92,3 +92,115 @@ function testConnection() {
   Logger.log('Connected to: ' + ss.getName());
   Logger.log('Sheets found: ' + ss.getSheets().map(s => s.getName()).join(', '));
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// T-049: doGet JSON Endpoint for Web Dashboard
+// ═══════════════════════════════════════════════════════════════════════════
+// Returns { deliveries, production, waste, stores, lastUpdated }
+// Supports query params: ?since=ISO_TIMESTAMP (incremental) and ?range=YYYY-MM (month filter)
+// Deploy as Web App: Execute as Me, Anyone with link
+// ═══════════════════════════════════════════════════════════════════════════
+
+function doGet(e) {
+  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID'; // ← Replace this
+
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const params = e.parameter || {};
+
+    // Extract query parameters
+    const since = params.since || null;
+    const range = params.range || null; // YYYY-MM format
+
+    // Read delivery data
+    const deliverySheet = ss.getSheetByName('Delivery Log - Live');
+    const deliveries = deliverySheet ? sheetToJSON(deliverySheet, [
+      'submittedAt', 'date', 'driver', 'vehicle', 'store', 'arrive', 'coolerTemp',
+      'coolerCond', 'dish', 'added', 'before', 'removed', 'reason', 'after',
+      'notes', 'receivedBy', 'arrivalTemp'
+    ]) : [];
+
+    // Read production data
+    const productionSheet = ss.getSheetByName('Production Log - Live');
+    const production = productionSheet ? sheetToJSON(productionSheet, [
+      'submittedAt', 'date', 'shift', 'kitchen', 'supervisor', 'dish', 'batch',
+      'cookTemp', 'cookStart', 'cookEnd', 'cookTime', 'qtyProduced', 'qtyDiscarded',
+      'discardReason', 'coolStart', 'coolEnd', 'coolTime', 'finalTemp', 'qa',
+      'qaNotes', 'initials', 'generalNotes', 'batchQANotes'
+    ]) : [];
+
+    // Extract waste data (from delivery log where removed > 0)
+    const waste = deliveries.filter(d => parseInt(d.removed) > 0).map(d => ({
+      date: d.date,
+      store: d.store,
+      dish: d.dish,
+      qtyRemoved: d.removed,
+      reason: d.reason
+    }));
+
+    // Read store list from Store Lookup tab (if it exists)
+    const storeSheet = ss.getSheetByName('Store Lookup');
+    const stores = storeSheet ? sheetToJSON(storeSheet, ['id', 'name', 'location']).filter(s => s.id) : [
+      { id: '6006', name: 'Store 6006', location: 'Kline Village, Harrisburg, PA' },
+      { id: '6061', name: 'Store 6061', location: 'Shippensburg, PA' },
+      { id: '6253', name: 'Store 6253', location: 'New Cumberland, PA' },
+      { id: '6331', name: 'Store 6331', location: 'Mechanicsburg, PA' },
+      { id: '6443', name: 'Store 6443', location: 'Chambersburg, PA' },
+      { id: '6542', name: 'Store 6542', location: 'Carlisle, PA' },
+      { id: '6564', name: 'Store 6564', location: 'Harrisburg (Grayson Rd), PA' }
+    ];
+
+    // Apply filters
+    let filteredDeliveries = deliveries;
+    let filteredProduction = production;
+
+    if (since) {
+      filteredDeliveries = deliveries.filter(d => new Date(d.submittedAt) > new Date(since));
+      filteredProduction = production.filter(p => new Date(p.submittedAt) > new Date(since));
+    }
+
+    if (range) {
+      filteredDeliveries = deliveries.filter(d => d.date && d.date.startsWith(range));
+      filteredProduction = production.filter(p => p.date && p.date.startsWith(range));
+    }
+
+    const response = {
+      deliveries: filteredDeliveries,
+      production: filteredProduction,
+      waste: waste,
+      stores: stores,
+      lastUpdated: new Date().toISOString()
+    };
+
+    return ContentService
+      .createTextOutput(JSON.stringify(response))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        status: 'error',
+        message: err.toString(),
+        deliveries: [],
+        production: [],
+        waste: [],
+        stores: [],
+        lastUpdated: new Date().toISOString()
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// Helper: Convert sheet data to JSON array
+function sheetToJSON(sheet, headers) {
+  const data = sheet.getDataRange().getValues();
+  const rows = [];
+  for (let i = 1; i < data.length; i++) { // Skip header row
+    const row = {};
+    for (let j = 0; j < headers.length && j < data[i].length; j++) {
+      row[headers[j]] = data[i][j];
+    }
+    rows.push(row);
+  }
+  return rows;
+}
