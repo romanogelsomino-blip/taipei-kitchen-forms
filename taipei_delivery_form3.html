@@ -103,7 +103,10 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
       </div>
       <div class="field">
         <label>Driver</label>
-        <input type="text" id="f-driver" placeholder="Your name">
+        <select id="f-driver" onchange="handleDriverChange()">
+          <option value="">— Select Driver —</option>
+        </select>
+        <input type="text" id="f-driver-custom" placeholder="Enter driver name" style="display:none;margin-top:8px;">
       </div>
       <div class="field">
         <label>Arrival Time</label>
@@ -481,6 +484,63 @@ async function loadStoresData() {
   }
 }
 
+// Load drivers from JSON
+let DRIVERS = [];
+async function loadDrivers() {
+  try {
+    const response = await fetch('data/drivers.json');
+    const data = await response.json();
+    DRIVERS = data.drivers || [];
+    populateDriverDropdown();
+  } catch (e) {
+    console.error('Failed to load drivers:', e);
+    // Fallback to hardcoded list
+    DRIVERS = ["Owen", "Sam Blumenthal", "Andy"];
+    populateDriverDropdown();
+  }
+}
+
+function populateDriverDropdown() {
+  const select = document.getElementById('f-driver');
+  // Clear existing options except first
+  while (select.options.length > 1) {
+    select.remove(1);
+  }
+  // Add drivers
+  DRIVERS.forEach(driver => {
+    const option = document.createElement('option');
+    option.value = driver;
+    option.textContent = driver;
+    select.appendChild(option);
+  });
+  // Add "Other (specify)" option
+  const otherOption = document.createElement('option');
+  otherOption.value = '__custom__';
+  otherOption.textContent = '+ Add new driver';
+  select.appendChild(otherOption);
+}
+
+function handleDriverChange() {
+  const select = document.getElementById('f-driver');
+  const customInput = document.getElementById('f-driver-custom');
+  if (select.value === '__custom__') {
+    customInput.style.display = 'block';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
+}
+
+function getDriverValue() {
+  const select = document.getElementById('f-driver');
+  const customInput = document.getElementById('f-driver-custom');
+  if (select.value === '__custom__') {
+    return customInput.value.trim();
+  }
+  return select.value;
+}
+
 const params = new URLSearchParams(window.location.search);
 let storeId   = params.get('store') || '';
 let storeData = null; // Will be set after loading stores
@@ -521,6 +581,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   const mm = String(now.getMinutes()).padStart(2,'0');
   document.getElementById('f-arrive').value = hh + ':' + mm;
   buildDishTable();
+
+  // Load driver dropdown
+  loadDrivers();
 });
 
 function buildDishTable() {
@@ -708,7 +771,7 @@ function toggleCorrectionType() {
 
 function buildPayload() {
   const date   = document.getElementById('f-date').value;
-  const driver = document.getElementById('f-driver').value;
+  const driver = getDriverValue();
   const arrive = document.getElementById('f-arrive').value;
   const ctTemp    = document.getElementById('f-cooler-temp').value;
   const ctCond    = document.getElementById('f-cooler-cond').value;
@@ -809,8 +872,8 @@ function buildPayload() {
 }
 
 async function submitForm() {
-  const driver = document.getElementById('f-driver').value.trim();
-  if (!driver) { alert('Please enter the driver name before submitting.'); return; }
+  const driver = getDriverValue();
+  if (!driver) { alert('Please select a driver before submitting.'); return; }
 
   if (GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_SCRIPT_URL') {
     showStatus('\u26a0\ufe0f', 'Not Configured', 'Replace YOUR_GOOGLE_SCRIPT_URL with your Apps Script URL and re-upload to GitHub.');
