@@ -197,12 +197,13 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
       </div>
       <div class="field">
         <label>Production Kitchen</label>
-        <select id="f-kitchen">
+        <select id="f-kitchen" onchange="handleKitchenChange()">
           <option value="">— Select —</option>
           <option>Legacy Park</option>
           <option>Store 6112</option>
           <option>Other</option>
         </select>
+        <input type="text" id="f-kitchen-custom" placeholder="Specify kitchen location" style="display:none;margin-top:8px;">
       </div>
       <div class="field">
         <label>Head Chef / Supervisor</label>
@@ -438,6 +439,16 @@ function handleSupervisorChange() {
     customInput.style.display = 'none';
     customInput.value = '';
   }
+  // T-038: Auto-fill initials when supervisor changes
+  const supervisorValue = getSupervisorValue();
+  if (supervisorValue && supervisorValue !== '__custom__') {
+    const initials = deriveInitials(supervisorValue);
+    document.querySelectorAll('.dish-initials').forEach(input => {
+      if (!input.value.trim()) { // Only auto-fill if empty
+        input.value = initials;
+      }
+    });
+  }
 }
 
 function getSupervisorValue() {
@@ -447,6 +458,70 @@ function getSupervisorValue() {
     return customInput.value.trim();
   }
   return select.value;
+}
+
+// T-037: Handle "Other" kitchen selection
+function handleKitchenChange() {
+  const select = document.getElementById('f-kitchen');
+  const customInput = document.getElementById('f-kitchen-custom');
+  if (select.value === 'Other') {
+    customInput.style.display = 'block';
+    customInput.focus();
+    customInput.required = true;
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = '';
+    customInput.required = false;
+  }
+}
+
+function getKitchenValue() {
+  const select = document.getElementById('f-kitchen');
+  const customInput = document.getElementById('f-kitchen-custom');
+  if (select.value === 'Other' && customInput.value.trim()) {
+    return 'Other: ' + customInput.value.trim();
+  }
+  return select.value;
+}
+
+// T-038: Auto-derive initials from supervisor
+function deriveInitials(supervisorName) {
+  if (!supervisorName || supervisorName === '__custom__') return '';
+  const words = supervisorName.trim().split(/\s+/);
+  return words.map(w => w[0].toUpperCase()).join('');
+}
+
+// T-039: Handle discard qty change - highlight reason field if needed
+function handleDiscardQtyChange(qtyInput) {
+  const tr = qtyInput.closest('tr');
+  const reasonInput = tr.querySelector('.discard-reason');
+  const qty = parseInt(qtyInput.value) || 0;
+  if (qty > 0) {
+    reasonInput.style.borderColor = 'var(--yellow)';
+    reasonInput.style.background = '#FEF9E7';
+    reasonInput.placeholder = 'Required — why discarded?';
+  } else {
+    reasonInput.style.borderColor = '';
+    reasonInput.style.background = '';
+    reasonInput.placeholder = 'Reason if any…';
+    reasonInput.value = ''; // Clear reason if qty is 0
+  }
+}
+
+// T-046: Validate required fields and enable/disable submit button
+function validateRequiredFields() {
+  const date = document.getElementById('f-date').value;
+  const shift = document.getElementById('f-shift').value;
+  const kitchen = document.getElementById('f-kitchen').value;
+  const supervisor = document.getElementById('f-supervisor').value;
+
+  const allFilled = date && shift && kitchen && supervisor;
+  const submitBtn = document.getElementById('submit-btn');
+  if (submitBtn) {
+    submitBtn.disabled = !allFilled;
+    submitBtn.style.opacity = allFilled ? '1' : '0.5';
+    submitBtn.style.cursor = allFilled ? 'pointer' : 'not-allowed';
+  }
 }
 
 // ─── Build table ──────────────────────────────────────────
@@ -467,6 +542,17 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Load supervisor dropdown
   loadSupervisors();
+
+  // T-046: Add event listeners to enable/disable submit button based on required fields
+  const requiredFields = ['f-date', 'f-shift', 'f-kitchen', 'f-supervisor'];
+  requiredFields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', validateRequiredFields);
+      el.addEventListener('input', validateRequiredFields);
+    }
+  });
+  validateRequiredFields(); // Initial check
 });
 
 // ─── Batch ID management ─────────────────────────────────
@@ -538,8 +624,8 @@ function buildTable() {
     tr.innerHTML = `
       <td class="dish-label">${dish}</td>
       <td><input type="number" min="0" placeholder="0" class="qty-produced" oninput="updateTotals()" style="width:60px"></td>
-      <td><input type="number" min="0" placeholder="0" class="qty-discarded" oninput="updateTotals()" style="width:60px"></td>
-      <td><input type="text" placeholder="Reason if any…" style="min-width:120px;text-align:left"></td>
+      <td><input type="number" min="0" placeholder="0" class="qty-discarded" oninput="updateTotals();handleDiscardQtyChange(this)" style="width:60px"></td>
+      <td><input type="text" placeholder="Reason if any…" class="discard-reason" style="min-width:120px;text-align:left"></td>
       <td><input type="number" min="30" max="212" placeholder="°F" class="final-temp" style="width:60px" oninput="flagTemp(this)"></td>
       <td>
         <select class="qa-select" style="width:72px">
@@ -550,7 +636,7 @@ function buildTable() {
         </select>
       </td>
       <td><textarea placeholder="Notes…" style="min-width:150px;text-align:left"></textarea></td>
-      <td><input type="text" placeholder="Init" style="width:46px"></td>
+      <td><input type="text" placeholder="Init" class="dish-initials" style="width:46px"></td>
     `;
     tbody.appendChild(tr);
   });
@@ -581,7 +667,7 @@ function updateTotals() {
 function buildPayload() {
   const date       = document.getElementById('f-date').value;
   const shift      = document.getElementById('f-shift').value;
-  const kitchen    = document.getElementById('f-kitchen').value;
+  const kitchen    = getKitchenValue(); // T-037: Use helper to handle "Other"
   const supervisor = getSupervisorValue();
   const genNotes   = document.getElementById('f-general-notes').value;
   const qaNotes    = document.getElementById('f-quality-notes').value;
@@ -631,9 +717,32 @@ function buildPayload() {
 // ─── Submit ───────────────────────────────────────────────
 async function submitForm() {
   const supervisor = getSupervisorValue();
-  const kitchen    = document.getElementById('f-kitchen').value;
+  const kitchen    = getKitchenValue(); // T-037: Use helper to handle "Other"
   if (!supervisor) { alert('Please select a supervisor before submitting.'); return; }
   if (!kitchen)    { alert('Please select the production kitchen before submitting.'); return; }
+  // T-037: Validate "Other" has specification
+  const kitchenSelect = document.getElementById('f-kitchen');
+  const kitchenCustom = document.getElementById('f-kitchen-custom');
+  if (kitchenSelect.value === 'Other' && !kitchenCustom.value.trim()) {
+    alert('Please specify the kitchen location when selecting "Other".');
+    kitchenCustom.focus();
+    return;
+  }
+
+  // T-039: Validate discard reason when qty discarded > 0
+  let missingDiscardReason = false;
+  document.querySelectorAll('#prod-tbody tr').forEach((tr, idx) => {
+    const qtyDiscarded = parseInt(tr.querySelector('.qty-discarded').value) || 0;
+    const reason = tr.querySelector('.discard-reason').value.trim();
+    if (qtyDiscarded > 0 && !reason) {
+      missingDiscardReason = true;
+      tr.querySelector('.discard-reason').style.borderColor = 'var(--red)';
+    }
+  });
+  if (missingDiscardReason) {
+    alert('Please provide a discard reason for all dishes with quantity discarded > 0.');
+    return;
+  }
 
   showStatus('⏳', 'Submitting…', 'Sending to Google Sheets…');
   document.getElementById('submit-btn').disabled = true;
