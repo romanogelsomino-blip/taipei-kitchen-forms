@@ -351,10 +351,56 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
 // Replace with your Google Apps Script deployment URL (see Setup Guide)
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxXVDl_JyH1H2_KdM8CHyVn5H4qfoUsFepgV1p_4RhrCKKPSj2WzdkqEsGqHgL7V-b6PA/exec';
 
-const DISHES = ['General Tso Chicken Bento', 'Sesame Chicken Bento', 'Bento Chicken Lo Mein', 'Bento Shrimp Lo Mein', 'Bento Smoked Pork Lo Mein', 'Bento Sweet & Sour Chicken', 'Bourbon Chicken Bento', 'Broccoli Chicken Bento', 'Hot Spicy Chicken Bento', 'Bento Steamed Dumplings', 'Chicken Egg Roll', 'Pork Egg Roll', 'Shrimp Egg Roll'];
+// Fallback dish list (used if fetch fails)
+let DISHES = ['General Tso Chicken Bento', 'Sesame Chicken Bento', 'Bento Chicken Lo Mein', 'Bento Shrimp Lo Mein', 'Bento Smoked Pork Lo Mein', 'Bento Sweet & Sour Chicken', 'Bourbon Chicken Bento', 'Broccoli Chicken Bento', 'Hot Spicy Chicken Bento', 'Bento Steamed Dumplings', 'Chicken Egg Roll', 'Pork Egg Roll', 'Shrimp Egg Roll'];
+
+// ─── Load stores/dishes from JSON ─────────────────────────
+async function loadStoresData() {
+  const CACHE_KEY = 'tk_stores_data';
+  const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
+
+  // Check cache first
+  const cached = localStorage.getItem(CACHE_KEY);
+  if (cached) {
+    try {
+      const { data, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < CACHE_TTL) {
+        console.log('[Stores] Loaded from cache (expires in ' + Math.round((CACHE_TTL - (Date.now() - timestamp)) / 60000) + ' min)');
+        return data;
+      }
+    } catch (e) {
+      console.warn('[Stores] Cache parse error, fetching fresh data');
+    }
+  }
+
+  // Fetch from server
+  try {
+    const response = await fetch('data/stores.json');
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
+
+    // Cache the result
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+    console.log('[Stores] Fetched from server and cached');
+    return data;
+  } catch (e) {
+    console.warn('[Stores] Could not fetch stores.json. Using fallback hardcoded list. Error:', e.message);
+    return null;
+  }
+}
 
 // ─── Build table ──────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
+  // Load dishes from JSON (if available)
+  const storesData = await loadStoresData();
+  if (storesData && storesData.dishes) {
+    DISHES = storesData.dishes
+      .filter(d => d.active)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(d => d.name);
+    console.log('[Stores] Loaded ' + DISHES.length + ' active dishes from JSON');
+  }
+
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
   buildTable();
   updateBatchId();
