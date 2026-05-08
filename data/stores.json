@@ -1,0 +1,128 @@
+{
+  "version": "1.0",
+  "lastUpdated": "2026-05-06",
+  "stores": [
+    {
+      "id": "6006",
+      "name": "Store 6006",
+      "location": "Kline Village, Harrisburg, PA",
+      "active": true
+    },
+    {
+      "id": "6061",
+      "name": "Store 6061",
+      "location": "Shippensburg, PA",
+      "active": true
+    },
+    {
+      "id": "6253",
+      "name": "Store 6253",
+      "location": "New Cumberland, PA",
+      "active": true
+    },
+    {
+      "id": "6331",
+      "name": "Store 6331",
+      "location": "Mechanicsburg, PA",
+      "active": true
+    },
+    {
+      "id": "6443",
+      "name": "Store 6443",
+      "location": "Chambersburg, PA",
+      "active": true
+    },
+    {
+      "id": "6542",
+      "name": "Store 6542",
+      "location": "Carlisle, PA",
+      "active": true
+    },
+    {
+      "id": "6564",
+      "name": "Store 6564",
+      "location": "Harrisburg (Gayson Rd), PA",
+      "active": true
+    }
+  ],
+  "dishes": [
+    {
+      "id": "gen-tso",
+      "name": "General Tso Chicken Bento",
+      "active": true,
+      "sortOrder": 1
+    },
+    {
+      "id": "sesame",
+      "name": "Sesame Chicken Bento",
+      "active": true,
+      "sortOrder": 2
+    },
+    {
+      "id": "lo-mein-chicken",
+      "name": "Bento Chicken Lo Mein",
+      "active": true,
+      "sortOrder": 3
+    },
+    {
+      "id": "lo-mein-shrimp",
+      "name": "Bento Shrimp Lo Mein",
+      "active": true,
+      "sortOrder": 4
+    },
+    {
+      "id": "lo-mein-pork",
+      "name": "Bento Smoked Pork Lo Mein",
+      "active": true,
+      "sortOrder": 5
+    },
+    {
+      "id": "sweet-sour",
+      "name": "Bento Sweet & Sour Chicken",
+      "active": true,
+      "sortOrder": 6
+    },
+    {
+      "id": "bourbon",
+      "name": "Bourbon Chicken Bento",
+      "active": true,
+      "sortOrder": 7
+    },
+    {
+      "id": "broccoli",
+      "name": "Broccoli Chicken Bento",
+      "active": true,
+      "sortOrder": 8
+    },
+    {
+      "id": "hot-spicy",
+      "name": "Hot Spicy Chicken Bento",
+      "active": true,
+      "sortOrder": 9
+    },
+    {
+      "id": "dumplings",
+      "name": "Bento Steamed Dumplings",
+      "active": true,
+      "sortOrder": 10
+    },
+    {
+      "id": "egg-roll-chicken",
+      "name": "Chicken Egg Roll",
+      "active": true,
+      "sortOrder": 11
+    },
+    {
+      "id": "egg-roll-pork",
+      "name": "Pork Egg Roll",
+      "active": true,
+      "sortOrder": 12
+    },
+    {
+      "id": "egg-roll-shrimp",
+      "name": "Shrimp Egg Roll",
+      "active": true,
+      "sortOrder": 13
+    }
+  ]
+}
