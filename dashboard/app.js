@@ -15,6 +15,7 @@ let DATA = {
 };
 let REFRESH_INTERVAL = null;
 const POLL_INTERVAL_MS = 10000; // T-055: 10-second polling
+const DEMO_MODE = true; // Enable demo data for local development
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Initialization
@@ -24,11 +25,20 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadConfig();
   setupNavigation();
   setupDateDefaults();
-  if (CONFIG.webAppUrl) {
+
+  // Check if we should use demo data or real API
+  if (CONFIG.webAppUrl && CONFIG.webAppUrl !== 'DEMO_MODE') {
+    // Production mode: fetch from real Google Apps Script
     await fetchData();
     startAutoRefresh(); // T-055: Start 10s polling
   } else {
-    updateStatus('error', 'Config missing');
+    // Demo mode: use mock data for local development
+    loadDemoData();
+    updateStatus('demo', 'Demo Mode (sample data)');
+    renderOverview();
+    renderReconciliation();
+    renderFoodSafety();
+    populateFilters();
   }
 });
 
@@ -62,6 +72,52 @@ function showConfigInstructions() {
       </p>
     </div>
   `;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Demo Data (for local development)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function loadDemoData() {
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+  DATA = {
+    stores: [
+      { id: '6006', name: 'Store 6006', location: 'Lancaster, PA' },
+      { id: '6061', name: 'Store 6061', location: 'York, PA' },
+      { id: '6253', name: 'Store 6253', location: 'Harrisburg, PA' },
+      { id: '6331', name: 'Store 6331', location: 'Camp Hill, PA' },
+      { id: '6443', name: 'Store 6443', location: 'Mechanicsburg, PA' },
+      { id: '6542', name: 'Store 6542', location: 'Carlisle, PA' },
+      { id: '6564', name: 'Store 6564', location: 'Hershey, PA' }
+    ],
+    deliveries: [
+      { submittedAt: `${today}T08:32:15.000Z`, date: today, driver: 'Owen', storeId: '6006', storeName: 'Store 6006', arrivalTime: '08:30', coolerTemp: 38, dish: 'Spring Roll (Veg)', qtyAdded: 24, removed: 2, reason: 'Out of date', receivedBy: 'Amanda' },
+      { submittedAt: `${today}T09:15:42.000Z`, date: today, driver: 'Owen', storeId: '6061', storeName: 'Store 6061', arrivalTime: '09:10', coolerTemp: 39, dish: 'Shrimp Egg Roll', qtyAdded: 30, removed: 0, reason: '', receivedBy: 'Michael' },
+      { submittedAt: `${today}T09:48:20.000Z`, date: today, driver: 'Owen', storeId: '6253', storeName: 'Store 6253', arrivalTime: '09:45', coolerTemp: 37, dish: 'Chicken Lo Mein', qtyAdded: 18, removed: 1, reason: 'Damaged', receivedBy: 'Sarah' },
+      { submittedAt: `${today}T10:25:33.000Z`, date: today, driver: 'Andy', storeId: '6331', storeName: 'Store 6331', arrivalTime: '10:20', coolerTemp: 40, dish: 'Spring Roll (Veg)', qtyAdded: 20, removed: 0, reason: '', receivedBy: 'James' },
+      { submittedAt: `${today}T11:05:18.000Z`, date: today, driver: 'Andy', storeId: '6443', storeName: 'Store 6443', arrivalTime: '11:00', coolerTemp: 42, dish: 'Beef Chow Fun', qtyAdded: 15, removed: 3, reason: 'Quality Issue', receivedBy: 'Lisa', violation: true },
+      { submittedAt: `${yesterday}T08:45:22.000Z`, date: yesterday, driver: 'Sam Blumenthal', storeId: '6542', storeName: 'Store 6542', arrivalTime: '08:40', coolerTemp: 38, dish: 'Pork Dumpling', qtyAdded: 28, removed: 1, reason: 'Out of date', receivedBy: 'Tom' },
+      { submittedAt: `${yesterday}T09:20:55.000Z`, date: yesterday, driver: 'Sam Blumenthal', storeId: '6564', storeName: 'Store 6564', arrivalTime: '09:15', coolerTemp: 39, dish: 'Spring Roll (Veg)', qtyAdded: 25, removed: 0, reason: '', receivedBy: 'Emily' }
+    ],
+    production: [
+      { submittedAt: `${today}T06:15:33.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Spring Roll (Veg)', batch: 'B-2024-001', qtyProduced: 120, qtyDiscarded: 2, discardReason: 'Quality Issue', qa: 'Pass', initials: 'L' },
+      { submittedAt: `${today}T06:45:10.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Shrimp Egg Roll', batch: 'B-2024-002', qtyProduced: 96, qtyDiscarded: 0, discardReason: '', qa: 'Pass', initials: 'L' },
+      { submittedAt: `${today}T07:20:47.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Anna', dish: 'Chicken Lo Mein', batch: 'B-2024-003', qtyProduced: 48, qtyDiscarded: 1, discardReason: 'Temperature', qa: 'Pass', initials: 'A' },
+      { submittedAt: `${yesterday}T06:30:12.000Z`, date: yesterday, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Beef Chow Fun', batch: 'B-2024-004', qtyProduced: 36, qtyDiscarded: 0, discardReason: '', qa: 'Pass', initials: 'J' },
+      { submittedAt: `${yesterday}T07:05:28.000Z`, date: yesterday, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Pork Dumpling', batch: 'B-2024-005', qtyProduced: 72, qtyDiscarded: 1, discardReason: 'Out of date', qa: 'Pass', initials: 'J' }
+    ],
+    waste: [
+      { date: today, store: '6006', dish: 'Spring Roll (Veg)', qty: 2, reason: 'Out of date' },
+      { date: today, store: '6253', dish: 'Chicken Lo Mein', qty: 1, reason: 'Damaged' },
+      { date: today, store: '6443', dish: 'Beef Chow Fun', qty: 3, reason: 'Quality Issue' },
+      { date: yesterday, store: '6542', dish: 'Pork Dumpling', qty: 1, reason: 'Out of date' }
+    ],
+    lastUpdated: new Date().toISOString()
+  };
+
+  console.log('[Demo] Loaded sample data:', DATA);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -118,6 +174,9 @@ function updateStatus(state, message) {
   } else if (state === 'error') {
     dot.classList.add('error');
     text.classList.add('error');
+  } else if (state === 'demo') {
+    dot.classList.add('demo');
+    text.classList.add('demo');
   }
   text.textContent = message;
 }

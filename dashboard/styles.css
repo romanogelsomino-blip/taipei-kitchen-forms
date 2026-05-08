@@ -83,6 +83,15 @@ body {
   background: var(--red);
 }
 
+.status-dot.demo {
+  background: #FFA500;
+  box-shadow: 0 0 8px #FFA500;
+}
+
+.status-text.demo {
+  color: #FFA500;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
