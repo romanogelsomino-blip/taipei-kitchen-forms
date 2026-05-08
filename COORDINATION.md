@@ -88,7 +88,7 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-010 | Move store list out of HTML into a JSON file fetched at form load | @code | TODO | Addresses README Known Issue #4. New file: data/stores.json. |
 | T-011 | Add new-store onboarding doc | @code | TODO | docs/ADD_A_STORE.md. Depends on T-010. |
 | T-012 | Verify HACCP cooling-rule logic against current FSIS / FDA Food Code 2022 guidance | @browser | TODO | Output: comment block under T-012 below. |
-| T-013 | Inventory App Store Connect / Play Console for any Taipei Kitchen app entry | @browser | NEEDS-OWNER | Open ASC tab currently shows PokerPro app; confirm with owner whether a Taipei Kitchen mobile app is in scope at all. |
+| T-013 | Inventory App Store Connect / Play Console for any Taipei Kitchen app entry | @browser | DONE | Confirmed with owner 2026-05-07: no Taipei Kitchen mobile app in scope. ASC PokerPro entry unrelated. Closed. |
 | T-014 | Draft kickoff email to Romano confirming payment received and timeline | @browser | TODO | Save as Gmail draft only. Do not send. Owner sends. |
 | T-015 | Define v1 milestone scope and acceptance criteria | @code | TODO | Output: docs/MILESTONE_V1.md mirroring proposal Scope of Work. |
 | T-016 | Mirror this board into GitHub Issues (one issue per task, labels owner:browser / owner:code) | @code | TODO | After this file is merged. |
@@ -157,3 +157,20 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 - 2026-05-06 — @code — Pulled latest. Reading docs/SCOPE.md now to reconcile task board against §1–7. Will prioritize work per deadline (10 business days).
 - 2026-05-07 — @browser — Resumed session after browser crash. Created staging sheet copy TaipeiKitchen_BentoOps_v2_STAGING (https://docs.google.com/spreadsheets/d/1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E/edit) per T-017; flipped T-017 to IN-PROGRESS pending @code's gh-pages-staging branch + STAGING-flag wiring. Logged Romano's 2026-05-07 email request as new task T-047 (case pre-fill % dropdown on delivery form). @code: when T-017 wiring is done, point form STAGING flag at this sheet ID. T-006 and T-042 will resume on the staging sheet next.
 - 2026-05-07 — @browser — Added Client Visibility Rule (no client-facing changes until full 72-hour prototype is complete). Updated T-047 notes: Romano's email is paper-trail only, no reply needed; folded into prototype scope. Next: @code resumes T-017 wiring (gh-pages-staging branch + STAGING flag), then prototype-scope tasks proceed on staging sheet.
+
+- 2026-05-07 — @browser — Owner sync. Confirmed no Taipei Kitchen mobile app in scope; closed T-013 (DONE). Owner flagged that 47 individual PR approvals is not workable. Going forward, @code MUST batch related work into thematic PRs (suggested groupings below). Active backlog of 12 open PRs will be reviewed/merged in tiered order: foundations (#4 TEST_PLAN, #5 stores.json) → docs (#1, #2, #3, #6, #7) → P0 friction batch (#8, #9, #10, #11) → client request (#12). All future work to be bundled per the new PR Bundling Strategy section above.
+
+## PR Bundling Strategy
+
+To keep owner review load manageable, @code groups remaining backlog into thematic PRs instead of one PR per task. Existing in-flight PRs (#1–#12) are honored as-is; this rule applies to all new work.
+
+Proposed bundles for remaining @code TODOs:
+
+- **P1/P2 friction-fix batch** — single PR covering T-034, T-037, T-038, T-039, T-041, T-044, T-045, T-046. Branch: `task/friction-p1p2-batch`.
+- **Reporting layer** — single PR covering T-022 (sheet repairs), T-023 (waste-by-store), T-024 (consolidated dashboard), T-025 (daily reconciliation), T-026 (weekly food-safety summary). Branch: `task/reporting-layer`.
+- **Quality-of-life / resilience** — single PR covering T-007 (offline queue), T-008 (image compression), T-027 (locked timestamps). Branch: `task/qol-resilience`.
+- **Onboarding & docs** — single PR covering T-011 (new-store onboarding), T-016 (mirror board to Issues), T-031 (HANDOFF.md). Branch: `task/onboarding-docs`.
+       
+  Each bundle PR description must list the task IDs it closes, the acceptance criteria from docs/TEST_PLAN.md it satisfies, and a section-by-section diff summary. Owner reviews the cumulative diff once per bundle.
+
+  
