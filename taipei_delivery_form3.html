@@ -135,6 +135,19 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
     </div>
     <div style="padding:14px 20px;border-top:1px solid var(--border);">
       <div style="font-family:'DM Mono',monospace;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mid);margin-bottom:10px;">📷 Before Stocking Photo — take before touching the cooler</div>
+
+      <!-- T-047: Case fill-level before delivery -->
+      <div style="margin-bottom:14px;">
+        <label style="font-family:'Inter',sans-serif;font-size:.85rem;font-weight:600;color:var(--dark);display:block;margin-bottom:6px;">Case fill level before today's delivery</label>
+        <select id="case-fill-level" required style="width:100%;border:2px solid var(--border);border-radius:8px;padding:10px 12px;font-size:.9rem;font-family:'Inter',sans-serif;background:#fff;color:var(--dark);">
+          <option value="">Select fill level...</option>
+          <option value="0-25%">0-25% (Nearly empty)</option>
+          <option value="25-50%">25-50% (Quarter to half)</option>
+          <option value="50-75%">50-75% (Half to three-quarters)</option>
+          <option value="75-100%">75-100% (Nearly full)</option>
+        </select>
+      </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:flex-start;">
         <div>
           <div class="upload-zone" id="zone-before">
@@ -443,7 +456,7 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
 </div>
 
 <script>
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxXVDl_JyH1H2_KdM8CHyVn5H4qfoUsFepgV1p_4RhrCKKPSj2WzdkqEsGqHgL7V-b6PA/exec';
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwyn_ZresUp_hYF-9i05pUjhyBGjo9DORky0lv_DsdTKef-vmub43JeGQMV-xw82XQH/exec';
 
 // Fallback dish and store lists (used if fetch fails)
 let DISHES = ["General Tso Chicken Bento", "Sesame Chicken Bento", "Bento Chicken Lo Mein", "Bento Shrimp Lo Mein", "Bento Smoked Pork Lo Mein", "Bento Sweet & Sour Chicken", "Bourbon Chicken Bento", "Broccoli Chicken Bento", "Hot Spicy Chicken Bento", "Bento Steamed Dumplings", "Chicken Egg Roll", "Pork Egg Roll", "Shrimp Egg Roll"];
@@ -595,7 +608,16 @@ function buildDishTable() {
       <td><input type="number" min="0" placeholder="0" class="d-added" oninput="recalc(this)" style="width:56px"></td>
       <td><input type="number" min="0" placeholder="0" class="d-before" oninput="recalc(this)" style="width:56px"></td>
       <td><input type="number" min="0" placeholder="0" class="d-removed" oninput="recalc(this)" style="width:56px"></td>
-      <td><input type="text" placeholder="e.g. Expired" style="min-width:100px;font-size:.75rem"></td>
+      <td>
+        <select class="d-reason" style="min-width:120px;font-size:.75rem;padding:4px;border:1.5px solid var(--border);border-radius:4px;">
+          <option value="">—</option>
+          <option value="Out of Date">Out of Date</option>
+          <option value="Damaged">Damaged</option>
+          <option value="Quality Issue">Quality Issue</option>
+          <option value="Temperature Violation">Temp Violation</option>
+          <option value="Other">Other</option>
+        </select>
+      </td>
       <td class="calc-cell d-after">—</td>
     `;
     tbody.appendChild(tr);
@@ -812,16 +834,19 @@ function buildPayload() {
     timeAboveDisplay:        document.getElementById('time-above-display').textContent,
   };
 
+  const caseFillLevel = document.getElementById('case-fill-level').value;
+
   const rows = [];
   document.querySelectorAll('#dish-tbody tr').forEach((tr, i) => {
     const dish    = DISHES[i];
     const added   = tr.querySelector('.d-added').value   || '0';
     const before  = tr.querySelector('.d-before').value  || '0';
     const removed = tr.querySelector('.d-removed').value || '0';
-    const reason  = tr.querySelectorAll('input')[3]?.value || '';
+    const reason  = tr.querySelector('.d-reason').value || '';
     const after   = tr.querySelector('.d-after').textContent;
     rows.push({
       date, driver, store, storeId: storeIdClean, arrive,
+      caseFillLevel,
       arrivalProductTemp: arrTemp,
       coolerTemp: ctTemp, coolerCond: ctCond,
       dish, added, before, removed, reason, after,

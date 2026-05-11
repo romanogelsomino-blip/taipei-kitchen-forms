@@ -170,7 +170,7 @@ body {
 }
 
 .nav-icon {
-  font-size: 1.2rem;
+  display: none;
 }
 
 .nav-label {
@@ -180,7 +180,7 @@ body {
 /* Content Area */
 .content {
   flex: 1;
-  padding: 32px;
+  padding: 24px;
   overflow-y: auto;
 }
 
@@ -194,31 +194,31 @@ body {
 
 .panel-title {
   font-family: 'Syne', sans-serif;
-  font-size: 2rem;
+  font-size: 1.6rem;
   font-weight: 800;
   color: var(--dark);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .panel-subtitle {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--soft);
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 /* Metrics Grid */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 20px;
-  margin-bottom: 32px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
 .metric-card {
   background: var(--surface);
   border: 2px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 10px;
+  padding: 16px;
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -232,6 +232,24 @@ body {
   background: var(--red-lt);
 }
 
+.metric-card.alert.critical {
+  border-color: var(--red);
+  background: var(--red-lt);
+  animation: pulse-alert 2s ease-in-out infinite;
+  box-shadow: 0 0 20px rgba(192, 57, 43, 0.4);
+}
+
+@keyframes pulse-alert {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(192, 57, 43, 0.4);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 30px rgba(192, 57, 43, 0.6);
+  }
+}
+
 .metric-label {
   font-family: 'DM Mono', monospace;
   font-size: 0.72rem;
@@ -243,7 +261,7 @@ body {
 
 .metric-value {
   font-family: 'Syne', sans-serif;
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 800;
   color: var(--dark);
   margin-bottom: 4px;
@@ -543,6 +561,31 @@ body {
 
 .btn-clear-filters:hover {
   border-color: var(--mid);
+}
+
+/* Time Range Buttons */
+.btn-time-range {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 5px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--mid);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-time-range:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.btn-time-range.active {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
 }
 
 /* Filtered Results */

@@ -24,7 +24,7 @@ const DEMO_MODE = true; // Enable demo data for local development
 window.addEventListener('DOMContentLoaded', async () => {
   await loadConfig();
   setupNavigation();
-  setupDateDefaults();
+  updateCurrentDate();
 
   // Check if we should use demo data or real API
   if (CONFIG.webAppUrl && CONFIG.webAppUrl !== 'DEMO_MODE') {
@@ -36,11 +36,36 @@ window.addEventListener('DOMContentLoaded', async () => {
     loadDemoData();
     updateStatus('demo', 'Demo Mode (sample data)');
     renderOverview();
-    renderReconciliation();
+    renderDeliveries();
+    renderProduction();
     renderFoodSafety();
-    populateFilters();
+    renderWaste();
   }
 });
+
+// Update current date/time in header
+function updateCurrentDate() {
+  const now = new Date();
+  const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+  document.getElementById('current-date').textContent = now.toLocaleDateString('en-US', options);
+  // Update every minute
+  setInterval(() => {
+    const now = new Date();
+    document.getElementById('current-date').textContent = now.toLocaleDateString('en-US', options);
+  }, 60000);
+}
+
+// Toggle dashboard info panel
+function toggleDashboardInfo() {
+  const info = document.getElementById('dashboard-info');
+  info.style.display = info.style.display === 'none' ? 'block' : 'none';
+}
+
+// Toggle HACCP policy panel
+function toggleHACCPPolicy() {
+  const policy = document.getElementById('haccp-policy');
+  policy.style.display = policy.style.display === 'none' ? 'block' : 'none';
+}
 
 // Load config.local.json
 async function loadConfig() {
@@ -59,7 +84,7 @@ async function loadConfig() {
 function showConfigInstructions() {
   document.getElementById('panel-overview').innerHTML = `
     <div style="padding:40px;text-align:center;background:var(--red-lt);border:2px solid var(--red);border-radius:12px;margin:20px;">
-      <h2 style="font-family:'Syne',sans-serif;color:var(--red);margin-bottom:16px;">⚙️ Configuration Required</h2>
+      <h2 style="font-family:'Syne',sans-serif;color:var(--red);margin-bottom:16px;">Configuration Required</h2>
       <p style="font-size:0.95rem;color:var(--mid);margin-bottom:20px;">
         Create a file named <code style="background:#fff;padding:2px 6px;border-radius:3px;font-family:'DM Mono',monospace;">config.local.json</code> in the <code>/dashboard</code> directory with the following content:
       </p>
@@ -143,10 +168,11 @@ async function fetchData() {
     console.log('[Data] Fetched:', DATA);
 
     updateStatus('connected', `Updated ${new Date(DATA.lastUpdated).toLocaleTimeString()}`);
-    renderOverview(); // T-051
-    renderReconciliation(); // T-053
-    renderFoodSafety(); // T-054
-    populateFilters(); // T-052
+    renderOverview();
+    renderDeliveries();
+    renderProduction();
+    renderFoodSafety();
+    renderWaste();
   } catch (e) {
     console.error('[Data] Fetch failed:', e);
     updateStatus('error', 'Fetch failed');
@@ -214,7 +240,7 @@ function renderOverview() {
   const today = new Date().toISOString().slice(0, 10);
   const weekStart = getWeekStart(new Date());
 
-  // Metrics
+  // Today's Metrics
   const deliveriesToday = DATA.deliveries.filter(d => d.date === today).length;
   const productionToday = DATA.production.filter(p => p.date === today).length;
   const violationsToday = countViolations(DATA.deliveries.filter(d => d.date === today));
@@ -226,6 +252,23 @@ function renderOverview() {
   document.getElementById('metric-production').textContent = productionToday;
   document.getElementById('metric-violations').textContent = violationsToday;
   document.getElementById('metric-waste').textContent = wasteThisWeek;
+
+  // Add critical alert styling if violations > 5
+  const violationCard = document.getElementById('metric-violations').closest('.metric-card');
+  if (violationsToday > 5) {
+    violationCard.classList.add('critical');
+  } else {
+    violationCard.classList.remove('critical');
+  }
+
+  // System Overview Stats
+  const totalDeliveries = DATA.deliveries.length;
+  const totalProduction = DATA.production.length;
+  const activeStores = new Set(DATA.deliveries.map(d => d.store).filter(Boolean)).size;
+
+  document.getElementById('stat-total-deliveries').textContent = totalDeliveries.toLocaleString();
+  document.getElementById('stat-total-production').textContent = totalProduction.toLocaleString();
+  document.getElementById('stat-total-stores').textContent = activeStores;
 
   // Top 5 stores by volume
   renderTopStores();
@@ -299,6 +342,12 @@ function renderRecentFeed() {
 function hasViolation(delivery) {
   const temp = parseFloat(delivery.coolerTemp);
   return temp > 41;
+}
+
+function hasHACCPViolation(delivery) {
+  const coolerTemp = parseFloat(delivery.coolerTemp);
+  const arrivalTemp = parseFloat(delivery.arrivalTemp);
+  return coolerTemp > 41 || arrivalTemp > 41;
 }
 
 function countViolations(deliveries) {
@@ -404,146 +453,875 @@ function loadFoodSafety() {
             <div class="violation-label">Delivery Temp Violations</div>
           </div>
         </div>
-        ${totalViolations === 0 ? '<p style="color:var(--green);font-weight:600;margin-top:12px;">✓ All checks passed this week</p>' : ''}
+        ${totalViolations === 0 ? '<p style="color:var(--green);font-weight:600;margin-top:12px;">All checks passed this week</p>' : ''}
       </div>
     `;
   }).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// T-052: Filters & Drilldowns
+// Deliveries Panel - Professional Implementation
 // ═══════════════════════════════════════════════════════════════════════════
 
-function populateFilters() {
-  // Populate month dropdown
-  const months = new Set();
-  [...DATA.deliveries, ...DATA.production].forEach(item => {
-    if (item.date) {
-      const month = item.date.slice(0, 7); // YYYY-MM
-      months.add(month);
-    }
-  });
+// State management for deliveries panel
+const DELIVERY_STATE = {
+  currentPage: 1,
+  perPage: 20,
+  filtered: [],
+  quickRange: 7, // Default: last 7 days
+  chart: null
+};
 
-  const monthSelect = document.getElementById('filter-month');
-  monthSelect.innerHTML = '<option value="">All Time</option>';
-  Array.from(months).sort().reverse().forEach(month => {
-    const option = document.createElement('option');
-    option.value = month;
-    option.textContent = new Date(month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-    monthSelect.appendChild(option);
-  });
-
-  // Populate driver dropdown
-  const drivers = new Set(DATA.deliveries.map(d => d.driver).filter(Boolean));
-  const driverSelect = document.getElementById('filter-driver');
-  driverSelect.innerHTML = '<option value="">All Drivers</option>';
-  Array.from(drivers).sort().forEach(driver => {
-    const option = document.createElement('option');
-    option.value = driver;
-    option.textContent = driver;
-    driverSelect.appendChild(option);
-  });
-
-  // Populate store dropdown
-  const storeSelect = document.getElementById('filter-store');
-  storeSelect.innerHTML = '<option value="">All Stores</option>';
-  DATA.stores.forEach(store => {
-    const option = document.createElement('option');
-    option.value = store.id;
-    option.textContent = store.name;
-    storeSelect.appendChild(option);
-  });
+function renderDeliveries() {
+  // Default to last 7 days
+  setDeliveryQuickRange(7);
 }
 
-function applyFilters() {
-  const month = document.getElementById('filter-month').value;
-  const driver = document.getElementById('filter-driver').value;
-  const store = document.getElementById('filter-store').value;
-  const dateStart = document.getElementById('filter-date-start').value;
-  const dateEnd = document.getElementById('filter-date-end').value;
+function setDeliveryQuickRange(range) {
+  DELIVERY_STATE.quickRange = range;
+  DELIVERY_STATE.currentPage = 1;
 
+  // Update button states
+  document.querySelectorAll('#panel-deliveries .btn-time-range').forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.dataset.range == range) btn.classList.add('active');
+  });
+
+  // Filter data by date range
+  const today = new Date();
   let filtered = [...DATA.deliveries];
 
-  if (month) {
-    filtered = filtered.filter(d => d.date && d.date.startsWith(month));
+  if (range === 'today') {
+    const todayStr = today.toISOString().split('T')[0];
+    filtered = filtered.filter(d => d.date === todayStr);
+  } else if (range !== 'all') {
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - range);
+    const startStr = startDate.toISOString().split('T')[0];
+    filtered = filtered.filter(d => d.date >= startStr);
   }
 
-  if (driver) {
-    filtered = filtered.filter(d => d.driver === driver);
-  }
-
-  if (store) {
-    filtered = filtered.filter(d => d.store === store);
-  }
-
-  if (dateStart) {
-    filtered = filtered.filter(d => d.date >= dateStart);
-  }
-
-  if (dateEnd) {
-    filtered = filtered.filter(d => d.date <= dateEnd);
-  }
-
-  displayFilteredResults(filtered);
-
-  // Update URL with filters (T-052: shareable URLs)
-  const params = new URLSearchParams();
-  if (month) params.set('month', month);
-  if (driver) params.set('driver', driver);
-  if (store) params.set('store', store);
-  if (dateStart) params.set('start', dateStart);
-  if (dateEnd) params.set('end', dateEnd);
-
-  const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
-  window.history.pushState({}, '', newUrl);
+  DELIVERY_STATE.filtered = filtered;
+  updateDeliveryMetrics();
+  updateDeliveryChart();
+  populateDeliveryFilters();
+  displayDeliveryTable();
 }
 
-function displayFilteredResults(results) {
-  const container = document.getElementById('filtered-results');
-  if (results.length === 0) {
-    container.innerHTML = '<p class="hint">No results match these filters</p>';
+function applyDeliveryCustomRange() {
+  const startDate = document.getElementById('delivery-custom-start').value;
+  const endDate = document.getElementById('delivery-custom-end').value;
+
+  if (!startDate || !endDate) {
+    alert('Please select both start and end dates');
     return;
   }
 
-  container.innerHTML = `
-    <p style="margin-bottom:16px;font-weight:600;">Found ${results.length} deliveries</p>
-    <div style="display:grid;gap:10px;">
-      ${results.slice(0, 50).map(d => {
-        const storeName = DATA.stores.find(s => s.id === d.store)?.name || `Store ${d.store}`;
-        return `
-          <div class="feed-item delivery">
-            <span class="feed-time">${d.date} ${d.arrive || ''}</span>
-            <span class="feed-text">${d.driver} → ${storeName} • ${d.dish}</span>
-          </div>
-        `;
-      }).join('')}
+  // Clear quick range selection
+  document.querySelectorAll('#panel-deliveries .btn-time-range').forEach(btn => {
+    btn.classList.remove('active');
+  });
+
+  DELIVERY_STATE.quickRange = 'custom';
+  DELIVERY_STATE.currentPage = 1;
+  DELIVERY_STATE.filtered = DATA.deliveries.filter(d => d.date >= startDate && d.date <= endDate);
+
+  updateDeliveryMetrics();
+  updateDeliveryChart();
+  displayDeliveryTable();
+}
+
+function applyDeliveryAdvancedFilters() {
+  const driver = document.getElementById('delivery-driver-filter').value;
+  const store = document.getElementById('delivery-store-filter').value;
+  const dish = document.getElementById('delivery-dish-filter').value;
+  const search = document.getElementById('delivery-search').value.toLowerCase();
+
+  let filtered = [...DELIVERY_STATE.filtered];
+
+  if (driver) filtered = filtered.filter(d => d.driver === driver);
+  if (store) filtered = filtered.filter(d => d.store === store);
+  if (dish) filtered = filtered.filter(d => d.dish === dish);
+  if (search) {
+    filtered = filtered.filter(d =>
+      d.driver?.toLowerCase().includes(search) ||
+      d.dish?.toLowerCase().includes(search) ||
+      d.receivedBy?.toLowerCase().includes(search) ||
+      DATA.stores.find(s => s.id === d.store)?.name.toLowerCase().includes(search)
+    );
+  }
+
+  DELIVERY_STATE.filtered = filtered;
+  DELIVERY_STATE.currentPage = 1;
+  updateDeliveryMetrics();
+  displayDeliveryTable();
+}
+
+function clearAllDeliveryFilters() {
+  document.getElementById('delivery-driver-filter').value = '';
+  document.getElementById('delivery-store-filter').value = '';
+  document.getElementById('delivery-dish-filter').value = '';
+  document.getElementById('delivery-search').value = '';
+  setDeliveryQuickRange(7); // Reset to default
+}
+
+function updateDeliveryMetrics() {
+  const filtered = DELIVERY_STATE.filtered;
+  const totalDeliveries = filtered.length;
+  const totalUnitsDelivered = filtered.reduce((sum, d) => sum + (parseInt(d.added) || 0), 0);
+  const uniqueStores = new Set(filtered.map(d => d.store)).size;
+  const uniqueDrivers = new Set(filtered.map(d => d.driver)).size;
+
+  document.getElementById('delivery-metrics').innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">Total Deliveries</div>
+      <div class="metric-value">${totalDeliveries.toLocaleString()}</div>
+      <div class="metric-sub">${uniqueDrivers} driver${uniqueDrivers !== 1 ? 's' : ''}</div>
     </div>
-    ${results.length > 50 ? `<p style="margin-top:16px;color:var(--soft);font-size:0.85rem;">Showing first 50 of ${results.length} results</p>` : ''}
+    <div class="metric-card">
+      <div class="metric-label">Units Delivered</div>
+      <div class="metric-value">${totalUnitsDelivered.toLocaleString()}</div>
+      <div class="metric-sub">Across ${uniqueStores} store${uniqueStores !== 1 ? 's' : ''}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Average per Delivery</div>
+      <div class="metric-value">${totalDeliveries > 0 ? (totalUnitsDelivered / totalDeliveries).toFixed(1) : '0'}</div>
+      <div class="metric-sub">Units per drop</div>
+    </div>
   `;
 }
 
-function clearFilters() {
-  document.getElementById('filter-month').value = '';
-  document.getElementById('filter-driver').value = '';
-  document.getElementById('filter-store').value = '';
-  document.getElementById('filter-date-start').value = '';
-  document.getElementById('filter-date-end').value = '';
-  document.getElementById('filtered-results').innerHTML = '<p class="hint">Apply filters above to see results</p>';
-  window.history.pushState({}, '', window.location.pathname);
+function updateDeliveryChart() {
+  const filtered = DELIVERY_STATE.filtered;
+
+  // Group by date
+  const byDate = {};
+  filtered.forEach(d => {
+    if (!byDate[d.date]) byDate[d.date] = 0;
+    byDate[d.date]++;
+  });
+
+  const sortedDates = Object.keys(byDate).sort();
+  const counts = sortedDates.map(date => byDate[date]);
+
+  // Destroy old chart if exists
+  if (DELIVERY_STATE.chart) {
+    DELIVERY_STATE.chart.destroy();
+  }
+
+  const ctx = document.getElementById('chart-delivery-volume').getContext('2d');
+  DELIVERY_STATE.chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: sortedDates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+      datasets: [{
+        label: 'Deliveries per Day',
+        data: counts,
+        borderColor: '#C0392B',
+        backgroundColor: 'rgba(192, 57, 43, 0.1)',
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1 }
+        }
+      }
+    }
+  });
+}
+
+function populateDeliveryFilters() {
+  const filtered = DELIVERY_STATE.filtered;
+  const populateSelect = (id, items) => {
+    const select = document.getElementById(id);
+    const defaultText = select.querySelector('option').textContent;
+    select.innerHTML = `<option value="">${defaultText}</option>`;
+    Array.from(items).sort().forEach(item => {
+      select.innerHTML += `<option value="${item}">${item}</option>`;
+    });
+  };
+
+  populateSelect('delivery-driver-filter', new Set(filtered.map(d => d.driver).filter(Boolean)));
+  populateSelect('delivery-dish-filter', new Set(filtered.map(d => d.dish).filter(Boolean)));
+
+  const storeSelect = document.getElementById('delivery-store-filter');
+  storeSelect.innerHTML = '<option value="">All Stores</option>';
+  const storesInFiltered = new Set(filtered.map(d => d.store));
+  DATA.stores.filter(s => storesInFiltered.has(s.id)).forEach(s => {
+    storeSelect.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+  });
+}
+
+function displayDeliveryTable() {
+  const filtered = DELIVERY_STATE.filtered;
+  const perPage = DELIVERY_STATE.perPage;
+  const currentPage = DELIVERY_STATE.currentPage;
+  const totalPages = Math.ceil(filtered.length / perPage);
+
+  // Update record count
+  document.getElementById('delivery-record-count').textContent =
+    `${filtered.length.toLocaleString()} record${filtered.length !== 1 ? 's' : ''}`;
+
+  // Get current page data
+  const startIdx = (currentPage - 1) * perPage;
+  const endIdx = startIdx + perPage;
+  const pageData = filtered.slice(startIdx, endIdx);
+
+  const container = document.getElementById('delivery-table-container');
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<p class="hint">No deliveries match the current filters</p>';
+    document.getElementById('delivery-pagination').style.display = 'none';
+    return;
+  }
+
+  const rows = pageData.map(d => {
+    const storeName = DATA.stores.find(s => s.id === d.store)?.name || `Store ${d.store}`;
+    const hasViolation = hasHACCPViolation(d);
+    const rowStyle = hasViolation ? 'style="background:#FADBD8;border-left:4px solid var(--red);"' : '';
+    const tempIcon = hasViolation ? '⚠️ ' : '';
+    return `
+      <tr ${rowStyle}>
+        <td>${d.date}</td>
+        <td>${d.arrive || 'N/A'}</td>
+        <td>${d.driver}</td>
+        <td>${tempIcon}${storeName}</td>
+        <td>${d.dish}</td>
+        <td>${d.added || 0}</td>
+        <td>${d.removed || 0}</td>
+        <td>${d.receivedBy || 'N/A'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Arrival</th>
+          <th>Driver</th>
+          <th>Store</th>
+          <th>Dish</th>
+          <th>Added</th>
+          <th>Removed</th>
+          <th>Received By</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  // Update pagination
+  if (totalPages > 1) {
+    document.getElementById('delivery-pagination').style.display = 'flex';
+    document.getElementById('delivery-page-info').textContent = `Page ${currentPage} of ${totalPages}`;
+  } else {
+    document.getElementById('delivery-pagination').style.display = 'none';
+  }
+}
+
+function changeDeliveryPageSize() {
+  DELIVERY_STATE.perPage = parseInt(document.getElementById('delivery-per-page').value);
+  DELIVERY_STATE.currentPage = 1;
+  displayDeliveryTable();
+}
+
+function prevDeliveryPage() {
+  if (DELIVERY_STATE.currentPage > 1) {
+    DELIVERY_STATE.currentPage--;
+    displayDeliveryTable();
+  }
+}
+
+function nextDeliveryPage() {
+  const totalPages = Math.ceil(DELIVERY_STATE.filtered.length / DELIVERY_STATE.perPage);
+  if (DELIVERY_STATE.currentPage < totalPages) {
+    DELIVERY_STATE.currentPage++;
+    displayDeliveryTable();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Production Panel
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PRODUCTION_STATE = {
+  currentPage: 1,
+  perPage: 20,
+  filtered: [],
+  quickRange: 7,
+  chart: null,
+  advancedFilters: {
+    shift: '',
+    kitchen: '',
+    supervisor: '',
+    dish: '',
+    qa: '',
+    search: ''
+  }
+};
+
+function renderProduction() {
+  // Default to last 7 days
+  setProductionQuickRange(7);
+}
+
+function setProductionQuickRange(range) {
+  PRODUCTION_STATE.quickRange = range;
+  PRODUCTION_STATE.currentPage = 1;
+
+  // Update button states
+  document.querySelectorAll('#panel-production .btn-time-range').forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.getAttribute('data-range') == range) {
+      btn.classList.add('active');
+    }
+  });
+
+  // Filter by date range
+  const today = new Date();
+  let filtered = [...DATA.production];
+
+  if (range === 'today') {
+    const todayStr = today.toISOString().split('T')[0];
+    filtered = filtered.filter(p => p.date === todayStr);
+  } else if (range !== 'all') {
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - range);
+    const startStr = startDate.toISOString().split('T')[0];
+    filtered = filtered.filter(p => p.date >= startStr);
+  }
+
+  PRODUCTION_STATE.filtered = filtered;
+  updateProductionMetrics();
+  updateProductionChart();
+  populateProductionFilters();
+  displayProductionTable();
+}
+
+function applyProductionCustomRange() {
+  const startDate = document.getElementById('production-custom-start').value;
+  const endDate = document.getElementById('production-custom-end').value;
+
+  if (!startDate || !endDate) {
+    alert('Please select both start and end dates');
+    return;
+  }
+
+  PRODUCTION_STATE.currentPage = 1;
+
+  // Remove active state from quick buttons
+  document.querySelectorAll('#panel-production .btn-time-range').forEach(btn => {
+    btn.classList.remove('active');
+  });
+
+  let filtered = [...DATA.production];
+  filtered = filtered.filter(p => p.date >= startDate && p.date <= endDate);
+
+  PRODUCTION_STATE.filtered = filtered;
+  updateProductionMetrics();
+  updateProductionChart();
+  populateProductionFilters();
+  displayProductionTable();
+}
+
+function updateProductionMetrics() {
+  const filtered = PRODUCTION_STATE.filtered;
+  const totalBatches = filtered.length;
+  const totalProduced = filtered.reduce((sum, p) => sum + (parseInt(p.qtyProduced) || 0), 0);
+  const totalDiscarded = filtered.reduce((sum, p) => sum + (parseInt(p.qtyDiscarded) || 0), 0);
+  const qaPassCount = filtered.filter(p => p.qa === 'Pass').length;
+  const qaPassRate = totalBatches > 0 ? ((qaPassCount / totalBatches) * 100).toFixed(1) : '0.0';
+
+  document.getElementById('production-metrics').innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">Total Batches</div>
+      <div class="metric-value">${totalBatches.toLocaleString()}</div>
+      <div class="metric-sub">Production runs logged</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Units Produced</div>
+      <div class="metric-value">${totalProduced.toLocaleString()}</div>
+      <div class="metric-sub">${totalDiscarded.toLocaleString()} discarded</div>
+    </div>
+    <div class="metric-card ${qaPassRate < 95 ? 'alert' : ''}">
+      <div class="metric-label">QA Pass Rate</div>
+      <div class="metric-value">${qaPassRate}%</div>
+      <div class="metric-sub">${qaPassCount} of ${totalBatches} passed</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Avg Batch Size</div>
+      <div class="metric-value">${totalBatches > 0 ? Math.round(totalProduced / totalBatches) : 0}</div>
+      <div class="metric-sub">Units per batch</div>
+    </div>
+  `;
+}
+
+function updateProductionChart() {
+  const filtered = PRODUCTION_STATE.filtered;
+
+  // Group by date
+  const byDate = {};
+  filtered.forEach(p => {
+    if (!byDate[p.date]) byDate[p.date] = 0;
+    byDate[p.date] += parseInt(p.qtyProduced) || 0;
+  });
+
+  const sortedDates = Object.keys(byDate).sort();
+  const counts = sortedDates.map(date => byDate[date]);
+
+  // Destroy old chart if exists
+  if (PRODUCTION_STATE.chart) {
+    PRODUCTION_STATE.chart.destroy();
+  }
+
+  const ctx = document.getElementById('chart-production-volume').getContext('2d');
+  PRODUCTION_STATE.chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: sortedDates.map(d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+      datasets: [{
+        label: 'Units Produced per Day',
+        data: counts,
+        borderColor: '#3498DB',
+        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+function populateProductionFilters() {
+  const filtered = PRODUCTION_STATE.filtered;
+
+  const populateSelect = (id, items) => {
+    const select = document.getElementById(id);
+    const currentValue = select.value;
+    const defaultText = select.querySelector('option').textContent;
+    select.innerHTML = `<option value="">${defaultText}</option>`;
+    Array.from(items).sort().forEach(item => {
+      select.innerHTML += `<option value="${item}">${item}</option>`;
+    });
+    select.value = currentValue;
+  };
+
+  populateSelect('production-shift-filter', new Set(filtered.map(p => p.shift).filter(Boolean)));
+  populateSelect('production-kitchen-filter', new Set(filtered.map(p => p.kitchen).filter(Boolean)));
+  populateSelect('production-supervisor-filter', new Set(filtered.map(p => p.supervisor).filter(Boolean)));
+  populateSelect('production-dish-filter', new Set(filtered.map(p => p.dish).filter(Boolean)));
+  populateSelect('production-qa-filter', new Set(filtered.map(p => p.qa).filter(Boolean)));
+}
+
+function applyProductionAdvancedFilters() {
+  PRODUCTION_STATE.advancedFilters = {
+    shift: document.getElementById('production-shift-filter').value,
+    kitchen: document.getElementById('production-kitchen-filter').value,
+    supervisor: document.getElementById('production-supervisor-filter').value,
+    dish: document.getElementById('production-dish-filter').value,
+    qa: document.getElementById('production-qa-filter').value,
+    search: document.getElementById('production-search').value.toLowerCase()
+  };
+  PRODUCTION_STATE.currentPage = 1;
+  displayProductionTable();
+}
+
+function clearAllProductionFilters() {
+  document.getElementById('production-shift-filter').value = '';
+  document.getElementById('production-kitchen-filter').value = '';
+  document.getElementById('production-supervisor-filter').value = '';
+  document.getElementById('production-dish-filter').value = '';
+  document.getElementById('production-qa-filter').value = '';
+  document.getElementById('production-search').value = '';
+  PRODUCTION_STATE.advancedFilters = {
+    shift: '',
+    kitchen: '',
+    supervisor: '',
+    dish: '',
+    qa: '',
+    search: ''
+  };
+  PRODUCTION_STATE.currentPage = 1;
+  displayProductionTable();
+}
+
+function displayProductionTable() {
+  let filtered = [...PRODUCTION_STATE.filtered];
+
+  // Apply advanced filters
+  const filters = PRODUCTION_STATE.advancedFilters;
+  if (filters.shift) filtered = filtered.filter(p => p.shift === filters.shift);
+  if (filters.kitchen) filtered = filtered.filter(p => p.kitchen === filters.kitchen);
+  if (filters.supervisor) filtered = filtered.filter(p => p.supervisor === filters.supervisor);
+  if (filters.dish) filtered = filtered.filter(p => p.dish === filters.dish);
+  if (filters.qa) filtered = filtered.filter(p => p.qa === filters.qa);
+  if (filters.search) {
+    filtered = filtered.filter(p => {
+      return (p.date && p.date.toLowerCase().includes(filters.search)) ||
+             (p.shift && p.shift.toLowerCase().includes(filters.search)) ||
+             (p.kitchen && p.kitchen.toLowerCase().includes(filters.search)) ||
+             (p.supervisor && p.supervisor.toLowerCase().includes(filters.search)) ||
+             (p.dish && p.dish.toLowerCase().includes(filters.search)) ||
+             (p.batch && p.batch.toLowerCase().includes(filters.search)) ||
+             (p.qa && p.qa.toLowerCase().includes(filters.search));
+    });
+  }
+
+  const perPage = PRODUCTION_STATE.perPage;
+  const currentPage = PRODUCTION_STATE.currentPage;
+  const totalPages = Math.ceil(filtered.length / perPage);
+
+  // Get current page data
+  const startIdx = (currentPage - 1) * perPage;
+  const endIdx = startIdx + perPage;
+  const pageData = filtered.slice(startIdx, endIdx);
+
+  const container = document.getElementById('production-table-container');
+  document.getElementById('production-record-count').textContent = `${filtered.length} records`;
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<p class="hint">No production batches match the filters</p>';
+    document.getElementById('production-pagination').style.display = 'none';
+    return;
+  }
+
+  const rows = pageData.map(p => {
+    const qaClass = p.qa === 'Pass' ? '' : (p.qa === 'Fail' ? 'style="color:var(--red);font-weight:600;"' : '');
+    return `
+      <tr>
+        <td>${p.date}</td>
+        <td>${p.shift}</td>
+        <td>${p.kitchen}</td>
+        <td>${p.supervisor}</td>
+        <td>${p.dish}</td>
+        <td>${p.batch}</td>
+        <td>${p.qtyProduced || 0}</td>
+        <td>${p.qtyDiscarded || 0}</td>
+        <td ${qaClass}>${p.qa || 'N/A'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Shift</th>
+          <th>Kitchen</th>
+          <th>Supervisor</th>
+          <th>Dish</th>
+          <th>Batch</th>
+          <th>Produced</th>
+          <th>Discarded</th>
+          <th>QA</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  // Show/hide pagination
+  if (totalPages > 1) {
+    document.getElementById('production-pagination').style.display = 'flex';
+    document.getElementById('production-page-info').textContent = `Page ${currentPage} of ${totalPages}`;
+  } else {
+    document.getElementById('production-pagination').style.display = 'none';
+  }
+}
+
+function changeProductionPageSize() {
+  PRODUCTION_STATE.perPage = parseInt(document.getElementById('production-per-page').value);
+  PRODUCTION_STATE.currentPage = 1;
+  displayProductionTable();
+}
+
+function prevProductionPage() {
+  if (PRODUCTION_STATE.currentPage > 1) {
+    PRODUCTION_STATE.currentPage--;
+    displayProductionTable();
+  }
+}
+
+function nextProductionPage() {
+  const filtered = PRODUCTION_STATE.filtered;
+  const totalPages = Math.ceil(filtered.length / PRODUCTION_STATE.perPage);
+  if (PRODUCTION_STATE.currentPage < totalPages) {
+    PRODUCTION_STATE.currentPage++;
+    displayProductionTable();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Waste Analysis Panel
+// ═══════════════════════════════════════════════════════════════════════════
+
+const WASTE_STATE = {
+  quickRange: 30,
+  filtered: [],
+  charts: {
+    byStore: null,
+    byDish: null,
+    byReason: null,
+    trend: null
+  }
+};
+
+function renderWaste() {
+  // Default to last 30 days
+  setWasteQuickRange(30);
+}
+
+function setWasteQuickRange(range) {
+  WASTE_STATE.quickRange = range;
+
+  // Update button states
+  document.querySelectorAll('#panel-waste .btn-time-range').forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.getAttribute('data-range') == range) {
+      btn.classList.add('active');
+    }
+  });
+
+  // Filter by date range
+  const today = new Date();
+  let filtered = [...DATA.waste];
+
+  if (range !== 'all') {
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - range);
+    const startStr = startDate.toISOString().split('T')[0];
+    filtered = filtered.filter(w => w.date >= startStr);
+  }
+
+  WASTE_STATE.filtered = filtered;
+  updateWasteMetrics();
+  updateWasteCharts();
+}
+
+function updateWasteMetrics() {
+  const filtered = WASTE_STATE.filtered;
+  const totalWaste = filtered.reduce((sum, w) => sum + (parseInt(w.qtyRemoved) || 0), 0);
+  const wasteEvents = filtered.length;
+  const avgPerEvent = wasteEvents > 0 ? Math.round(totalWaste / wasteEvents) : 0;
+
+  // Calculate top reason
+  const wasteByReason = {};
+  filtered.forEach(w => {
+    const reason = w.reason || 'Unknown';
+    wasteByReason[reason] = (wasteByReason[reason] || 0) + (parseInt(w.qtyRemoved) || 0);
+  });
+  const topReason = Object.entries(wasteByReason).sort((a, b) => b[1] - a[1])[0];
+
+  document.getElementById('waste-metrics').innerHTML = `
+    <div class="metric-card alert">
+      <div class="metric-label">Total Waste</div>
+      <div class="metric-value">${totalWaste.toLocaleString()}</div>
+      <div class="metric-sub">Units discarded</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Waste Events</div>
+      <div class="metric-value">${wasteEvents.toLocaleString()}</div>
+      <div class="metric-sub">${avgPerEvent} avg units/event</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Top Waste Reason</div>
+      <div class="metric-value" style="font-size:1.3rem;">${topReason ? topReason[0] : 'N/A'}</div>
+      <div class="metric-sub">${topReason ? topReason[1] + ' units' : ''}</div>
+    </div>
+  `;
+}
+
+function updateWasteCharts() {
+  const filtered = WASTE_STATE.filtered;
+
+  // Aggregate data
+  const wasteByStore = {};
+  const wasteByDish = {};
+  const wasteByReason = {};
+  const wasteByDate = {};
+
+  filtered.forEach(w => {
+    const qty = parseInt(w.qtyRemoved) || 0;
+    wasteByStore[w.store] = (wasteByStore[w.store] || 0) + qty;
+    wasteByDish[w.dish] = (wasteByDish[w.dish] || 0) + qty;
+    wasteByReason[w.reason || 'Unknown'] = (wasteByReason[w.reason || 'Unknown'] || 0) + qty;
+    wasteByDate[w.date] = (wasteByDate[w.date] || 0) + qty;
+  });
+
+  // Chart 1: Waste by Store (Bar Chart)
+  const storeEntries = Object.entries(wasteByStore).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const storeLabels = storeEntries.map(([storeId]) => {
+    const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
+    return storeName;
+  });
+  const storeData = storeEntries.map(([, qty]) => qty);
+
+  if (WASTE_STATE.charts.byStore) WASTE_STATE.charts.byStore.destroy();
+  const ctx1 = document.getElementById('chart-waste-by-store').getContext('2d');
+  WASTE_STATE.charts.byStore = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels: storeLabels,
+      datasets: [{
+        label: 'Units Wasted',
+        data: storeData,
+        backgroundColor: 'rgba(192, 57, 43, 0.7)',
+        borderColor: '#C0392B',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+
+  // Chart 2: Waste by Dish (Horizontal Bar Chart)
+  const dishEntries = Object.entries(wasteByDish).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const dishLabels = dishEntries.map(([dish]) => dish);
+  const dishData = dishEntries.map(([, qty]) => qty);
+
+  if (WASTE_STATE.charts.byDish) WASTE_STATE.charts.byDish.destroy();
+  const ctx2 = document.getElementById('chart-waste-by-dish').getContext('2d');
+  WASTE_STATE.charts.byDish = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: dishLabels,
+      datasets: [{
+        label: 'Units Wasted',
+        data: dishData,
+        backgroundColor: 'rgba(192, 57, 43, 0.7)',
+        borderColor: '#C0392B',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: { beginAtZero: true }
+      }
+    }
+  });
+
+  // Chart 3: Waste by Reason (Doughnut Chart)
+  const reasonEntries = Object.entries(wasteByReason).sort((a, b) => b[1] - a[1]);
+  const reasonLabels = reasonEntries.map(([reason]) => reason);
+  const reasonData = reasonEntries.map(([, qty]) => qty);
+
+  if (WASTE_STATE.charts.byReason) WASTE_STATE.charts.byReason.destroy();
+  const ctx3 = document.getElementById('chart-waste-by-reason').getContext('2d');
+  WASTE_STATE.charts.byReason = new Chart(ctx3, {
+    type: 'doughnut',
+    data: {
+      labels: reasonLabels,
+      datasets: [{
+        data: reasonData,
+        backgroundColor: [
+          '#C0392B',
+          '#E74C3C',
+          '#EC7063',
+          '#F1948A',
+          '#F5B7B1',
+          '#FADBD8'
+        ],
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            font: { size: 11 },
+            padding: 10
+          }
+        }
+      }
+    }
+  });
+
+  // Chart 4: Waste Trend Over Time (Line Chart)
+  const dateEntries = Object.entries(wasteByDate).sort((a, b) => a[0].localeCompare(b[0]));
+  const trendLabels = dateEntries.map(([date]) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+  const trendData = dateEntries.map(([, qty]) => qty);
+
+  if (WASTE_STATE.charts.trend) WASTE_STATE.charts.trend.destroy();
+  const ctx4 = document.getElementById('chart-waste-trend').getContext('2d');
+  WASTE_STATE.charts.trend = new Chart(ctx4, {
+    type: 'line',
+    data: {
+      labels: trendLabels,
+      datasets: [{
+        label: 'Daily Waste',
+        data: trendData,
+        borderColor: '#C0392B',
+        backgroundColor: 'rgba(192, 57, 43, 0.1)',
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Food Safety Panel
+// ═══════════════════════════════════════════════════════════════════════════
+
+function renderFoodSafety() {
+  // Stub function for food safety - can be expanded later
+  console.log('[Food Safety] Panel rendered');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Utilities
 // ═══════════════════════════════════════════════════════════════════════════
-
-function setupDateDefaults() {
-  const today = new Date().toISOString().slice(0, 10);
-  document.getElementById('recon-date').value = today;
-
-  const weekEnd = new Date();
-  weekEnd.setDate(weekEnd.getDate() + (6 - weekEnd.getDay())); // Next Saturday
-  document.getElementById('safety-week-end').value = weekEnd.toISOString().slice(0, 10);
-}
 
 function getWeekStart(date) {
   const d = new Date(date);

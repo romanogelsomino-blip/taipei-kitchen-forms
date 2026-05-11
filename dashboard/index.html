@@ -15,6 +15,7 @@
 <header class="top-header">
   <div class="brand"><span class="brand-icon">▲</span> Taipei Kitchen</div>
   <div class="header-right">
+    <span id="current-date" style="font-family:'DM Mono',monospace;font-size:0.85rem;color:var(--soft);margin-right:16px;"></span>
     <span class="status-dot" id="status-dot"></span>
     <span class="status-text" id="status-text">Connecting...</span>
     <button class="btn-refresh" id="btn-refresh" onclick="fetchData()">↻ Refresh</button>
@@ -26,20 +27,19 @@
   <!-- Side Navigation -->
   <nav class="side-nav">
     <a href="#overview" class="nav-link active" data-panel="overview">
-      <span class="nav-icon">📊</span>
       <span class="nav-label">Overview</span>
     </a>
-    <a href="#reconciliation" class="nav-link" data-panel="reconciliation">
-      <span class="nav-icon">🔄</span>
-      <span class="nav-label">Reconciliation</span>
+    <a href="#deliveries" class="nav-link" data-panel="deliveries">
+      <span class="nav-label">Deliveries</span>
+    </a>
+    <a href="#production" class="nav-link" data-panel="production">
+      <span class="nav-label">Production</span>
     </a>
     <a href="#food-safety" class="nav-link" data-panel="food-safety">
-      <span class="nav-icon">🌡️</span>
       <span class="nav-label">Food Safety</span>
     </a>
-    <a href="#filters" class="nav-link" data-panel="filters">
-      <span class="nav-icon">🔍</span>
-      <span class="nav-label">Filters</span>
+    <a href="#waste" class="nav-link" data-panel="waste">
+      <span class="nav-label">Waste Analysis</span>
     </a>
   </nav>
 
@@ -47,7 +47,52 @@
   <main class="content">
     <!-- Overview Panel -->
     <section id="panel-overview" class="panel active">
-      <h1 class="panel-title">Overview</h1>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div>
+          <h1 class="panel-title" style="margin-bottom:4px;">Live Operations Dashboard</h1>
+          <p class="panel-subtitle" style="margin-bottom:0;">Real-time insights from delivery, production, and food safety operations</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="toggleHACCPPolicy()" style="background:var(--dark);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:0.8rem;cursor:pointer;font-weight:600;font-family:'DM Mono',monospace;">HACCP Policy</button>
+          <button onclick="toggleDashboardInfo()" style="background:var(--red);color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;font-weight:700;">?</button>
+        </div>
+      </div>
+
+      <!-- HACCP Quick Reference (hidden by default) -->
+      <div id="haccp-policy" style="display:none;margin-bottom:20px;background:#f8f9fa;border:2px solid var(--dark);border-radius:8px;padding:20px;">
+        <h3 style="font-family:'Syne',sans-serif;font-size:1.1rem;margin-bottom:12px;color:var(--dark);">HACCP Quick Reference</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+          <div>
+            <h4 style="font-family:'DM Mono',monospace;font-size:0.75rem;text-transform:uppercase;color:var(--mid);margin-bottom:8px;">Critical Temperature Limits</h4>
+            <ul style="margin:0;padding-left:20px;font-size:0.85rem;line-height:1.6;">
+              <li><strong>Cold Holding:</strong> ≤41°F (refrigerated products)</li>
+              <li><strong>Danger Zone:</strong> 41°F - 135°F (bacteria growth)</li>
+              <li><strong>Critical Violation:</strong> >45°F (accelerated spoilage)</li>
+              <li><strong>Time Limit:</strong> Max 2 hours above 41°F</li>
+            </ul>
+          </div>
+          <div>
+            <h4 style="font-family:'DM Mono',monospace;font-size:0.75rem;text-transform:uppercase;color:var(--mid);margin-bottom:8px;">Corrective Actions</h4>
+            <ul style="margin:0;padding-left:20px;font-size:0.85rem;line-height:1.6;">
+              <li><strong>41-45°F:</strong> Monitor closely, reduce temp immediately</li>
+              <li><strong>>45°F for <2hrs:</strong> Cool rapidly, document action</li>
+              <li><strong>>45°F for >2hrs:</strong> Discard product, notify supervisor</li>
+              <li><strong>Equipment failure:</strong> Contact maintenance immediately</li>
+            </ul>
+          </div>
+        </div>
+        <div style="background:var(--red-lt);border-left:4px solid var(--red);padding:12px;border-radius:4px;">
+          <p style="margin:0;font-size:0.85rem;color:var(--dark);"><strong>Emergency Contact:</strong> Food Safety Manager — Call immediately for violations >45°F or equipment failure</p>
+        </div>
+      </div>
+
+      <!-- Collapsible Info (hidden by default) -->
+      <div id="dashboard-info" style="display:none;margin-bottom:20px;background:var(--red-lt);border:2px solid var(--red);border-radius:8px;padding:16px;">
+        <p style="color:var(--mid);font-size:0.85rem;line-height:1.5;margin:0;">
+          This dashboard provides real-time visibility into delivery logistics, production batching, food safety compliance, and waste tracking across all locations.
+          Use the navigation menu to explore detailed analytics, filter records, and generate reports.
+        </p>
+      </div>
 
       <!-- Metrics Tiles -->
       <div class="metrics-grid">
@@ -73,48 +118,130 @@
         </div>
       </div>
 
-      <!-- Top Stores -->
-      <div class="section-card">
-        <h2 class="section-title">Top 5 Stores by Volume</h2>
-        <div id="top-stores-list" class="top-stores-list">
-          <div class="loading">Loading...</div>
+      <!-- Two Column Layout for Top Stores and Recent Feed -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+        <!-- Top Stores -->
+        <div class="section-card" style="margin-bottom:0;">
+          <h2 class="section-title">Top 5 Stores by Volume</h2>
+          <div id="top-stores-list" class="top-stores-list">
+            <div class="loading">Loading...</div>
+          </div>
+        </div>
+
+        <!-- Recent Submissions -->
+        <div class="section-card" style="margin-bottom:0;">
+          <h2 class="section-title">Recent Submissions</h2>
+          <div id="recent-feed" class="recent-feed">
+            <div class="loading">Loading...</div>
+          </div>
         </div>
       </div>
 
-      <!-- Recent Submissions -->
+      <!-- Quick Stats -->
       <div class="section-card">
-        <h2 class="section-title">Recent Submissions</h2>
-        <div id="recent-feed" class="recent-feed">
-          <div class="loading">Loading...</div>
+        <h2 class="section-title">System Overview</h2>
+        <div id="system-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
+          <div style="text-align:center;">
+            <div style="font-family:'DM Mono',monospace;font-size:1.8rem;font-weight:700;color:var(--green);" id="stat-total-deliveries">—</div>
+            <div style="font-size:0.8rem;color:var(--mid);margin-top:4px;">Total Deliveries</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-family:'DM Mono',monospace;font-size:1.8rem;font-weight:700;color:#3498DB;" id="stat-total-production">—</div>
+            <div style="font-size:0.8rem;color:var(--mid);margin-top:4px;">Total Production Batches</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-family:'DM Mono',monospace;font-size:1.8rem;font-weight:700;color:var(--soft);" id="stat-total-stores">—</div>
+            <div style="font-size:0.8rem;color:var(--mid);margin-top:4px;">Active Stores</div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Reconciliation Panel -->
-    <section id="panel-reconciliation" class="panel">
-      <h1 class="panel-title">Daily Reconciliation</h1>
-      <p class="panel-subtitle">Produced vs Delivered vs Sold per Dish</p>
+    <!-- Deliveries Panel -->
+    <section id="panel-deliveries" class="panel">
+      <h1 class="panel-title">Delivery Operations</h1>
+      <p class="panel-subtitle">Complete delivery tracking with analytics and insights</p>
 
-      <div class="date-selector">
-        <label>View Date:</label>
-        <input type="date" id="recon-date" onchange="loadReconciliation()">
+      <!-- Quick Date Presets -->
+      <div style="margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--mid);font-weight:600;">QUICK:</span>
+        <button class="btn-time-range" data-range="today" onclick="setDeliveryQuickRange('today')">Today</button>
+        <button class="btn-time-range active" data-range="7" onclick="setDeliveryQuickRange(7)">7 Days</button>
+        <button class="btn-time-range" data-range="30" onclick="setDeliveryQuickRange(30)">30 Days</button>
+        <button class="btn-time-range" data-range="all" onclick="setDeliveryQuickRange('all')">All</button>
+        <span style="color:var(--border);margin:0 4px;">|</span>
+        <input type="date" id="delivery-custom-start" style="border:1.5px solid var(--border);border-radius:5px;padding:5px 8px;font-size:0.8rem;">
+        <span style="color:var(--mid);font-size:0.8rem;">to</span>
+        <input type="date" id="delivery-custom-end" style="border:1.5px solid var(--border);border-radius:5px;padding:5px 8px;font-size:0.8rem;">
+        <button class="btn-apply-filters" style="padding:5px 12px;font-size:0.8rem;" onclick="applyDeliveryCustomRange()">Apply</button>
       </div>
 
+      <!-- Delivery Metrics -->
+      <div class="metrics-grid" id="delivery-metrics">
+        <div class="loading">Loading metrics...</div>
+      </div>
+
+      <!-- Chart -->
+      <div class="section-card" style="margin-bottom:20px;">
+        <h2 class="section-title" style="margin-bottom:12px;">Daily Delivery Volume</h2>
+        <div style="height:200px;position:relative;">
+          <canvas id="chart-delivery-volume"></canvas>
+        </div>
+      </div>
+
+      <!-- Advanced Filters -->
+      <div class="section-card" style="margin-bottom:24px;">
+        <h2 class="section-title">Advanced Filters</h2>
+        <div class="filter-row">
+          <div class="filter-field">
+            <label>Driver</label>
+            <select id="delivery-driver-filter">
+              <option value="">All Drivers</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Store</label>
+            <select id="delivery-store-filter">
+              <option value="">All Stores</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Dish</label>
+            <select id="delivery-dish-filter">
+              <option value="">All Dishes</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Search</label>
+            <input type="text" id="delivery-search" placeholder="Search records..." style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:0.88rem;">
+          </div>
+        </div>
+        <button class="btn-apply-filters" onclick="applyDeliveryAdvancedFilters()">Apply Filters</button>
+        <button class="btn-clear-filters" onclick="clearAllDeliveryFilters()">Clear All</button>
+      </div>
+
+      <!-- Delivery Table -->
       <div class="section-card">
-        <table class="data-table" id="recon-table">
-          <thead>
-            <tr>
-              <th>Dish</th>
-              <th>Produced</th>
-              <th>Delivered</th>
-              <th>Sold</th>
-              <th>Loss</th>
-            </tr>
-          </thead>
-          <tbody id="recon-tbody">
-            <tr><td colspan="5" class="loading">Select a date to view reconciliation</td></tr>
-          </tbody>
-        </table>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h2 class="section-title" style="margin:0;">Delivery Records</h2>
+          <div style="display:flex;gap:12px;align-items:center;">
+            <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--mid);" id="delivery-record-count">—</span>
+            <select id="delivery-per-page" onchange="changeDeliveryPageSize()" style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.85rem;">
+              <option value="20">20 per page</option>
+              <option value="50">50 per page</option>
+              <option value="100">100 per page</option>
+            </select>
+          </div>
+        </div>
+        <div id="delivery-table-container">
+          <div class="loading">Loading deliveries...</div>
+        </div>
+        <!-- Pagination Controls -->
+        <div id="delivery-pagination" style="display:flex;justify-content:center;gap:12px;margin-top:20px;display:none;">
+          <button class="btn-clear-filters" onclick="prevDeliveryPage()">← Previous</button>
+          <span style="font-family:'DM Mono',monospace;font-size:0.85rem;padding:8px 16px;color:var(--mid);" id="delivery-page-info">Page 1 of 1</span>
+          <button class="btn-apply-filters" onclick="nextDeliveryPage()">Next →</button>
+        </div>
       </div>
     </section>
 
@@ -133,45 +260,157 @@
       </div>
     </section>
 
-    <!-- Filters Panel -->
-    <section id="panel-filters" class="panel">
-      <h1 class="panel-title">Filters & Drilldowns</h1>
+    <!-- Production Panel -->
+    <section id="panel-production" class="panel">
+      <h1 class="panel-title">Production Operations</h1>
+      <p class="panel-subtitle">Monitor kitchen production batches and quality metrics</p>
 
-      <div class="filter-controls">
-        <div class="filter-row">
-          <div class="filter-field">
-            <label>Month</label>
-            <select id="filter-month">
-              <option value="">All Time</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label>Driver</label>
-            <select id="filter-driver">
-              <option value="">All Drivers</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label>Store</label>
-            <select id="filter-store">
-              <option value="">All Stores</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label>Date Range</label>
-            <input type="date" id="filter-date-start">
-            <span style="margin:0 6px;">to</span>
-            <input type="date" id="filter-date-end">
-          </div>
-        </div>
-        <button class="btn-apply-filters" onclick="applyFilters()">Apply Filters</button>
-        <button class="btn-clear-filters" onclick="clearFilters()">Clear</button>
+      <!-- Quick Date Presets -->
+      <div style="margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--mid);font-weight:600;">QUICK:</span>
+        <button class="btn-time-range" data-range="today" onclick="setProductionQuickRange('today')">Today</button>
+        <button class="btn-time-range active" data-range="7" onclick="setProductionQuickRange(7)">7 Days</button>
+        <button class="btn-time-range" data-range="30" onclick="setProductionQuickRange(30)">30 Days</button>
+        <button class="btn-time-range" data-range="all" onclick="setProductionQuickRange('all')">All</button>
+        <span style="color:var(--border);margin:0 4px;">|</span>
+        <input type="date" id="production-custom-start" style="border:1.5px solid var(--border);border-radius:5px;padding:5px 8px;font-size:0.8rem;">
+        <span style="color:var(--mid);font-size:0.8rem;">to</span>
+        <input type="date" id="production-custom-end" style="border:1.5px solid var(--border);border-radius:5px;padding:5px 8px;font-size:0.8rem;">
+        <button class="btn-apply-filters" style="padding:5px 12px;font-size:0.8rem;" onclick="applyProductionCustomRange()">Apply</button>
       </div>
 
+      <!-- Production Metrics -->
+      <div class="metrics-grid" id="production-metrics">
+        <div class="loading">Loading metrics...</div>
+      </div>
+
+      <!-- Chart -->
+      <div class="section-card" style="margin-bottom:20px;">
+        <h2 class="section-title" style="margin-bottom:12px;">Daily Production Volume</h2>
+        <div style="height:200px;position:relative;">
+          <canvas id="chart-production-volume"></canvas>
+        </div>
+      </div>
+
+      <!-- Advanced Filters -->
+      <div class="section-card" style="margin-bottom:24px;">
+        <h2 class="section-title">Advanced Filters</h2>
+        <div class="filter-row">
+          <div class="filter-field">
+            <label>Shift</label>
+            <select id="production-shift-filter">
+              <option value="">All Shifts</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Kitchen</label>
+            <select id="production-kitchen-filter">
+              <option value="">All Kitchens</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Supervisor</label>
+            <select id="production-supervisor-filter">
+              <option value="">All Supervisors</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Dish</label>
+            <select id="production-dish-filter">
+              <option value="">All Dishes</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>QA Result</label>
+            <select id="production-qa-filter">
+              <option value="">All Results</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Search</label>
+            <input type="text" id="production-search" placeholder="Search records..." style="border:1.5px solid var(--border);border-radius:6px;padding:8px 10px;font-size:0.88rem;">
+          </div>
+        </div>
+        <button class="btn-apply-filters" onclick="applyProductionAdvancedFilters()">Apply Filters</button>
+        <button class="btn-clear-filters" onclick="clearAllProductionFilters()">Clear All</button>
+      </div>
+
+      <!-- Production Table -->
       <div class="section-card">
-        <h2 class="section-title">Filtered Results</h2>
-        <div id="filtered-results" class="filtered-results">
-          <p class="hint">Apply filters above to see results</p>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h2 class="section-title" style="margin:0;">Production Records</h2>
+          <div style="display:flex;gap:12px;align-items:center;">
+            <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--mid);" id="production-record-count">—</span>
+            <select id="production-per-page" onchange="changeProductionPageSize()" style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.85rem;">
+              <option value="20">20 per page</option>
+              <option value="50">50 per page</option>
+              <option value="100">100 per page</option>
+            </select>
+          </div>
+        </div>
+        <div id="production-table-container">
+          <div class="loading">Loading production batches...</div>
+        </div>
+        <!-- Pagination Controls -->
+        <div id="production-pagination" style="display:flex;justify-content:center;gap:12px;margin-top:20px;display:none;">
+          <button class="btn-clear-filters" onclick="prevProductionPage()">← Previous</button>
+          <span style="font-family:'DM Mono',monospace;font-size:0.85rem;padding:8px 16px;color:var(--mid);" id="production-page-info">Page 1 of 1</span>
+          <button class="btn-apply-filters" onclick="nextProductionPage()">Next →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Waste Analysis Panel -->
+    <section id="panel-waste" class="panel">
+      <h1 class="panel-title">Waste Analysis</h1>
+      <p class="panel-subtitle">Track discarded units and identify loss patterns</p>
+
+      <!-- Quick Date Presets -->
+      <div style="margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--mid);font-weight:600;">QUICK:</span>
+        <button class="btn-time-range" data-range="7" onclick="setWasteQuickRange(7)">7 Days</button>
+        <button class="btn-time-range active" data-range="30" onclick="setWasteQuickRange(30)">30 Days</button>
+        <button class="btn-time-range" data-range="90" onclick="setWasteQuickRange(90)">90 Days</button>
+        <button class="btn-time-range" data-range="all" onclick="setWasteQuickRange('all')">All Time</button>
+      </div>
+
+      <!-- Waste Metrics -->
+      <div class="metrics-grid" id="waste-metrics">
+        <div class="loading">Loading metrics...</div>
+      </div>
+
+      <!-- Charts Grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+        <!-- Waste by Store Chart -->
+        <div class="section-card" style="margin-bottom:0;">
+          <h2 class="section-title" style="margin-bottom:12px;">Waste by Store</h2>
+          <div style="height:250px;position:relative;">
+            <canvas id="chart-waste-by-store"></canvas>
+          </div>
+        </div>
+
+        <!-- Waste by Dish Chart -->
+        <div class="section-card" style="margin-bottom:0;">
+          <h2 class="section-title" style="margin-bottom:12px;">Waste by Dish</h2>
+          <div style="height:250px;position:relative;">
+            <canvas id="chart-waste-by-dish"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Waste Reasons Chart -->
+      <div class="section-card">
+        <h2 class="section-title" style="margin-bottom:12px;">Waste by Reason</h2>
+        <div style="height:200px;position:relative;">
+          <canvas id="chart-waste-by-reason"></canvas>
+        </div>
+      </div>
+
+      <!-- Waste Trend Over Time -->
+      <div class="section-card">
+        <h2 class="section-title" style="margin-bottom:12px;">Waste Trend Over Time</h2>
+        <div style="height:200px;position:relative;">
+          <canvas id="chart-waste-trend"></canvas>
         </div>
       </div>
     </section>
