@@ -609,6 +609,63 @@ function getDriverValue() {
   return select.value;
 }
 
+// Load drivers from JSON
+let DRIVERS = [];
+async function loadDrivers() {
+  try {
+    const response = await fetch('data/drivers.json');
+    const data = await response.json();
+    DRIVERS = data.drivers || [];
+    populateDriverDropdown();
+  } catch (e) {
+    console.error('Failed to load drivers:', e);
+    // Fallback to hardcoded list
+    DRIVERS = ["Owen", "Sam Blumenthal", "Andy"];
+    populateDriverDropdown();
+  }
+}
+
+function populateDriverDropdown() {
+  const select = document.getElementById('f-driver');
+  // Clear existing options except first
+  while (select.options.length > 1) {
+    select.remove(1);
+  }
+  // Add drivers
+  DRIVERS.forEach(driver => {
+    const option = document.createElement('option');
+    option.value = driver;
+    option.textContent = driver;
+    select.appendChild(option);
+  });
+  // Add "Other (specify)" option
+  const otherOption = document.createElement('option');
+  otherOption.value = '__custom__';
+  otherOption.textContent = '+ Add new driver';
+  select.appendChild(otherOption);
+}
+
+function handleDriverChange() {
+  const select = document.getElementById('f-driver');
+  const customInput = document.getElementById('f-driver-custom');
+  if (select.value === '__custom__') {
+    customInput.style.display = 'block';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
+}
+
+function getDriverValue() {
+  const select = document.getElementById('f-driver');
+  const customInput = document.getElementById('f-driver-custom');
+  if (select.value === '__custom__') {
+    return customInput.value.trim();
+  }
+  return select.value;
+}
+
 const params = new URLSearchParams(window.location.search);
 let storeId   = params.get('store') || '';
 let storeData = null; // Will be set after loading stores
