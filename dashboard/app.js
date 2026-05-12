@@ -656,9 +656,9 @@ function populateDeliveryFilters() {
 
   const storeSelect = document.getElementById('delivery-store-filter');
   storeSelect.innerHTML = '<option value="">All Stores</option>';
-  const storesInFiltered = new Set(filtered.map(d => d.store));
-  DATA.stores.filter(s => storesInFiltered.has(s.id)).forEach(s => {
-    storeSelect.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+  const storesInFiltered = new Set(filtered.map(d => d.store).filter(Boolean));
+  Array.from(storesInFiltered).sort().forEach(storeName => {
+    storeSelect.innerHTML += `<option value="${storeName}">${storeName}</option>`;
   });
 }
 
@@ -929,9 +929,12 @@ function populateProductionFilters() {
     select.value = currentValue;
   };
 
+  // Normalize supervisor names to remove duplicates with trailing spaces
+  const normalizeName = (name) => name ? name.trim() : '';
+
   populateSelect('production-shift-filter', new Set(filtered.map(p => p.shift).filter(Boolean)));
   populateSelect('production-kitchen-filter', new Set(filtered.map(p => p.kitchen).filter(Boolean)));
-  populateSelect('production-supervisor-filter', new Set(filtered.map(p => p.supervisor).filter(Boolean)));
+  populateSelect('production-supervisor-filter', new Set(filtered.map(p => normalizeName(p.supervisor)).filter(Boolean)));
   populateSelect('production-dish-filter', new Set(filtered.map(p => p.dish).filter(Boolean)));
   populateSelect('production-qa-filter', new Set(filtered.map(p => p.qa).filter(Boolean)));
 }
