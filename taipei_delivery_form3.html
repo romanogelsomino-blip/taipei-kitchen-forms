@@ -1386,6 +1386,74 @@ function checkForLastSubmission() {
   }
 }
 
+// ─── T-044: Photo Retry Queue ─────────────────────────────
+function queuePhotoRetry(photoPayload) {
+  try {
+    const queue = JSON.parse(localStorage.getItem('tk_delivery_photo_queue') || '[]');
+    queue.push({
+      payload: photoPayload,
+      timestamp: new Date().toISOString(),
+      attempts: 0
+    });
+    localStorage.setItem('tk_delivery_photo_queue', JSON.stringify(queue));
+    console.log('[Photo Retry] Queued photo upload for retry. Queue size:', queue.length);
+  } catch (e) {
+    console.error('[Photo Retry] Failed to queue photos:', e);
+  }
+}
+
+function clearPhotoRetryQueue() {
+  localStorage.removeItem('tk_delivery_photo_queue');
+  console.log('[Photo Retry] Queue cleared');
+}
+
+async function retryQueuedPhotos() {
+  const queue = JSON.parse(localStorage.getItem('tk_delivery_photo_queue') || '[]');
+  if (queue.length === 0) return;
+
+  console.log(`[Photo Retry] Attempting to upload ${queue.length} queued photo batch(es)`);
+
+  const stillFailed = [];
+
+  for (const item of queue) {
+    // Skip if too many attempts (max 10)
+    if (item.attempts >= 10) {
+      console.log('[Photo Retry] Max attempts reached, dropping:', item.timestamp);
+      continue;
+    }
+
+    try {
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item.payload)
+      });
+      console.log('[Photo Retry] Successfully uploaded photos from', item.timestamp);
+    } catch (e) {
+      item.attempts++;
+      stillFailed.push(item);
+      console.log(`[Photo Retry] Still failing (attempt ${item.attempts}/10):`, item.timestamp);
+    }
+  }
+
+  if (stillFailed.length > 0) {
+    localStorage.setItem('tk_delivery_photo_queue', JSON.stringify(stillFailed));
+    console.log(`[Photo Retry] ${stillFailed.length} photo batch(es) still pending`);
+  } else {
+    clearPhotoRetryQueue();
+    console.log('[Photo Retry] All queued photos successfully uploaded!');
+  }
+}
+
+// T-044: Retry queued photos every 2 minutes
+setInterval(retryQueuedPhotos, 120000);
+
+// T-044: Try once on page load in case there are queued photos from previous sessions
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(retryQueuedPhotos, 5000); // Wait 5s after page load to retry
+});
+
 async function submitForm() {
   const driver = getDriverValue();
   if (!driver) { alert('Please select a driver before submitting.'); return; }
@@ -1428,7 +1496,14 @@ async function submitForm() {
   // ── Step 2: Send photos separately if present ────────────
   const hasPhotos = photoData.before || photoData.after;
   if (hasPhotos) {
-    showStatus('\u23f3', 'Almost done\u2026', 'Step 2 of 2 — Uploading photos to Google Drive\u2026');
+    // T-044: Show detailed photo upload status
+    const photoCount = (photoData.before ? 1 : 0) + (photoData.after ? 1 : 0);
+    const photoTypes = [];
+    if (photoData.before) photoTypes.push('before-stocking');
+    if (photoData.after) photoTypes.push('after-stocking');
+    showStatus('\u23f3', 'Almost done\u2026',
+      `Step 2 of 2 — Uploading ${photoCount} photo${photoCount > 1 ? 's' : ''} (${photoTypes.join(', ')}) to Google Drive\u2026`);
+
     const photoPayload = {
       formType: 'photos_only',
       photos:   payload.photos
@@ -1443,12 +1518,16 @@ async function submitForm() {
       showStatus('\u2705', 'All Done!',
         payload.rows.length + ' dish rows saved to Google Sheets for ' +
         (storeData ? storeData.name : 'store ' + storeId) + '. ' +
-        'Photos uploaded to Google Drive.');
+        `${photoCount} photo${photoCount > 1 ? 's' : ''} uploaded to Google Drive.`);
+
+      // T-044: Clear photo retry queue on success
+      clearPhotoRetryQueue();
     } catch(e) {
-      // Data already saved — just note that photos failed
+      // T-044: Queue photos for retry
+      queuePhotoRetry(photoPayload);
       showStatus('\u26a0\ufe0f', 'Mostly Done',
         'Delivery data saved to Google Sheets \u2713. ' +
-        'Photos could not upload — check your internet connection and contact your supervisor to upload manually.');
+        `${photoCount} photo${photoCount > 1 ? 's' : ''} queued for retry — will auto-upload when connection improves.`);
     }
   } else {
     showStatus('\u2705', 'Submitted!',
