@@ -192,18 +192,16 @@ body {
 
 .mobile-nav-link {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 8px 4px;
+  padding: 12px 8px;
   color: var(--soft);
   text-decoration: none;
-  font-size: 0.7rem;
-  font-weight: 500;
+  font-weight: 600;
   transition: all 0.2s;
   border-top: 3px solid transparent;
   flex: 1;
-  min-height: 60px;
+  min-height: 50px;
 }
 
 .mobile-nav-link.active {
@@ -212,14 +210,11 @@ body {
   background: var(--red-lt);
 }
 
-.mobile-nav-icon {
-  font-size: 1.3rem;
-  margin-bottom: 2px;
-}
-
 .mobile-nav-label {
   font-family: 'Inter', sans-serif;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 /* Content Area */
@@ -679,16 +674,17 @@ body {
   }
 
   #current-date {
-    display: none; /* Hide date on small screens */
+    font-size: 0.7rem !important;
+    margin-right: 8px !important;
   }
 
   .status-text {
-    font-size: 0.7rem;
+    font-size: 0.72rem;
   }
 
   .btn-refresh {
-    font-size: 0.7rem;
-    padding: 4px 8px;
+    font-size: 0.72rem;
+    padding: 6px 10px;
   }
 
   /* Hide Side Nav on Mobile */
@@ -704,45 +700,47 @@ body {
   /* Add Mobile Bottom Navigation */
   .main-layout {
     flex-direction: column;
-    padding-bottom: 60px; /* Space for fixed bottom nav */
+    padding-bottom: 50px; /* Space for fixed bottom nav */
   }
 
   /* Content - Full Width */
   .content {
-    padding: 16px 12px;
+    padding: 12px 10px;
     width: 100%;
   }
 
   /* Panel Titles - Smaller */
   .panel-title {
-    font-size: 1.3rem;
+    font-size: 1.2rem;
   }
 
   .panel-subtitle {
-    font-size: 0.8rem;
+    font-size: 0.78rem;
   }
 
-  /* Metrics Grid - Single Column Stack */
+  /* Metrics Grid - 2 Columns on Mobile */
   .metrics-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-    margin-bottom: 16px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
   }
 
   .metric-card {
-    padding: 12px;
+    padding: 10px;
   }
 
   .metric-label {
-    font-size: 0.68rem;
+    font-size: 0.72rem;
+    margin-bottom: 6px;
   }
 
   .metric-value {
-    font-size: 1.6rem;
+    font-size: 1.4rem;
+    margin-bottom: 2px;
   }
 
   .metric-sub {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
   }
 
   /* Overview - Stack Top Stores and Recent Feed */
@@ -754,40 +752,46 @@ body {
 
   /* Section Cards - Tighter Padding */
   .section-card {
-    padding: 16px;
-    margin-bottom: 16px;
+    padding: 12px;
+    margin-bottom: 12px;
   }
 
   .section-title {
-    font-size: 1rem;
+    font-size: 0.95rem;
+    margin-bottom: 12px;
   }
 
   /* System Stats - 2 Columns Instead of 3 */
   #system-stats {
     grid-template-columns: 1fr 1fr !important;
+    gap: 10px;
   }
 
   /* Filter Controls - Stack Vertically */
   .filter-row {
     grid-template-columns: 1fr;
-    gap: 12px;
-    margin-bottom: 12px;
+    gap: 10px;
+    margin-bottom: 10px;
   }
 
   .filter-controls {
-    padding: 16px;
+    padding: 12px;
+    margin-bottom: 12px;
   }
 
   .btn-apply-filters,
   .btn-clear-filters {
     width: 100%;
     margin-right: 0;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    padding: 8px 16px;
   }
 
   /* Quick Date Filters - Stack if Needed */
   div[style*="display:flex;gap:8px"] {
     flex-wrap: wrap;
+    margin-bottom: 12px;
   }
 
   .btn-time-range {
@@ -800,7 +804,8 @@ body {
   .week-selector {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: 6px;
+    margin-bottom: 12px;
   }
 
   .date-selector input,
@@ -808,13 +813,13 @@ body {
     width: 100%;
   }
 
-  /* Charts - Taller on Mobile for Readability */
+  /* Charts - Optimized Height for Mobile */
   .section-card > div[style*="height:200px"] {
-    height: 220px !important;
+    height: 180px !important;
   }
 
   .section-card > div[style*="height:250px"] {
-    height: 280px !important;
+    height: 200px !important;
   }
 
   /* Waste Charts Grid - Stack Vertically */
@@ -917,53 +922,54 @@ body {
 
   /* Top Stores List */
   .store-item {
-    padding: 10px 12px;
+    padding: 8px 10px;
   }
 
   .store-name {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
   }
 
   .store-volume {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
   }
 
   /* Recent Feed */
   .feed-item {
-    padding: 10px 12px;
-    font-size: 0.82rem;
+    padding: 8px 10px;
+    font-size: 0.8rem;
   }
 
   .feed-time {
-    font-size: 0.68rem;
+    font-size: 0.7rem;
   }
 
   /* Safety Summary */
   .safety-store-card {
-    padding: 16px;
+    padding: 12px;
   }
 
   .safety-store-name {
-    font-size: 1rem;
+    font-size: 0.95rem;
   }
 
   .safety-violations {
-    flex-direction: column;
-    gap: 12px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 16px;
   }
 
   .violation-count {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
   }
 
   .violation-label {
-    font-size: 0.78rem;
+    font-size: 0.75rem;
   }
 
   /* Loading States */
   .loading {
-    font-size: 0.8rem;
-    padding: 16px;
+    font-size: 0.78rem;
+    padding: 12px;
   }
 
   /* Touch-Friendly Tap Targets */
