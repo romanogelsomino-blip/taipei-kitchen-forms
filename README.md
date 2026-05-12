@@ -8,22 +8,38 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 
 ## What's Here
 
-| File                            | What it does                                                 |
-|---------------------------------|--------------------------------------------------------------|
-| `taipei_production_form3.html`  | Kitchen form. Logs each batch — cook times, cooling, dish counts, quality notes. |
-| `taipei_delivery_form3.html`    | Driver form. Logs each store delivery — temps, photos, what was loaded, what was left. |
+| Component                          | What it does                                                 |
+|------------------------------------|--------------------------------------------------------------|
+| `taipei_production_form3.html`     | Kitchen form. Logs each batch — cook times, cooling, dish counts, quality notes. |
+| `taipei_delivery_form3.html`       | Driver form. Logs each store delivery — temps, photos, what was loaded, what was left, case fill levels. |
+| `dashboard/`                       | Live web dashboard showing real-time metrics, deliveries, production, waste analysis, and HACCP compliance. |
+| `Code.gs`                          | Google Apps Script that handles form submissions and serves dashboard API. |
+| `data/`                            | JSON files for drivers, supervisors, stores, and dishes — loaded dynamically by forms. |
 
-Both are simple web pages, hosted on GitHub Pages, opened by phone via QR codes posted at each location.
+All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR codes posted at each location.
+
+**Live Dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
 
 ---
 
 ## How It Works
 
+### Forms
 1. An employee scans the QR code at their location.
 2. The form opens on their phone.
-3. They fill it out and hit submit.
-4. The information lands in the master Google Sheet (`TaipeiKitchen_BentoOps_v2`).
-5. Delivery photos land in a Google Drive folder.
+3. They fill it out with dropdowns for drivers, supervisors, stores, and standard options.
+4. Photos are compressed client-side before upload (target: <500KB).
+5. If offline, submissions queue in localStorage and retry when connection returns.
+6. The information lands in the master Google Sheet (`TaipeiKitchen_BentoOps_v2`).
+7. Delivery photos land in a Google Drive folder.
+
+### Dashboard
+1. Google Apps Script `doGet` endpoint serves JSON data from the sheet.
+2. Dashboard polls the API every 10 seconds for updates.
+3. Real-time metrics display: deliveries today, production batches, HACCP violations, waste.
+4. Interactive filters by date range, driver, store, dish.
+5. Waste analysis with charts showing patterns by store and reason.
+6. Weekly food safety summary suitable for regulator/corporate review.
 
 ---
 
@@ -37,7 +53,9 @@ Both are simple web pages, hosted on GitHub Pages, opened by phone via QR codes 
 | 6331     | Mechanicsburg, PA              |
 | 6443     | Chambersburg, PA               |
 | 6542     | Carlisle, PA                   |
-| 6564     | Harrisburg (Gayson Rd), PA     |
+| 6564     | Harrisburg (Grayson Rd), PA    |
+
+To add a new store, see [`docs/ADD_A_STORE.md`](docs/ADD_A_STORE.md).
 
 ---
 
@@ -49,26 +67,105 @@ The forms automatically flag anything outside HACCP cooling rules:
 - Then from 70°F to 41°F within 4 more hours
 - Final batch temperature must be 41°F or below before packaging
 - Any delivery temperature above 41°F gets flagged on submission
+- Cooler temperature above 41°F triggers a violation alert
+
+Dashboard highlights all violations in red with corrective action notes.
 
 ---
 
-## Known Issues to Address
+## Recent Improvements
 
-- **Submissions fail when Wi-Fi is weak** at Giant locations, especially for photos. When that happens, the data is lost.
-- **Anyone with the QR code can submit** — there's no driver login yet.
-- **Photos upload at full size**, which is slow on weak connections.
-- **Adding a new store** currently requires editing the form code.
+**✅ Completed:**
+- Offline-first form behavior with localStorage queue
+- Client-side image compression (<500KB target)
+- Locked submission timestamps (regulatory requirement)
+- Driver, supervisor, and store dropdowns (eliminates data quality issues)
+- Expire reason dropdown with standardized options
+- Case fill-level tracking on delivery form (0-25%, 25-50%, 50-75%, 75-100%)
+- QA Result defaults to "Pass" (forces conscious Fail action)
+- Live web dashboard with 10-second auto-refresh
+- Real-time metrics, charts, and HACCP compliance monitoring
+- Waste analysis by store and reason with trend visualizations
+
+---
+
+## Project Documentation
+
+- **[SCOPE.md](docs/SCOPE.md)** — Original proposal scope (verbatim from UAS-2026-001)
+- **[HANDOFF.md](docs/HANDOFF.md)** — Daily operations guide and deployment procedures
+- **[ADD_A_STORE.md](docs/ADD_A_STORE.md)** — How to onboard a new Giant location
+- **[FRICTION_AUDIT.md](docs/FRICTION_AUDIT.md)** — Data quality issues and UX improvements
+- **[COORDINATION.md](COORDINATION.md)** — Task board and agent collaboration protocol
+
+---
+
+## Deployment
+
+### Forms
+Forms are served via GitHub Pages from the `main` branch:
+- **Production form:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_production_form3.html
+- **Delivery form:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_delivery_form3.html
+
+To deploy changes:
+1. Edit the HTML files locally
+2. Test on a local server: `python3 -m http.server 8080`
+3. Commit and push to `main` branch
+4. GitHub Pages auto-deploys within 1-2 minutes
+
+### Dashboard
+Dashboard files live in `/dashboard/` and deploy automatically with forms.
+
+To update the dashboard:
+1. Edit files in `dashboard/` directory
+2. Test locally: `cd dashboard && python3 -m http.server 8080`
+3. Commit and push to `main` branch
+4. Dashboard updates at https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
+
+### Apps Script
+The backend (`Code.gs`) runs as a Google Apps Script attached to the master sheet.
+
+To update:
+1. Edit `Code.gs` in this repo
+2. Open the Google Sheet → Extensions → Apps Script
+3. Paste the updated code
+4. Save (Cmd/Ctrl+S)
+5. For dashboard API changes: Deploy → Manage deployments → Edit → New version → Deploy
+
+---
+
+## QR Code System
+
+Each location has a QR code that opens the appropriate form:
+
+**Production Form QR:**
+```
+https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_production_form3.html
+```
+
+**Delivery Form QR (per store):**
+```
+https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_delivery_form3.html?store=6542
+```
+
+The `?store=` parameter pre-fills the store selection.
+
+Generate new QR codes at: https://www.qr-code-generator.com/
 
 ---
 
 ## For the Owner
 
-- Master spreadsheet: `TaipeiKitchen_BentoOps_v2` in Google Sheets
-- Photo repository: Google Drive (shareable via link)
-- All changes to the live forms should be tested on a duplicate copy first
+- **Master spreadsheet:** `TaipeiKitchen_BentoOps_v2` in Google Sheets (ID: 1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI)
+- **Photo repository:** Google Drive (shareable via link)
+- **Live dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
+- **Staging sheet:** `TaipeiKitchen_BentoOps_v2_STAGING` (ID: 1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E)
+
+All changes to the live forms should be tested on the staging sheet first.
 
 ---
 
 ## Contact
 
-Owner: **Romano Gelsomino** — Taipei Kitchen
+**Owner:** Romano Gelsomino — Taipei Kitchen
+**Developer:** Universole App Studios
+**Repository:** https://github.com/romanogelsomino-blip/taipei-kitchen-forms
