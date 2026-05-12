@@ -85,11 +85,11 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-007 | Offline-resilient submission: queue in localStorage on network fail, retry on reconnect | @code | TODO | Addresses README Known Issue #1. Branch: task/T-007-offline-queue. |
 | T-008 | Client-side image compression before upload (target <500KB, max 1600px) | @code | TODO | Addresses README Known Issue #3. |
 | T-009 | Driver auth: lightweight PIN or per-driver QR with signed token | @code | NEEDS-OWNER | Addresses README Known Issue #2. Need owner input on Google sign-in vs simple PIN before coding. |
-| T-010 | Move store list out of HTML into a JSON file fetched at form load | @code | TODO | Addresses README Known Issue #4. New file: data/stores.json. |
+| T-010 | Move store list out of HTML into a JSON file fetched at form load | @code | IN-PROGRESS | Addresses README Known Issue #4. New file: data/stores.json. |
 | T-011 | Add new-store onboarding doc | @code | TODO | docs/ADD_A_STORE.md. Depends on T-010. |
 | T-012 | Verify HACCP cooling-rule logic against current FSIS / FDA Food Code 2022 guidance | @browser | TODO | Output: comment block under T-012 below. |
-| T-013 | Inventory App Store Connect / Play Console for any Taipei Kitchen app entry | @browser | NEEDS-OWNER | Open ASC tab currently shows PokerPro app; confirm with owner whether a Taipei Kitchen mobile app is in scope at all. |
-| T-014 | Draft kickoff email to Romano confirming payment received and timeline | @browser | TODO | Save as Gmail draft only. Do not send. Owner sends. |
+| T-013 | Inventory App Store Connect / Play Console for any Taipei Kitchen app entry | @browser | DONE | Confirmed with owner 2026-05-07: no Taipei Kitchen mobile app in scope. ASC PokerPro entry unrelated. Closed. |
+| T-014 | Draft kickoff email to Romano confirming payment received and timeline | @browser | CANCELLED | Cancelled per owner 2026-05-08. No kickoff email needed — client sees prototype only when complete (Client Visibility Rule). |
 | T-015 | Define v1 milestone scope and acceptance criteria | @code | TODO | Output: docs/MILESTONE_V1.md mirroring proposal Scope of Work. |
 | T-016 | Mirror this board into GitHub Issues (one issue per task, labels owner:browser / owner:code) | @code | TODO | After this file is merged. |
 | T-017 | Set up staging: duplicate GitHub Pages branch (gh-pages-staging) + duplicate sandbox sheet TaipeiKitchen_BentoOps_v2_STAGING | @code | IN-PROGRESS | @browser portion DONE 2026-05-07: staging sheet copy created at https://docs.google.com/spreadsheets/d/1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E/edit (in leandertoney@gmail.com Drive). Apps Script copied with sheet. Remaining @code work: create gh-pages-staging branch and wire forms to a STAGING flag pointing at the sandbox sheet's webhook. |
@@ -99,9 +99,9 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-021 | UAT with Romano on one pilot location before rolling to all 7 stores | @browser | NEEDS-OWNER | Owner picks the pilot store and schedules with Romano. |
 | T-022 | Repair broken sheet tabs (Store Lookup, Production Timeline, Delivery Summary, Production Summary, Weekly Snapshot, Waste Tracker) so each populates correctly when filtered | @code | TODO | SCOPE.md §5. Apps Script + formula fixes. Pair with @browser to verify in the live sheet. |
 | T-023 | Split Waste Tracker by store so per-location patterns can be analyzed | @code | TODO | SCOPE.md §5. Likely a pivot or a per-store tab driven by Apps Script. |
-| T-024 | Build Consolidated Dashboard tab in master sheet — production, waste, delivery (sales when available) across all locations, auto-refreshed | @code | TODO | SCOPE.md §6. New sheet tab + Apps Script triggers for refresh. |
-| T-025 | Build daily reconciliation view: produced vs delivered vs sold per dish per day to surface inventory loss | @code | TODO | SCOPE.md §6. Depends on T-024 layout. |
-| T-026 | Build weekly food-safety summary per store, regulator/corporate-ready | @code | TODO | SCOPE.md §6. PDF or printable view. |
+| T-024 | Build Consolidated Dashboard tab in master sheet — production, waste, delivery (sales when available) across all locations, auto-refreshed | @code | CANCELLED | Owner directive 2026-05-08: replaced by web dashboard. SCOPE.md §6 now satisfied by T-051 (Overview panel) under T-048 dashboard shell. |
+| T-025 | Build daily reconciliation view: produced vs delivered vs sold per dish per day to surface inventory loss | @code | CANCELLED | Owner directive 2026-05-08: replaced by web dashboard. SCOPE.md §6 satisfied by T-053 (Daily Reconciliation panel). |
+| T-026 | Build weekly food-safety summary per store, regulator/corporate-ready | @code | CANCELLED | Owner directive 2026-05-08: replaced by web dashboard. SCOPE.md §6 satisfied by T-054 (Weekly Food-Safety panel). |
 | T-027 | Lock submission timestamps at moment of entry (regulatory requirement) | @code | TODO | SCOPE.md §3. Capture client time + server time on submit; store both. |
 | T-028 | Cleanup of existing production log: dedupe + remove orphaned data | @browser | TODO | SCOPE.md §1. Coordinate with owner before deletions; archive first. |
 | T-029 | Reorganize Drive photo folder by store and date for easy Giant corporate sharing | @browser | TODO | SCOPE.md §2. Owner approval required for permission changes. |
@@ -123,6 +123,15 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-045 | F-14 P1: Trip Summary final screen on delivery form with single confirm tap | @code | TODO | FRICTION_AUDIT.md F-14. Replaces 13-row visit confusion. |
 | T-046 | F-15 P1: Disable Submit button until required fields filled (no end-of-form alerts) | @code | TODO | FRICTION_AUDIT.md F-15. |
 | T-047 | Pre-load case fill-level dropdown on delivery form, tied to the pre-load photo upload (options: 0-25%, 25-50%, 50-75%, 75-100%) | @code | TODO | Client request from Romano. Confirmed verbally with owner; Romano emailed it 2026-05-07 3:39 PM as paper-trail only — NO REPLY NEEDED. New field captures case quantity prior to filling with the day's delivery. Bound to existing pre-load photo step. Persist to Delivery Log - Live as a new column (proposed: Case Pre-Fill %). Update apps_script doPost append accordingly. Folded into 72-hour prototype scope per Client Visibility Rule. |
+| T-048 | Web Dashboard shell — `dashboard/index.html` + `dashboard/app.js` + `dashboard/styles.css`. Side-nav layout, top header, content area, theme. Chart.js via CDN. Runs locally via `python3 -m http.server 8080` from `/dashboard`. Reads `dashboard/config.local.json` (gitignored) for Web App URL. | @code | TODO | SCOPE.md §6 web-dashboard replacement. Owner wants real-time view on localhost as data accumulates. Ship under bundle branch `task/web-dashboard`. |
+| T-049 | Apps Script `doGet(e)` JSON endpoint in `apps_script/Code.gs` returning `{ deliveries, production, waste, stores, lastUpdated }`. Supports `?since=ISO` (incremental) and `?range=YYYY-MM` (month filter). Deployable as Web App with execute-as-me, anyone-with-link. | @code | TODO | Feeds T-048 dashboard. Pair with T-050 (browser deploys Web App). |
+| T-050 | Paste updated `Code.gs` into master sheet's Apps Script editor, deploy as Web App, capture deployment URL into `dashboard/config.local.json` on a temporary local commit. | @browser | TODO | Depends on T-049 landing in repo. May require one OAuth scope-grant click from owner. |
+| T-051 | Overview panel — totals tiles (deliveries today, production today, HACCP violations today, waste this week), top 5 stores by volume, recent submissions feed. Replaces sheet-tab T-024. | @code | TODO | SCOPE.md §6 — single dashboard, viewable in one place each morning. |
+| T-052 | Filters & drilldowns — sidebar with Month picker (May, April, …), Driver dropdown, Store dropdown, Date range. Drilldown views: by-driver, by-store, by-dish, by-arrival-time. URL-encoded so views are shareable. | @code | TODO | Filter state persists in URL query string. |
+| T-053 | Daily Reconciliation panel — produced vs delivered vs sold per dish per day. Surface inventory loss in red. Replaces sheet-tab T-025. | @code | TODO | SCOPE.md §6. Sales column may be NULL until POS integration; render as `—` not 0. |
+| T-054 | Weekly Food-Safety Summary panel — per-store, weekly, printable view. HACCP cooling violations, delivery temp violations, corrective actions. Replaces sheet-tab T-026. | @code | TODO | SCOPE.md §6 — regulator/corporate-ready. Add Print CSS for clean PDF export via browser print. |
+| T-055 | Auto-refresh — dashboard polls `doGet` every 10s, diffs against last payload, animates new rows in, shows toast on new submission. Pause-on-tab-blur to save quota. | @code | TODO | True real-time feel. Replaces the 'refreshed automatically' phrase in SCOPE.md §6. |
+| T-056 | Forecast tiles (STRETCH) — waste trend next 7 days, production trend next 7 days, simple linear regression on rolling 4-week window. | @code | TODO | Stretch goal. Ship if T-051–T-055 land before deadline; else defer to v2 acceptance window. Not gating prototype delivery. |
 
 ---
 
@@ -157,3 +166,84 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 - 2026-05-06 — @code — Pulled latest. Reading docs/SCOPE.md now to reconcile task board against §1–7. Will prioritize work per deadline (10 business days).
 - 2026-05-07 — @browser — Resumed session after browser crash. Created staging sheet copy TaipeiKitchen_BentoOps_v2_STAGING (https://docs.google.com/spreadsheets/d/1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E/edit) per T-017; flipped T-017 to IN-PROGRESS pending @code's gh-pages-staging branch + STAGING-flag wiring. Logged Romano's 2026-05-07 email request as new task T-047 (case pre-fill % dropdown on delivery form). @code: when T-017 wiring is done, point form STAGING flag at this sheet ID. T-006 and T-042 will resume on the staging sheet next.
 - 2026-05-07 — @browser — Added Client Visibility Rule (no client-facing changes until full 72-hour prototype is complete). Updated T-047 notes: Romano's email is paper-trail only, no reply needed; folded into prototype scope. Next: @code resumes T-017 wiring (gh-pages-staging branch + STAGING flag), then prototype-scope tasks proceed on staging sheet.
+
+- 2026-05-07 — @browser — Owner sync. Confirmed no Taipei Kitchen mobile app in scope; closed T-013 (DONE). Owner flagged that 47 individual PR approvals is not workable. Going forward, @code MUST batch related work into thematic PRs (suggested groupings below). Active backlog of 12 open PRs will be reviewed/merged in tiered order: foundations (#4 TEST_PLAN, #5 stores.json) → docs (#1, #2, #3, #6, #7) → P0 friction batch (#8, #9, #10, #11) → client request (#12). All future work to be bundled per the new PR Bundling Strategy section above.
+
+## PR Bundling Strategy
+
+To keep owner review load manageable, @code groups remaining backlog into thematic PRs instead of one PR per task. Existing in-flight PRs (#1–#12) are honored as-is; this rule applies to all new work.
+
+Proposed bundles for remaining @code TODOs:
+
+- **P1/P2 friction-fix batch** — single PR covering T-034, T-037, T-038, T-039, T-041, T-044, T-045, T-046. Branch: `task/friction-p1p2-batch`.
+- **Reporting layer** — single PR covering T-022 (sheet repairs), T-023 (waste-by-store), T-024 (consolidated dashboard), T-025 (daily reconciliation), T-026 (weekly food-safety summary). Branch: `task/reporting-layer`.
+- **Quality-of-life / resilience** — single PR covering T-007 (offline queue), T-008 (image compression), T-027 (locked timestamps). Branch: `task/qol-resilience`.
+- **Onboarding & docs** — single PR covering T-011 (new-store onboarding), T-016 (mirror board to Issues), T-031 (HANDOFF.md). Branch: `task/onboarding-docs`.
+       
+  Each bundle PR description must list the task IDs it closes, the acceptance criteria from docs/TEST_PLAN.md it satisfies, and a section-by-section diff summary. Owner reviews the cumulative diff once per bundle.
+
+  
+
+- 2026-05-08 — @browser — Owner directive: run straight through without permission stops. T-014 cancelled (no kickoff email). Added explicit Run-Straight-Through Task Lists section below with end-to-end queues for @code and @browser, plus end-of-day collaboration checklist. @code: pull and execute its queue. @browser: executing T-005 → T-006 → T-042 → T-043 → T-028 → T-029 → T-019/T-020. PRs handled in tiered order (foundations → docs → P0 friction → client request) per existing PR Bundling Strategy.
+
+- 2026-05-11 — @code — T-047 DONE (case fill-level dropdown). Dashboard panels rebuilt (T-048, T-049, T-051, T-052, T-053, T-054 complete): Overview, Deliveries, Production, Waste Analysis with charts, pagination, HACCP alerts. doGet API deployed to production sheet Apps Script. Column mapping issue identified: delivery sheet missing caseFillLevel column. Fixed doGet at /tmp/fixed_doget.js. @browser: T-050 BLOCKED - needs to replace doGet+sheetToJSON in production Apps Script (sheet ID 1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI) with code from /tmp/fixed_doget.js, then redeploy Web App. Task details in /tmp/claude_chrome_final_deploy.txt. Once deployed, update dashboard/config.local.json with new URL and verify May 2026 data appears.
+
+- 2026-05-11 — @code — T-050 COMPLETE. Production doGet endpoint deployed (Version 9) at https://script.google.com/macros/s/AKfycbzt-b5ZVYoqeYt-1XnOnLFCdGcB1trlNiLbL8wcFagWO6ul5wqS-cJj3wInEdsI5uamyg/exec. API verified returning 2,379 deliveries (1,248 April + 1,131 May), 494 production batches. Fixed dashboard bugs in app.js: (1) date comparison for "Today" metrics now uses slice(0,10) instead of exact equality to handle ISO timestamps, (2) Top Stores no longer shows "Store Store" double prefix - uses store name directly since d.store already contains full name. Dashboard verified working at http://localhost:8000 with May 2026 data displaying correctly. Config already pointing to production URL. All dashboard display issues resolved.
+
+
+- 2026-05-08 — @browser — Owner pivot on SCOPE.md §6: replaced sheet-tab dashboard with a beautiful web dashboard, viewable on localhost during dev and updating in real-time as drivers submit. Cancelled T-024/T-025/T-026 (sheet-tab versions). Added T-048 (shell) + T-049 (doGet JSON endpoint) + T-050 (@browser paste & deploy Web App) + T-051 (Overview) + T-052 (Filters & drilldowns by driver/store/dish/arrival-time, Month filter) + T-053 (Daily Reconciliation) + T-054 (Weekly Food-Safety) + T-055 (10s auto-refresh polling) + T-056 (forecasts STRETCH, ship if time). New @code bundle: `task/web-dashboard`. @browser inserts T-050 after T-006 in own queue. No SCOPE CHANGE block — web dashboard fits inside §6 'single dashboard pulling sales, production, waste, and delivery data, refreshed automatically and viewable in one place'. Forecasts (T-056) are the only stretch item beyond literal §6 text.
+
+## Run-Straight-Through Task Lists — 2026-05-08
+
+> **Purpose.** Owner directive 2026-05-08: "Work straight through without needing to keep asking for permissions and stopping." Both agents now have explicit end-to-end queues below. Run them in order, do not wait for owner check-ins between items, and only stop at the hard rules listed in *End-of-Day Collaboration*. We are continuing from existing progress — all task IDs, statuses, PRs, and the Handoff Log above remain authoritative.
+
+### @code — run straight through (in this order)
+
+1. **Pull main**, re-read `docs/SCOPE.md` and this file. Reconcile board against SCOPE §1–7 (already covered, no new tasks needed).
+2. **T-017 finish** — create `gh-pages-staging` branch from `main`. Add a `STAGING` flag to `taipei_production_form3.html` and `taipei_delivery_form3.html` that points the webhook to the staging sheet (sheet id: `1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E`). Flag value flips by branch (main = live sheet, gh-pages-staging = staging sheet). Flip T-017 to REVIEW with @browser as reviewer.
+3. **PR consolidation pass** — keep all 12 open PRs alive but rebase / re-describe in tier order so owner can review as cumulative diffs:
+   - Tier 1 (Foundations): #4 TEST_PLAN.md, #5 stores.json.
+   - Tier 2 (Docs): #1 production form audit, #2 delivery form audit, #3 MILESTONE_V1.md, #6 T-009 driver-auth proposal (merges as doc only — T-009 stays DEFERRED to v2), #7 README overhaul.
+   - Tier 3 (P0 friction): #8 T-032 Driver dropdown, #9 T-033 Expire Reason dropdown, #10 T-036 Supervisor dropdown, #11 T-040 QA Result default Pass.
+   - Tier 4 (Client request): #12 T-047 case pre-fill % dropdown.
+   For each PR, edit the description to: list task IDs closed, link relevant TEST_PLAN.md sections, and indicate which tier it belongs to. No self-merges.
+4. **Bundle PR `task/friction-p1p2-batch`** — single PR closing T-034, T-035, T-037, T-038, T-039, T-041, T-044, T-045, T-046. Description lists task IDs + TEST_PLAN.md acceptance criteria + section-by-section diff summary.
+5. **Bundle PR `task/web-dashboard`** — single PR closing T-048 (shell), T-049 (doGet), T-051 (Overview), T-052 (Filters/drilldowns), T-053 (Daily Reconciliation), T-054 (Weekly Food-Safety), T-055 (auto-refresh polling). Owner replaced sheet-tab dashboard with web dashboard 2026-05-08. T-024/T-025/T-026 are CANCELLED; SCOPE.md §6 is satisfied by this bundle. Tag @browser when ready so T-050 (paste & deploy Web App) can run.
+6. **Bundle PR `task/reporting-layer`** — single PR closing T-022 (sheet repairs), T-023 (waste-by-store). Apps Script triggers + sheet fixes. (T-024/T-025/T-026 moved to web-dashboard bundle above.)
+7. **Stretch — T-056 forecasts** — ship under `task/web-dashboard` if time permits before deadline; else open separate `task/forecasts` for v2 acceptance window.
+8. **Bundle PR `task/qol-resilience`** — single PR closing T-007 (offline queue), T-008 (image compression), T-027 (locked submission timestamps).
+9. **Bundle PR `task/onboarding-docs`** — single PR closing T-011 (docs/ADD_A_STORE.md), T-016 (mirror board to GitHub Issues), T-031 (docs/HANDOFF.md). Note: T-030 README overhaul already in PR #7; do not duplicate.
+10. **Tag @browser** on each bundle PR for staging verification (T-019/T-020). Do not self-merge — owner approves merges to main per COORDINATION rules.
+11. **Append Handoff Log entry** when queue is complete: timestamp, what shipped, what's queued for @browser verification.
+
+**@code stop conditions:** none on this queue. If something genuinely blocks, set BLOCKED in the task notes and continue down the list.
+
+### @browser — run straight through (in this order)
+
+1. **T-005 Sheet Audit** — open master sheet `TaipeiKitchen_BentoOps_v2`, read all 10 tabs (Delivery Log – Live, Store Lookup, Production Log – Live, Production Timeline, Delivery Summary, Production Summary, Weekly Snapshot, Waste Tracker, Editing Guide, Apps Script Code). Document: tab name, header row, row count, write source (form vs formula vs manual), read consumers. Append findings under the `## Sheet Audit` section above.
+2. **T-006 Apps Script copy** — open the master sheet's Apps Script editor, copy current `Code.gs` verbatim into `apps_script/Code.gs` in repo via web edit on main. No edits, just paste. Append under `## Apps Script Snapshot`. Flip to REVIEW.
+3. **T-050 Paste & deploy Web App** — once @code lands T-049 (doGet endpoint) in `apps_script/Code.gs`, paste the updated Code.gs back into the sheet's Apps Script editor, deploy as Web App (execute-as-me, anyone-with-link), capture URL into `dashboard/config.local.json`. Owner may need to click Allow on a single OAuth scope prompt.
+4. **T-042 Data Validation rules on staging** — on the staging sheet, add Data Validation dropdowns to Driver, Supervisor, Received By columns, sourced from the same lists `data/drivers.json`, `data/supervisors.json`, `data/stores.json` will use. Mirrors form-side dropdowns from T-032/T-036.
+5. **T-043 Backfill cleanup on staging** — duplicate raw Driver/Supervisor/Reason columns to a snapshot tab `_archive_raw_2026-05-08` first, then trim trailing whitespace and normalize case in place on the staging sheet. Owen-with-trailing-space, anna→Anna, lucia→Lucia, OOD→Out of date.
+6. **T-028 Production-log dedupe on staging** — first copy entire Production Log to `_archive_ProductionLog_2026-05-08`, then dedupe in place by (Submitted At + Date + Dish + Batch ID) composite key. No permanent deletes.
+7. **T-029 Drive photo folder reorg prep** — build `/Store-{ID}/{YYYY}/{MM}/{DD}` subfolder tree under the existing delivery-photo root, move existing photos into matching subfolders by submission date and store. **Stop at the share button** — owner clicks share to expose to Giant corporate.
+8. **T-019 Staging smoke test** — once @code's Tier 1–3 PRs are merged to gh-pages-staging: open the deployed delivery form on a phone-sized viewport (DevTools 390×844), submit one full delivery, verify row lands in staging sheet, verify photo lands in Drive subfolder.
+9. **T-020 Regression pass** — DevTools Slow 3G simulation + run full TEST_PLAN.md regression checklist: HACCP flag still trips on >41°F, all 7 stores load from `data/stores.json`, photo upload stays under 500KB, offline queue retries on reconnect.
+10. **Append Handoff Log entry** when queue is complete: timestamp, what shipped, what's queued for owner approval (Drive sharing, staging→live promotion, T-021 pilot store pick).
+
+**@browser stop conditions (hard rules, not project rules):**
+- Drive/Sheet sharing changes — prep done, owner clicks share.
+- OAuth re-authorization prompt during T-006 if Apps Script asks for fresh scopes — owner clicks Allow once.
+- Staging→live promotion (release tag, flipping URLs) — owner-gated.
+
+### End-of-Day Collaboration
+
+When both queues are drained, we reconcile here. Owner pass needed on:
+
+- **T-021 UAT pilot store** — owner picks one of: 6006, 6061, 6253, 6331, 6443, 6542, 6564.
+- **T-029 Drive sharing** — owner clicks share on the reorganized photo folder once Giant corporate distribution is desired.
+- **Staging → live promotion** — owner approves a `release/*` tag; @code cuts the tag once T-019 + T-020 pass.
+- **Anything @code flagged as NEEDS-OWNER** in a bundle PR description.
+
+After this is merged, neither agent waits between items in their own queue. Cross-queue dependencies (e.g. T-042 reads from JSON files @code is publishing) are pulled live when ready, not blocked on synchronous handoff.
+

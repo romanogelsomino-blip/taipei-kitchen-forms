@@ -3,13 +3,13 @@
 // Taipei Kitchen — Google Apps Script
 // 1. In your Google Sheet go to Extensions → Apps Script
 // 2. Delete everything there and paste ALL of the code below
-// 3. Replace YOUR_SPREADSHEET_ID with your actual Sheet ID
+// 3. Replace 1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E with your actual Sheet ID
 // 4. Click Deploy → New deployment → Web app → Execute as: Me → Anyone → Deploy
 // 5. Copy the Web app URL and paste it into both HTML form files
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function doPost(e) {
-  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID'; // ← Replace this
+  const SPREADSHEET_ID = '1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E'; // ← Replace this
 
   try {
     const payload  = JSON.parse(e.postData.contents);
@@ -22,22 +22,23 @@ function doPost(e) {
       if (!sheet) throw new Error('Sheet "Delivery Log - Live" not found. Upload the provided Google Sheet file first.');
       rows.forEach(row => {
         sheet.appendRow([
-          row.submittedAt,  // Col A  – Submitted At
-          row.date,         // Col B  – Date
-          row.driver,       // Col C  – Driver
-          row.vehicle,      // Col D  – Vehicle #
-          row.store,        // Col E  – Store  ← IMPORTANT: must match store ID e.g. '6542'
-          row.arrive,       // Col F  – Arrival Time
-          row.coolerTemp,   // Col G  – Cooler Temp °F
-          row.coolerCond,   // Col H  – Cooler Condition
-          row.dish,         // Col I  – Dish
-          row.added,        // Col J  – Qty Added
-          row.before,       // Col K  – On Shelf Before
-          row.removed,      // Col L  – Qty Removed (Expired)
-          row.reason,       // Col M  – Expire Reason
-          row.after,        // Col N  – Shelf Total After
-          row.notes,        // Col O  – Store Notes
-          row.receivedBy    // Col P  – Received By
+          row.submittedAt,         // Col A  – Submitted At
+          row.date,                // Col B  – Date
+          row.driver,              // Col C  – Driver
+          row.store,               // Col D  – Store # (e.g. "Store 6542 – Carlisle, PA")
+          row.arrive,              // Col E  – Arrival time
+          row.arrivalProductTemp,  // Col F  – Arrival Temp
+          row.coolerTemp,          // Col G  – Cooler Temp °F
+          row.coolerCond,          // Col H  – Cooler Condition
+          row.caseFillLevel,       // Col I  – Case Pre-Fill % (T-047)
+          row.dish,                // Col J  – Dish
+          row.added,               // Col K  – Qty Added
+          row.before,              // Col L  – On Shelf Before
+          row.removed,             // Col M  – Qty Removed (Expired)
+          row.reason,              // Col N  – Expire Reason
+          row.after,               // Col O  – Shelf Total After
+          row.notes,               // Col P  – Store Notes
+          row.receivedBy           // Col Q  – Received By
         ]);
       });
     }
@@ -87,7 +88,7 @@ function doPost(e) {
 
 // Test function — run this manually in the editor to verify your Sheet ID is correct
 function testConnection() {
-  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const SPREADSHEET_ID = '1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   Logger.log('Connected to: ' + ss.getName());
   Logger.log('Sheets found: ' + ss.getSheets().map(s => s.getName()).join(', '));
@@ -102,7 +103,7 @@ function testConnection() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function doGet(e) {
-  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID'; // ← Replace this
+  const SPREADSHEET_ID = '1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E'; // ← Replace this
 
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -115,9 +116,9 @@ function doGet(e) {
     // Read delivery data
     const deliverySheet = ss.getSheetByName('Delivery Log - Live');
     const deliveries = deliverySheet ? sheetToJSON(deliverySheet, [
-      'submittedAt', 'date', 'driver', 'vehicle', 'store', 'arrive', 'coolerTemp',
-      'coolerCond', 'dish', 'added', 'before', 'removed', 'reason', 'after',
-      'notes', 'receivedBy', 'arrivalTemp'
+      'submittedAt', 'date', 'driver', 'store', 'arrive', 'arrivalTemp', 'coolerTemp',
+      'coolerCond', 'caseFillLevel', 'dish', 'added', 'before', 'removed', 'reason',
+      'after', 'notes', 'receivedBy'
     ]) : [];
 
     // Read production data
@@ -135,8 +136,19 @@ function doGet(e) {
       store: d.store,
       dish: d.dish,
       qtyRemoved: d.removed,
-      reason: d.reason
+      reason: normalizeWasteReason(d.reason)
     }));
+
+    // Helper function to normalize waste reasons
+    function normalizeWasteReason(reason) {
+      if (!reason || reason.trim() === '') return 'Unknown';
+      const r = reason.toLowerCase().trim();
+      if (r.includes('ood') || r.includes('out of date') || r.includes('expired')) return 'Out of Date';
+      if (r.includes('damage')) return 'Damaged';
+      if (r.includes('quality')) return 'Quality Issue';
+      if (r.includes('temp')) return 'Temperature Violation';
+      return reason; // Keep original if no match
+    }
 
     // Read store list from Store Lookup tab (if it exists)
     const storeSheet = ss.getSheetByName('Store Lookup');
