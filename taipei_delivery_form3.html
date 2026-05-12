@@ -71,6 +71,50 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
 .config-banner code{background:#FEF3C7;padding:1px 5px;border-radius:3px;font-family:'DM Mono',monospace;font-size:.78rem;}
 .drive-link{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--green);word-break:break-all;margin-top:4px;display:none;}
 .drive-link a{color:var(--green);}
+
+/* Dish List (replaces table) */
+.dish-list{padding:10px;}
+.dish-card{background:var(--row-alt);border:1.5px solid var(--border);border-radius:6px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:all .15s;}
+.dish-card:hover{border-color:var(--red);background:#fff;}
+.dish-card:active{transform:scale(0.98);}
+.dish-card-left{flex:1;}
+.dish-card-name{font-family:'Inter',sans-serif;font-size:.95rem;font-weight:500;color:var(--dark);margin-bottom:4px;}
+.dish-card-status{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--soft);text-transform:uppercase;letter-spacing:.05em;}
+.dish-card-status.complete{color:var(--green);font-weight:600;}
+.dish-card-status.partial{color:#F5C518;font-weight:600;}
+.dish-card-icon{font-size:1.8rem;opacity:.5;transition:opacity .15s;}
+.dish-card:hover .dish-card-icon{opacity:1;}
+.dish-card.completed{border-color:var(--green);background:#F0FBF4;}
+.dish-card.completed .dish-card-icon{opacity:1;}
+
+/* Dish Modal */
+.dish-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;align-items:flex-end;justify-content:center;animation:fadeIn .2s;}
+.dish-modal.show{display:flex;}
+@keyframes fadeIn{from{opacity:0;} to{opacity:1;}}
+@keyframes slideUp{from{transform:translateY(100%);} to{transform:translateY(0);}}
+.dish-modal-content{background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;animation:slideUp .3s ease-out;display:flex;flex-direction:column;}
+@media(min-width:768px){
+  .dish-modal{align-items:center;}
+  .dish-modal-content{border-radius:16px;max-height:85vh;}
+}
+.dish-modal-header{padding:20px 20px 16px;border-bottom:2px solid var(--border);background:var(--dark);color:#fff;}
+.dish-modal-header h3{font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:4px;}
+.dish-modal-header p{font-family:'DM Mono',monospace;font-size:.75rem;opacity:.7;text-transform:uppercase;letter-spacing:.08em;}
+.modal-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);color:#fff;border:none;width:36px;height:36px;border-radius:50%;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+.modal-close:hover{background:rgba(255,255,255,.25);}
+.dish-modal-body{padding:20px;flex:1;overflow-y:auto;}
+.modal-field{margin-bottom:18px;}
+.modal-field:last-child{margin-bottom:0;}
+.modal-field label{display:block;font-family:'DM Mono',monospace;font-size:.75rem;color:var(--soft);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;}
+.modal-field input[type="number"],.modal-field select,.modal-field input[type="text"]{width:100%;border:1.5px solid var(--border);border-radius:6px;padding:14px 12px;font-family:'Inter',sans-serif;font-size:1.1rem;color:var(--dark);background:var(--row-alt);outline:none;transition:border-color .15s,background .15s;min-height:54px;}
+.modal-field input[type="number"]:focus,.modal-field select:focus,.modal-field input[type="text"]:focus{border-color:var(--red);background:#fff;}
+.dish-modal-footer{padding:16px 20px;border-top:2px solid var(--border);display:flex;gap:12px;background:var(--cream);}
+.btn-modal-primary,.btn-modal-secondary{flex:1;border:none;border-radius:8px;padding:16px;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;cursor:pointer;transition:all .15s;min-height:54px;text-transform:uppercase;letter-spacing:.03em;}
+.btn-modal-primary{background:var(--red);color:#fff;}
+.btn-modal-primary:hover{background:var(--red-dk);}
+.btn-modal-primary:active{transform:scale(0.97);}
+.btn-modal-secondary{background:transparent;color:var(--soft);border:1.5px solid var(--border);}
+.btn-modal-secondary:hover{border-color:var(--mid);color:var(--mid);}
 </style>
 </head>
 <body>
@@ -373,31 +417,13 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
   <div class="form-card">
     <div class="card-header">
       <h2>Bento Inventory</h2>
-      <p>Enter quantities for each dish at this stop</p>
+      <p>Tap each dish to enter quantities · <span id="progress-text">0 of 13 completed</span></p>
     </div>
-    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative;">
-      <table class="dish-table">
-        <thead>
-          <tr>
-            <th style="min-width:180px">Dish</th>
-            <th>Added<br>to Shelf</th>
-            <th>On Shelf<br>(Before)</th>
-            <th>Removed<br>(Expired)</th>
-            <th>Expire<br>Reason</th>
-            <th>After<br>Total</th>
-          </tr>
-        </thead>
-        <tbody id="dish-tbody"></tbody>
-        <tfoot>
-          <tr>
-            <td>TOTALS</td>
-            <td id="total-added">0</td>
-            <td></td>
-            <td id="total-removed">0</td>
-            <td></td><td></td>
-          </tr>
-        </tfoot>
-      </table>
+    <div id="dish-list" class="dish-list"></div>
+    <div style="padding:16px 20px;border-top:2px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-family:'DM Mono',monospace;font-size:.78rem;color:var(--soft);">
+        Totals: <strong style="color:var(--dark)"><span id="total-added">0</span> added</strong> · <strong style="color:var(--dark)"><span id="total-removed">0</span> removed</strong>
+      </div>
     </div>
   </div>
 
@@ -447,6 +473,50 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
     <h3 id="s-title">Submitting…</h3>
     <p id="s-msg">Uploading photos and sending to Google Sheets…</p>
     <button onclick="closeStatus()" id="s-btn" style="display:none">Done</button>
+  </div>
+</div>
+
+<!-- Dish Entry Modal -->
+<div id="dish-modal" class="dish-modal">
+  <div class="dish-modal-content">
+    <div class="dish-modal-header">
+      <button class="modal-close" onclick="closeDishModal()">✕</button>
+      <h3 id="modal-dish-name">Dish Name</h3>
+      <p id="modal-dish-progress">Dish 1 of 13</p>
+    </div>
+    <div class="dish-modal-body">
+      <div class="modal-field">
+        <label>Added to Shelf</label>
+        <input type="number" id="modal-added" min="0" placeholder="0">
+      </div>
+      <div class="modal-field">
+        <label>On Shelf (Before)</label>
+        <input type="number" id="modal-before" min="0" placeholder="0">
+      </div>
+      <div class="modal-field">
+        <label>Removed (Expired)</label>
+        <input type="number" id="modal-removed" min="0" placeholder="0">
+      </div>
+      <div class="modal-field">
+        <label>Expire Reason</label>
+        <select id="modal-reason">
+          <option value="">—</option>
+          <option value="Out of date">Out of date</option>
+          <option value="Damaged">Damaged</option>
+          <option value="Quality issue">Quality issue</option>
+          <option value="__other__">Other (specify)</option>
+        </select>
+        <input type="text" id="modal-reason-custom" placeholder="Specify reason" style="display:none;margin-top:8px;">
+      </div>
+      <div class="modal-field" style="background:#F0FBF4;padding:14px;border-radius:6px;border:1px solid #A9DFBF;">
+        <label style="color:#1E8449;margin-bottom:8px;">After Total (Calculated)</label>
+        <div id="modal-after" style="font-family:'DM Mono',monospace;font-size:1.8rem;font-weight:700;color:#1E8449;text-align:center;">—</div>
+      </div>
+    </div>
+    <div class="dish-modal-footer">
+      <button class="btn-modal-secondary" onclick="clearDishModal()">Clear</button>
+      <button class="btn-modal-primary" onclick="saveDishAndNext()" id="save-next-btn">Save & Next</button>
+    </div>
   </div>
 </div>
 
@@ -700,64 +770,220 @@ window.addEventListener('DOMContentLoaded', async () => {
   const hh = String(now.getHours()).padStart(2,'0');
   const mm = String(now.getMinutes()).padStart(2,'0');
   document.getElementById('f-arrive').value = hh + ':' + mm;
-  buildDishTable();
+  buildDishList();
 
   // Load driver dropdown
   loadDrivers();
 });
 
-function buildDishTable() {
-  const tbody = document.getElementById('dish-tbody');
-  DISHES.forEach((dish) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="dish-name">${dish}</td>
-      <td><input type="number" min="0" placeholder="0" class="d-added" oninput="recalc(this)" style="width:56px"></td>
-      <td><input type="number" min="0" placeholder="0" class="d-before" oninput="recalc(this)" style="width:56px"></td>
-      <td><input type="number" min="0" placeholder="0" class="d-removed" oninput="recalc(this)" style="width:56px"></td>
-      <td>
-        <select class="expire-reason" onchange="handleExpireReasonChange(this)" style="min-width:100px;font-size:.75rem;width:100%">
-          <option value="">—</option>
-          <option value="Out of date">Out of date</option>
-          <option value="Damaged">Damaged</option>
-          <option value="Quality issue">Quality issue</option>
-          <option value="__other__">Other (specify)</option>
-        </select>
-        <input type="text" class="expire-reason-custom" placeholder="Specify reason" style="display:none;margin-top:4px;width:100%;font-size:.75rem">
-      </td>
-      <td class="calc-cell d-after">—</td>
-    `;
-    tbody.appendChild(tr);
+// ═══════════════════════════════════════════════════════════════════════════
+// Modal-Based Dish Entry System
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Store dish data in memory with localStorage backup
+const dishData = {};
+let currentDishIndex = -1;
+
+function initDishData() {
+  DISHES.forEach(dish => {
+    dishData[dish] = {
+      added: '',
+      before: '',
+      removed: '',
+      reason: '',
+      reasonCustom: '',
+      after: '—'
+    };
   });
-}
-
-function recalc(el) {
-  const tr      = el.closest('tr');
-  const added   = parseInt(tr.querySelector('.d-added').value)  || 0;
-  const before  = parseInt(tr.querySelector('.d-before').value) || 0;
-  const removed = parseInt(tr.querySelector('.d-removed').value)|| 0;
-  const after   = before + added - removed;
-  const cell    = tr.querySelector('.d-after');
-  cell.textContent  = after >= 0 ? after : '⚠ Check';
-  cell.style.color  = after < 0  ? 'var(--red)' : 'var(--green)';
-  let ta = 0, tr2 = 0;
-  document.querySelectorAll('.d-added').forEach(i   => ta  += parseInt(i.value)||0);
-  document.querySelectorAll('.d-removed').forEach(i => tr2 += parseInt(i.value)||0);
-  document.getElementById('total-added').textContent   = ta;
-  document.getElementById('total-removed').textContent = tr2;
-}
-
-function handleExpireReasonChange(select) {
-  const td = select.closest('td');
-  const customInput = td.querySelector('.expire-reason-custom');
-  if (select.value === '__other__') {
-    customInput.style.display = 'block';
-    customInput.focus();
-  } else {
-    customInput.style.display = 'none';
-    customInput.value = '';
+  // Try to restore from localStorage
+  const saved = localStorage.getItem('tk_delivery_dish_data');
+  if (saved) {
+    try {
+      const restored = JSON.parse(saved);
+      Object.assign(dishData, restored);
+      console.log('[Dish Data] Restored from localStorage');
+    } catch (e) {
+      console.warn('[Dish Data] Could not restore saved data');
+    }
   }
 }
+
+function saveDishDataToStorage() {
+  localStorage.setItem('tk_delivery_dish_data', JSON.stringify(dishData));
+}
+
+function buildDishList() {
+  initDishData();
+  const container = document.getElementById('dish-list');
+  container.innerHTML = '';
+
+  DISHES.forEach((dish, index) => {
+    const card = document.createElement('div');
+    card.className = 'dish-card';
+    card.dataset.index = index;
+    card.onclick = () => openDishModal(index);
+
+    const status = getDishStatus(dish);
+    const statusIcon = status === 'complete' ? '✓' : (status === 'partial' ? '◐' : '○');
+    const statusText = status === 'complete' ? 'Complete' : (status === 'partial' ? 'Partial' : 'Not Started');
+    const statusClass = status === 'complete' ? 'complete' : (status === 'partial' ? 'partial' : '');
+
+    card.innerHTML = `
+      <div class="dish-card-left">
+        <div class="dish-card-name">${dish}</div>
+        <div class="dish-card-status ${statusClass}">${statusText}</div>
+      </div>
+      <div class="dish-card-icon">${statusIcon}</div>
+    `;
+
+    if (status === 'complete') {
+      card.classList.add('completed');
+    }
+
+    container.appendChild(card);
+  });
+
+  updateProgress();
+}
+
+function getDishStatus(dish) {
+  const data = dishData[dish];
+  const hasData = data.added || data.before || data.removed || data.reason;
+  const isComplete = data.added && data.before; // Consider complete if key fields filled
+
+  if (isComplete) return 'complete';
+  if (hasData) return 'partial';
+  return 'empty';
+}
+
+function updateProgress() {
+  const complete = DISHES.filter(d => getDishStatus(d) === 'complete').length;
+  document.getElementById('progress-text').textContent = `${complete} of ${DISHES.length} completed`;
+
+  // Update totals
+  let totalAdded = 0, totalRemoved = 0;
+  DISHES.forEach(dish => {
+    totalAdded += parseInt(dishData[dish].added) || 0;
+    totalRemoved += parseInt(dishData[dish].removed) || 0;
+  });
+  document.getElementById('total-added').textContent = totalAdded;
+  document.getElementById('total-removed').textContent = totalRemoved;
+}
+
+function openDishModal(index) {
+  currentDishIndex = index;
+  const dish = DISHES[index];
+  const data = dishData[dish];
+
+  // Populate modal
+  document.getElementById('modal-dish-name').textContent = dish;
+  document.getElementById('modal-dish-progress').textContent = `Dish ${index + 1} of ${DISHES.length}`;
+  document.getElementById('modal-added').value = data.added;
+  document.getElementById('modal-before').value = data.before;
+  document.getElementById('modal-removed').value = data.removed;
+  document.getElementById('modal-reason').value = data.reason;
+  document.getElementById('modal-reason-custom').value = data.reasonCustom;
+
+  // Show/hide custom reason field
+  if (data.reason === '__other__') {
+    document.getElementById('modal-reason-custom').style.display = 'block';
+  } else {
+    document.getElementById('modal-reason-custom').style.display = 'none';
+  }
+
+  // Calculate after
+  recalcModal();
+
+  // Update button text
+  const isLastDish = index === DISHES.length - 1;
+  document.getElementById('save-next-btn').textContent = isLastDish ? 'Save & Close' : 'Save & Next';
+
+  // Show modal
+  document.getElementById('dish-modal').classList.add('show');
+
+  // Focus first input
+  setTimeout(() => document.getElementById('modal-added').focus(), 300);
+}
+
+function closeDishModal() {
+  document.getElementById('dish-modal').classList.remove('show');
+  currentDishIndex = -1;
+}
+
+function clearDishModal() {
+  if (!confirm('Clear this dish\'s data?')) return;
+  document.getElementById('modal-added').value = '';
+  document.getElementById('modal-before').value = '';
+  document.getElementById('modal-removed').value = '';
+  document.getElementById('modal-reason').value = '';
+  document.getElementById('modal-reason-custom').value = '';
+  document.getElementById('modal-reason-custom').style.display = 'none';
+  recalcModal();
+}
+
+function saveDishAndNext() {
+  if (currentDishIndex < 0) return;
+
+  const dish = DISHES[currentDishIndex];
+  const reasonSelect = document.getElementById('modal-reason');
+  const reasonCustom = document.getElementById('modal-reason-custom');
+
+  dishData[dish] = {
+    added: document.getElementById('modal-added').value,
+    before: document.getElementById('modal-before').value,
+    removed: document.getElementById('modal-removed').value,
+    reason: reasonSelect.value === '__other__' ? reasonCustom.value.trim() : reasonSelect.value,
+    reasonCustom: reasonSelect.value === '__other__' ? reasonCustom.value.trim() : '',
+    after: document.getElementById('modal-after').textContent
+  };
+
+  // Save to localStorage
+  saveDishDataToStorage();
+
+  // Update the card in the list
+  buildDishList();
+
+  // Move to next dish or close
+  if (currentDishIndex < DISHES.length - 1) {
+    openDishModal(currentDishIndex + 1);
+  } else {
+    closeDishModal();
+  }
+}
+
+function recalcModal() {
+  const added = parseInt(document.getElementById('modal-added').value) || 0;
+  const before = parseInt(document.getElementById('modal-before').value) || 0;
+  const removed = parseInt(document.getElementById('modal-removed').value) || 0;
+  const after = before + added - removed;
+
+  const afterEl = document.getElementById('modal-after');
+  afterEl.textContent = after >= 0 ? after : '⚠ Check';
+  afterEl.style.color = after < 0 ? 'var(--red)' : '#1E8449';
+}
+
+// Auto-calculate when modal inputs change
+document.addEventListener('DOMContentLoaded', () => {
+  ['modal-added', 'modal-before', 'modal-removed'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.oninput = recalcModal;
+  });
+
+  // Handle reason dropdown
+  const reasonSelect = document.getElementById('modal-reason');
+  if (reasonSelect) {
+    reasonSelect.onchange = () => {
+      const customInput = document.getElementById('modal-reason-custom');
+      if (reasonSelect.value === '__other__') {
+        customInput.style.display = 'block';
+        customInput.focus();
+      } else {
+        customInput.style.display = 'none';
+        customInput.value = '';
+      }
+    };
+  }
+});
 
 // ── Photo handling ─────────────────────────────────────────
 async function previewPhoto(input, previewId, zoneId) {
@@ -979,15 +1205,13 @@ function buildPayload() {
   };
 
   const rows = [];
-  document.querySelectorAll('#dish-tbody tr').forEach((tr, i) => {
-    const dish    = DISHES[i];
-    const added   = tr.querySelector('.d-added').value   || '0';
-    const before  = tr.querySelector('.d-before').value  || '0';
-    const removed = tr.querySelector('.d-removed').value || '0';
-    const reasonSelect = tr.querySelector('.expire-reason');
-    const reasonCustom = tr.querySelector('.expire-reason-custom');
-    const reason = reasonSelect.value === '__other__' ? reasonCustom.value.trim() : reasonSelect.value;
-    const after   = tr.querySelector('.d-after').textContent;
+  DISHES.forEach((dish, i) => {
+    const data = dishData[dish];
+    const added = data.added || '0';
+    const before = data.before || '0';
+    const removed = data.removed || '0';
+    const reason = data.reason;
+    const after = data.after;
     rows.push({
       date, driver, store, storeId: storeIdClean, arrive,
       arrivalProductTemp: arrTemp,
@@ -1166,9 +1390,21 @@ function closeStatus() { document.getElementById('status-overlay').classList.rem
 function clearAll() {
   if (!confirm('Clear all entries?')) return;
   document.querySelectorAll('input:not([type=file]), select, textarea').forEach(el => el.value = '');
-  document.querySelectorAll('.d-after').forEach(el => { el.textContent = '—'; el.style.color = ''; });
-  document.getElementById('total-added').textContent   = '0';
-  document.getElementById('total-removed').textContent = '0';
+
+  // Clear dishData and rebuild list
+  DISHES.forEach(dish => {
+    dishData[dish] = {
+      added: '',
+      before: '',
+      removed: '',
+      reason: '',
+      reasonCustom: '',
+      after: '—'
+    };
+  });
+  localStorage.removeItem('tk_delivery_dish_data');
+  buildDishList();
+
   document.getElementById('before-previews').innerHTML = '';
   document.getElementById('after-previews').innerHTML  = '';
   document.getElementById('transit-flag').style.display = 'none';
