@@ -449,6 +449,63 @@ function getSupervisorValue() {
   return select.value;
 }
 
+// Load supervisors from JSON
+let SUPERVISORS = [];
+async function loadSupervisors() {
+  try {
+    const response = await fetch('data/supervisors.json');
+    const data = await response.json();
+    SUPERVISORS = data.supervisors || [];
+    populateSupervisorDropdown();
+  } catch (e) {
+    console.error('Failed to load supervisors:', e);
+    // Fallback to hardcoded list
+    SUPERVISORS = ["Anna", "Lucia", "Jiang", "Guy"];
+    populateSupervisorDropdown();
+  }
+}
+
+function populateSupervisorDropdown() {
+  const select = document.getElementById('f-supervisor');
+  // Clear existing options except first
+  while (select.options.length > 1) {
+    select.remove(1);
+  }
+  // Add supervisors
+  SUPERVISORS.forEach(supervisor => {
+    const option = document.createElement('option');
+    option.value = supervisor;
+    option.textContent = supervisor;
+    select.appendChild(option);
+  });
+  // Add "Other (specify)" option
+  const otherOption = document.createElement('option');
+  otherOption.value = '__custom__';
+  otherOption.textContent = '+ Add new supervisor';
+  select.appendChild(otherOption);
+}
+
+function handleSupervisorChange() {
+  const select = document.getElementById('f-supervisor');
+  const customInput = document.getElementById('f-supervisor-custom');
+  if (select.value === '__custom__') {
+    customInput.style.display = 'block';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
+}
+
+function getSupervisorValue() {
+  const select = document.getElementById('f-supervisor');
+  const customInput = document.getElementById('f-supervisor-custom');
+  if (select.value === '__custom__') {
+    return customInput.value.trim();
+  }
+  return select.value;
+}
+
 // ─── Build table ──────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   // Load dishes from JSON (if available)
