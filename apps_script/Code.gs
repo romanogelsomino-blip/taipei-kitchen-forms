@@ -22,22 +22,23 @@ function doPost(e) {
       if (!sheet) throw new Error('Sheet "Delivery Log - Live" not found. Upload the provided Google Sheet file first.');
       rows.forEach(row => {
         sheet.appendRow([
-          row.submittedAt,  // Col A  – Submitted At
-          row.date,         // Col B  – Date
-          row.driver,       // Col C  – Driver
-          row.vehicle,      // Col D  – Vehicle #
-          row.store,        // Col E  – Store  ← IMPORTANT: must match store ID e.g. '6542'
-          row.arrive,       // Col F  – Arrival Time
-          row.coolerTemp,   // Col G  – Cooler Temp °F
-          row.coolerCond,   // Col H  – Cooler Condition
-          row.dish,         // Col I  – Dish
-          row.added,        // Col J  – Qty Added
-          row.before,       // Col K  – On Shelf Before
-          row.removed,      // Col L  – Qty Removed (Expired)
-          row.reason,       // Col M  – Expire Reason
-          row.after,        // Col N  – Shelf Total After
-          row.notes,        // Col O  – Store Notes
-          row.receivedBy    // Col P  – Received By
+          row.submittedAt,        // Col A  – Submitted At
+          row.date,               // Col B  – Date
+          row.driver,             // Col C  – Driver
+          row.vehicle,            // Col D  – Vehicle #
+          row.store,              // Col E  – Store  ← IMPORTANT: must match store ID e.g. '6542'
+          row.arrive,             // Col F  – Arrival Time
+          row.coolerTemp,         // Col G  – Cooler Temp °F
+          row.coolerCond,         // Col H  – Cooler Condition
+          row.casePrefillPercent, // Col I  – Case Pre-Fill % (NEW: T-047)
+          row.dish,               // Col J  – Dish
+          row.added,              // Col K  – Qty Added
+          row.before,             // Col L  – On Shelf Before
+          row.removed,            // Col M  – Qty Removed (Expired)
+          row.reason,             // Col N  – Expire Reason
+          row.after,              // Col O  – Shelf Total After
+          row.notes,              // Col P  – Store Notes
+          row.receivedBy          // Col Q  – Received By
         ]);
       });
     }
