@@ -494,12 +494,12 @@ function setDeliveryQuickRange(range) {
 
   if (range === 'today') {
     const todayStr = today.toISOString().split('T')[0];
-    filtered = filtered.filter(d => d.date === todayStr);
+    filtered = filtered.filter(d => (d.date || '').slice(0, 10) === todayStr);
   } else if (range !== 'all') {
     const startDate = new Date(today);
     startDate.setDate(today.getDate() - range);
     const startStr = startDate.toISOString().split('T')[0];
-    filtered = filtered.filter(d => d.date >= startStr);
+    filtered = filtered.filter(d => (d.date || '').slice(0, 10) >= startStr);
   }
 
   DELIVERY_STATE.filtered = filtered;
@@ -795,12 +795,12 @@ function setProductionQuickRange(range) {
 
   if (range === 'today') {
     const todayStr = today.toISOString().split('T')[0];
-    filtered = filtered.filter(p => p.date === todayStr);
+    filtered = filtered.filter(p => (p.date || '').slice(0, 10) === todayStr);
   } else if (range !== 'all') {
     const startDate = new Date(today);
     startDate.setDate(today.getDate() - range);
     const startStr = startDate.toISOString().split('T')[0];
-    filtered = filtered.filter(p => p.date >= startStr);
+    filtered = filtered.filter(p => (p.date || '').slice(0, 10) >= startStr);
   }
 
   PRODUCTION_STATE.filtered = filtered;
