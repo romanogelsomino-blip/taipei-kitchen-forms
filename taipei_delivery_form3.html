@@ -445,6 +445,62 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
 <script>
 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxXVDl_JyH1H2_KdM8CHyVn5H4qfoUsFepgV1p_4RhrCKKPSj2WzdkqEsGqHgL7V-b6PA/exec';
 
+// ═══════════════════════════════════════════════════════════════════════════
+// T-027: Timestamp Locking (Regulatory Requirement)
+// ═══════════════════════════════════════════════════════════════════════════
+const timestampData = {
+  formLoadTime: new Date().toISOString(),
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  timezoneOffset: new Date().getTimezoneOffset()
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// T-008: Client-Side Image Compression
+// ═══════════════════════════════════════════════════════════════════════════
+const PHOTO_MAX_WIDTH = 1600;
+const PHOTO_MAX_HEIGHT = 1600;
+const PHOTO_QUALITY = 0.85;
+
+async function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        const originalSize = Math.round(e.target.result.length * 0.75 / 1024);
+
+        if (width > PHOTO_MAX_WIDTH || height > PHOTO_MAX_HEIGHT) {
+          const ratio = Math.min(PHOTO_MAX_WIDTH / width, PHOTO_MAX_HEIGHT / height);
+          width = Math.floor(width * ratio);
+          height = Math.floor(height * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', PHOTO_QUALITY);
+        const compressedSize = Math.round(compressedDataUrl.length * 0.75 / 1024);
+
+        console.log(`[Image] Compressed ${file.name}: ${originalSize}KB → ${compressedSize}KB (${width}x${height})`);
+        resolve({
+          dataUrl: compressedDataUrl,
+          originalSize,
+          compressedSize,
+          dimensions: `${width}x${height}`
+        });
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 // Fallback dish and store lists (used if fetch fails)
 let DISHES = ["General Tso Chicken Bento", "Sesame Chicken Bento", "Bento Chicken Lo Mein", "Bento Shrimp Lo Mein", "Bento Smoked Pork Lo Mein", "Bento Sweet & Sour Chicken", "Bourbon Chicken Bento", "Broccoli Chicken Bento", "Hot Spicy Chicken Bento", "Bento Steamed Dumplings", "Chicken Egg Roll", "Pork Egg Roll", "Shrimp Egg Roll"];
 let STORES = [{"id": "6006", "name": "Store 6006", "location": "Kline Village, Harrisburg, PA"}, {"id": "6061", "name": "Store 6061", "location": "Shippensburg, PA"}, {"id": "6253", "name": "Store 6253", "location": "New Cumberland, PA"}, {"id": "6331", "name": "Store 6331", "location": "Mechanicsburg, PA"}, {"id": "6443", "name": "Store 6443", "location": "Chambersburg, PA"}, {"id": "6542", "name": "Store 6542", "location": "Carlisle, PA"}, {"id": "6564", "name": "Store 6564", "location": "Harrisburg (Gayson Rd), PA"}];
@@ -619,31 +675,55 @@ function recalc(el) {
 }
 
 // ── Photo handling ─────────────────────────────────────────
-function previewPhoto(input, previewId, zoneId) {
+async function previewPhoto(input, previewId, zoneId) {
   const container = document.getElementById(previewId);
   const zone      = document.getElementById(zoneId);
   const which     = zoneId.includes('before') ? 'before' : 'after';
   container.innerHTML = '';
   if (!input.files.length) return;
   const file   = input.files[0];
-  const reader = new FileReader();
-  reader.onload = e => {
+
+  try {
+    // T-008: Compress image before storing
+    const compressed = await compressImage(file);
+
     // Show preview
     const img = document.createElement('img');
-    img.src   = e.target.result;
+    img.src   = compressed.dataUrl;
     container.appendChild(img);
-    // Store base64 (strip the data:image/...;base64, prefix)
+
+    // Store compressed base64 (strip the data:image/...;base64, prefix)
     photoData[which] = {
-      data:     e.target.result.split(',')[1],
-      mimeType: file.type,
-      name:     file.name
+      data:     compressed.dataUrl.split(',')[1],
+      mimeType: 'image/jpeg',
+      name:     file.name,
+      originalSize: compressed.originalSize,
+      compressedSize: compressed.compressedSize
     };
-    // Update zone UI
+
+    // Update zone UI with compression stats
     zone.classList.add('has-photo');
     document.getElementById('icon-'  + which).textContent = '✅';
-    document.getElementById('label-' + which).textContent = 'Photo ready to upload';
-  };
-  reader.readAsDataURL(file);
+    document.getElementById('label-' + which).textContent = `Photo ready (${compressed.compressedSize}KB)`;
+  } catch (e) {
+    console.error('[Image] Compression failed:', e);
+    // Fallback to original if compression fails
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      container.appendChild(img);
+      photoData[which] = {
+        data: e.target.result.split(',')[1],
+        mimeType: file.type,
+        name: file.name
+      };
+      zone.classList.add('has-photo');
+      document.getElementById('icon-' + which).textContent = '✅';
+      document.getElementById('label-' + which).textContent = 'Photo ready';
+    };
+    reader.readAsDataURL(file);
+  }
 }
 
 // ── Convert photo to base64 and include in payload ─────────
@@ -853,7 +933,11 @@ function buildPayload() {
       incidentNotes:           transit.incidentNotes,
       timeAboveSafeTemp:       transit.timeAboveDisplay,
       formType: 'delivery',
-      submittedAt: new Date().toISOString()
+      submittedAt: new Date().toISOString(),
+      // T-027: Timestamp locking
+      formLoadTime: timestampData.formLoadTime,
+      timezone: timestampData.timezone,
+      timezoneOffset: timestampData.timezoneOffset
     });
   });
 
@@ -870,6 +954,45 @@ function buildPayload() {
     }
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// T-007: Offline Queue System
+// ═══════════════════════════════════════════════════════════════════════════
+function queueSubmission(payload) {
+  const queueKey = 'tk_queue_' + Date.now();
+  localStorage.setItem(queueKey, JSON.stringify(payload));
+  console.log('[Queue] Saved submission offline:', queueKey);
+  return queueKey;
+}
+
+function getQueuedSubmissions() {
+  const keys = Object.keys(localStorage).filter(k => k.startsWith('tk_queue_'));
+  return keys.map(k => ({ key: k, data: JSON.parse(localStorage.getItem(k)) }));
+}
+
+async function retryQueuedSubmissions() {
+  const queued = getQueuedSubmissions();
+  if (queued.length === 0) return;
+
+  console.log(`[Queue] Retrying ${queued.length} queued submissions...`);
+  for (const item of queued) {
+    try {
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item.data)
+      });
+      localStorage.removeItem(item.key);
+      console.log('[Queue] Successfully uploaded:', item.key);
+    } catch (e) {
+      console.log('[Queue] Retry failed:', item.key, e.message);
+    }
+  }
+}
+
+// Auto-retry queued submissions every 30 seconds
+setInterval(retryQueuedSubmissions, 30000);
 
 async function submitForm() {
   const driver = getDriverValue();
@@ -902,8 +1025,9 @@ async function submitForm() {
       body:    JSON.stringify(dataPayload)
     });
   } catch(e) {
-    localStorage.setItem('tk_del_backup_' + Date.now(), JSON.stringify(payload));
-    showStatus('\u274c', 'Connection Error', 'Could not reach Google Sheets. Data saved to this device. Check internet and try again. Error: ' + e.message);
+    // T-007: Queue for retry instead of just backup
+    queueSubmission(dataPayload);
+    showStatus('\u274c', 'Offline Mode', 'Submission queued. Will auto-retry when back online (every 30s).');
     document.getElementById('s-btn').style.display = 'block';
     document.getElementById('submit-btn').disabled = false;
     return;
