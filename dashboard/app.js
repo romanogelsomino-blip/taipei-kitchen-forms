@@ -67,15 +67,15 @@ function toggleHACCPPolicy() {
   policy.style.display = policy.style.display === 'none' ? 'block' : 'none';
 }
 
-// Load config.local.json
+// Load config.json (config.local.json in dev)
 async function loadConfig() {
   try {
-    const response = await fetch('config.local.json');
-    if (!response.ok) throw new Error('config.local.json not found');
+    const response = await fetch('config.json');
+    if (!response.ok) throw new Error('config.json not found');
     CONFIG = await response.json();
     console.log('[Config] Loaded:', CONFIG);
   } catch (e) {
-    console.error('[Config] Failed to load config.local.json:', e);
+    console.error('[Config] Failed to load config.json:', e);
     updateStatus('error', 'Config file missing');
     showConfigInstructions();
   }
