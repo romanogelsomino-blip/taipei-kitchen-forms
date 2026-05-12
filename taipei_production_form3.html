@@ -152,6 +152,51 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
 
 /* ── TEMP COLOR HINT ── */
 .temp-hint{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--soft);text-align:center;padding:6px;border-top:1px solid var(--border);}
+
+/* ── DISH LIST (replaces table) ── */
+.dish-list{padding:10px;}
+.dish-card{background:var(--row-alt);border:1.5px solid var(--border);border-radius:6px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:all .15s;}
+.dish-card:hover{border-color:var(--red);background:#fff;}
+.dish-card:active{transform:scale(0.98);}
+.dish-card-left{flex:1;}
+.dish-card-name{font-family:'Inter',sans-serif;font-size:.95rem;font-weight:500;color:var(--dark);margin-bottom:4px;}
+.dish-card-status{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--soft);text-transform:uppercase;letter-spacing:.05em;}
+.dish-card-status.complete{color:var(--green);font-weight:600;}
+.dish-card-status.partial{color:#F5C518;font-weight:600;}
+.dish-card-icon{font-size:1.8rem;opacity:.5;transition:opacity .15s;}
+.dish-card:hover .dish-card-icon{opacity:1;}
+.dish-card.completed{border-color:var(--green);background:#F0FBF4;}
+.dish-card.completed .dish-card-icon{opacity:1;}
+
+/* ── DISH MODAL ── */
+.dish-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;align-items:flex-end;justify-content:center;animation:fadeIn .2s;}
+.dish-modal.show{display:flex;}
+@keyframes fadeIn{from{opacity:0;} to{opacity:1;}}
+@keyframes slideUp{from{transform:translateY(100%);} to{transform:translateY(0);}}
+.dish-modal-content{background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;animation:slideUp .3s ease-out;display:flex;flex-direction:column;}
+@media(min-width:768px){
+  .dish-modal{align-items:center;}
+  .dish-modal-content{border-radius:16px;max-height:85vh;}
+}
+.dish-modal-header{padding:20px 20px 16px;border-bottom:2px solid var(--border);background:var(--dark);color:#fff;position:relative;}
+.dish-modal-header h3{font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:4px;}
+.dish-modal-header p{font-family:'DM Mono',monospace;font-size:.75rem;opacity:.7;text-transform:uppercase;letter-spacing:.08em;}
+.modal-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);color:#fff;border:none;width:36px;height:36px;border-radius:50%;font-size:1.3rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+.modal-close:hover{background:rgba(255,255,255,.25);}
+.dish-modal-body{padding:20px;flex:1;overflow-y:auto;}
+.modal-field{margin-bottom:18px;}
+.modal-field:last-child{margin-bottom:0;}
+.modal-field label{display:block;font-family:'DM Mono',monospace;font-size:.75rem;color:var(--soft);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;}
+.modal-field input[type="number"],.modal-field select,.modal-field input[type="text"],.modal-field textarea{width:100%;border:1.5px solid var(--border);border-radius:6px;padding:14px 12px;font-family:'Inter',sans-serif;font-size:1.1rem;color:var(--dark);background:var(--row-alt);outline:none;transition:border-color .15s,background .15s;min-height:54px;}
+.modal-field textarea{min-height:80px;resize:vertical;}
+.modal-field input[type="number"]:focus,.modal-field select:focus,.modal-field input[type="text"]:focus,.modal-field textarea:focus{border-color:var(--red);background:#fff;}
+.dish-modal-footer{padding:16px 20px;border-top:2px solid var(--border);display:flex;gap:12px;background:var(--cream);}
+.btn-modal-primary,.btn-modal-secondary{flex:1;border:none;border-radius:8px;padding:16px;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;cursor:pointer;transition:all .15s;min-height:54px;text-transform:uppercase;letter-spacing:.03em;}
+.btn-modal-primary{background:var(--red);color:#fff;}
+.btn-modal-primary:hover{background:var(--red-dk);}
+.btn-modal-primary:active{transform:scale(0.97);}
+.btn-modal-secondary{background:transparent;color:var(--soft);border:1.5px solid var(--border);}
+.btn-modal-secondary:hover{border-color:var(--mid);color:var(--mid);}
 </style>
 </head>
 <body>
@@ -278,37 +323,13 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
   <div class="form-card">
     <div class="card-header">
       <h2>Dish-by-Dish Production Log</h2>
-      <p>One row per dish · batch cook and cooling times are set above and apply to all</p>
+      <p>Tap each dish to enter production data · <span id="progress-text">0 of 13 completed</span></p>
     </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th style="min-width:185px;">Dish</th>
-            <th>Qty<br>Produced</th>
-            <th>Qty<br>Discarded</th>
-            <th style="min-width:130px;">Discard<br>Reason</th>
-            <th>Final<br>Temp °F</th>
-            <th>QA</th>
-            <th style="min-width:160px;">QA / Quality Notes</th>
-            <th>Initials</th>
-          </tr>
-        </thead>
-        <tbody id="prod-tbody"></tbody>
-        <tfoot>
-          <tr>
-            <td>TOTALS</td>
-            <td id="total-produced">0</td>
-            <td id="total-discarded">0</td>
-            <td colspan="5"></td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-    <div class="temp-hint">
-      Cooling time color guide — <span style="color:var(--green);font-weight:600">Green</span>: within window &nbsp;|&nbsp;
-      <span style="color:var(--orange);font-weight:600">Orange</span>: approaching limit &nbsp;|&nbsp;
-      <span style="color:var(--red);font-weight:600">Red</span>: HACCP violation — escalate to supervisor
+    <div id="dish-list" class="dish-list"></div>
+    <div style="padding:16px 20px;border-top:2px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-family:'DM Mono',monospace;font-size:.78rem;color:var(--soft);">
+        Totals: <strong style="color:var(--dark)"><span id="total-produced">0</span> produced</strong> · <strong style="color:var(--dark)"><span id="total-discarded">0</span> discarded</strong>
+      </div>
     </div>
   </div>
 
@@ -343,6 +364,55 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
     <h3 id="s-title">Submitting…</h3>
     <p id="s-msg">Sending to Google Sheets</p>
     <button onclick="closeStatus()" id="s-btn" style="display:none">Done</button>
+  </div>
+</div>
+
+<!-- DISH ENTRY MODAL -->
+<div id="dish-modal" class="dish-modal">
+  <div class="dish-modal-content">
+    <div class="dish-modal-header">
+      <button class="modal-close" onclick="closeDishModal()">✕</button>
+      <h3 id="modal-dish-name">Dish Name</h3>
+      <p id="modal-dish-progress">Dish 1 of 13</p>
+    </div>
+    <div class="dish-modal-body">
+      <div class="modal-field">
+        <label>Qty Produced</label>
+        <input type="number" id="modal-produced" min="0" placeholder="0">
+      </div>
+      <div class="modal-field">
+        <label>Qty Discarded</label>
+        <input type="number" id="modal-discarded" min="0" placeholder="0">
+      </div>
+      <div class="modal-field">
+        <label>Discard Reason</label>
+        <input type="text" id="modal-discard-reason" placeholder="Reason if any…">
+      </div>
+      <div class="modal-field">
+        <label>Final Temp °F</label>
+        <input type="number" id="modal-final-temp" min="30" max="212" placeholder="°F">
+      </div>
+      <div class="modal-field">
+        <label>QA</label>
+        <select id="modal-qa">
+          <option value="pass" selected>✓ Pass</option>
+          <option value="fail">✗ Fail</option>
+          <option value="na">N/A</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>QA / Quality Notes</label>
+        <textarea id="modal-qa-notes" placeholder="Notes…"></textarea>
+      </div>
+      <div class="modal-field">
+        <label>Initials</label>
+        <input type="text" id="modal-initials" placeholder="Init" maxlength="4" style="text-transform:uppercase;">
+      </div>
+    </div>
+    <div class="dish-modal-footer">
+      <button class="btn-modal-secondary" onclick="clearDishModal()">Clear</button>
+      <button class="btn-modal-primary" onclick="saveDishAndNext()" id="save-next-btn">Save & Next</button>
+    </div>
   </div>
 </div>
 
@@ -516,7 +586,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
-  buildTable();
+  buildDishList();
   updateBatchId();
 
   // Load supervisor dropdown
@@ -585,49 +655,195 @@ function flagBatchTemp(el) {
   el.style.background  = val > 41 ? 'var(--red-lt)' : '';
 }
 
-function buildTable() {
-  const tbody = document.getElementById('prod-tbody');
-  DISHES.forEach((dish, i) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="dish-label">${dish}</td>
-      <td><input type="number" min="0" placeholder="0" class="qty-produced" oninput="updateTotals()" style="width:60px"></td>
-      <td><input type="number" min="0" placeholder="0" class="qty-discarded" oninput="updateTotals()" style="width:60px"></td>
-      <td><input type="text" placeholder="Reason if any…" style="min-width:120px;text-align:left"></td>
-      <td><input type="number" min="30" max="212" placeholder="°F" class="final-temp" style="width:60px" oninput="flagTemp(this)"></td>
-      <td>
-        <select class="qa-select" style="width:72px">
-          <option value="pass" selected>✓ Pass</option>
-          <option value="fail">✗ Fail</option>
-          <option value="na">N/A</option>
-        </select>
-      </td>
-      <td><textarea placeholder="Notes…" style="min-width:150px;text-align:left"></textarea></td>
-      <td><input type="text" placeholder="Init" style="width:46px"></td>
-    `;
-    tbody.appendChild(tr);
+// ═══════════════════════════════════════════════════════════════════════════
+// Modal-Based Dish Entry System
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Store dish data in memory with localStorage backup
+const dishData = {};
+let currentDishIndex = -1;
+
+function initDishData() {
+  DISHES.forEach(dish => {
+    dishData[dish] = {
+      produced: '',
+      discarded: '',
+      discardReason: '',
+      finalTemp: '',
+      qa: 'pass',
+      qaNotes: '',
+      initials: ''
+    };
   });
+  // Try to restore from localStorage
+  const saved = localStorage.getItem('tk_production_dish_data');
+  if (saved) {
+    try {
+      const restored = JSON.parse(saved);
+      Object.assign(dishData, restored);
+      console.log('[Dish Data] Restored from localStorage');
+    } catch (e) {
+      console.warn('[Dish Data] Could not restore saved data');
+    }
+  }
 }
+
+function saveDishDataToStorage() {
+  localStorage.setItem('tk_production_dish_data', JSON.stringify(dishData));
+}
+
+function buildDishList() {
+  initDishData();
+  const container = document.getElementById('dish-list');
+  container.innerHTML = '';
+
+  DISHES.forEach((dish, index) => {
+    const card = document.createElement('div');
+    card.className = 'dish-card';
+    card.dataset.index = index;
+    card.onclick = () => openDishModal(index);
+
+    const status = getDishStatus(dish);
+    const statusIcon = status === 'complete' ? '✓' : (status === 'partial' ? '◐' : '○');
+    const statusText = status === 'complete' ? 'Complete' : (status === 'partial' ? 'Partial' : 'Not Started');
+    const statusClass = status === 'complete' ? 'complete' : (status === 'partial' ? 'partial' : '');
+
+    card.innerHTML = `
+      <div class="dish-card-left">
+        <div class="dish-card-name">${dish}</div>
+        <div class="dish-card-status ${statusClass}">${statusText}</div>
+      </div>
+      <div class="dish-card-icon">${statusIcon}</div>
+    `;
+
+    if (status === 'complete') {
+      card.classList.add('completed');
+    }
+
+    container.appendChild(card);
+  });
+
+  updateProgress();
+}
+
+function getDishStatus(dish) {
+  const data = dishData[dish];
+  const hasData = data.produced || data.discarded || data.finalTemp || data.qaNotes || data.initials;
+  const isComplete = data.produced && data.finalTemp && data.initials; // Consider complete if key fields filled
+
+  if (isComplete) return 'complete';
+  if (hasData) return 'partial';
+  return 'empty';
+}
+
+function updateProgress() {
+  const complete = DISHES.filter(d => getDishStatus(d) === 'complete').length;
+  document.getElementById('progress-text').textContent = `${complete} of ${DISHES.length} completed`;
+
+  // Update totals
+  let totalProduced = 0, totalDiscarded = 0;
+  DISHES.forEach(dish => {
+    totalProduced += parseInt(dishData[dish].produced) || 0;
+    totalDiscarded += parseInt(dishData[dish].discarded) || 0;
+  });
+  document.getElementById('total-produced').textContent = totalProduced;
+  document.getElementById('total-discarded').textContent = totalDiscarded;
+}
+
+function openDishModal(index) {
+  currentDishIndex = index;
+  const dish = DISHES[index];
+  const data = dishData[dish];
+
+  // Populate modal
+  document.getElementById('modal-dish-name').textContent = dish;
+  document.getElementById('modal-dish-progress').textContent = `Dish ${index + 1} of ${DISHES.length}`;
+  document.getElementById('modal-produced').value = data.produced;
+  document.getElementById('modal-discarded').value = data.discarded;
+  document.getElementById('modal-discard-reason').value = data.discardReason;
+  document.getElementById('modal-final-temp').value = data.finalTemp;
+  document.getElementById('modal-qa').value = data.qa;
+  document.getElementById('modal-qa-notes').value = data.qaNotes;
+  document.getElementById('modal-initials').value = data.initials;
+
+  // Apply temp color flagging if set
+  flagModalTemp();
+
+  // Update button text
+  const isLastDish = index === DISHES.length - 1;
+  document.getElementById('save-next-btn').textContent = isLastDish ? 'Save & Close' : 'Save & Next';
+
+  // Show modal
+  document.getElementById('dish-modal').classList.add('show');
+
+  // Focus first input
+  setTimeout(() => document.getElementById('modal-produced').focus(), 300);
+}
+
+function closeDishModal() {
+  document.getElementById('dish-modal').classList.remove('show');
+  currentDishIndex = -1;
+}
+
+function clearDishModal() {
+  if (!confirm('Clear this dish\'s data?')) return;
+  document.getElementById('modal-produced').value = '';
+  document.getElementById('modal-discarded').value = '';
+  document.getElementById('modal-discard-reason').value = '';
+  document.getElementById('modal-final-temp').value = '';
+  document.getElementById('modal-qa').value = 'pass';
+  document.getElementById('modal-qa-notes').value = '';
+  document.getElementById('modal-initials').value = '';
+  flagModalTemp();
+}
+
+function saveDishAndNext() {
+  if (currentDishIndex < 0) return;
+
+  const dish = DISHES[currentDishIndex];
+
+  dishData[dish] = {
+    produced: document.getElementById('modal-produced').value,
+    discarded: document.getElementById('modal-discarded').value,
+    discardReason: document.getElementById('modal-discard-reason').value,
+    finalTemp: document.getElementById('modal-final-temp').value,
+    qa: document.getElementById('modal-qa').value,
+    qaNotes: document.getElementById('modal-qa-notes').value,
+    initials: document.getElementById('modal-initials').value
+  };
+
+  // Save to localStorage
+  saveDishDataToStorage();
+
+  // Update the card in the list
+  buildDishList();
+
+  // Move to next dish or close
+  if (currentDishIndex < DISHES.length - 1) {
+    openDishModal(currentDishIndex + 1);
+  } else {
+    closeDishModal();
+  }
+}
+
+function flagModalTemp() {
+  const el = document.getElementById('modal-final-temp');
+  const val = parseFloat(el.value);
+  el.style.borderColor = val > 41 ? 'var(--red)' : (val > 0 ? 'var(--green)' : '');
+  el.style.background = val > 41 ? 'var(--red-lt)' : '';
+}
+
+// Auto-flag temp on input
+document.addEventListener('DOMContentLoaded', () => {
+  const tempInput = document.getElementById('modal-final-temp');
+  if (tempInput) tempInput.oninput = flagModalTemp;
+});
 
 // ─── Time calculations ────────────────────────────────────
 function timeDiff(t1, t2) {
   const [h1, m1] = t1.split(':').map(Number);
   const [h2, m2] = t2.split(':').map(Number);
   return (h2 * 60 + m2) - (h1 * 60 + m1);
-}
-
-function flagTemp(el) {
-  const val = parseFloat(el.value);
-  el.style.borderColor = val > 41 ? 'var(--red)' : (val > 0 ? 'var(--green)' : '');
-  el.style.background  = val > 41 ? 'var(--red-lt)' : '';
-}
-
-function updateTotals() {
-  let prod = 0, disc = 0;
-  document.querySelectorAll('.qty-produced').forEach(i => prod += parseInt(i.value) || 0);
-  document.querySelectorAll('.qty-discarded').forEach(i => disc += parseInt(i.value) || 0);
-  document.getElementById('total-produced').textContent  = prod;
-  document.getElementById('total-discarded').textContent = disc;
 }
 
 // ─── Build payload ────────────────────────────────────────
@@ -652,26 +868,26 @@ function buildPayload() {
   const finalTemp  = document.getElementById('b-final-temp').value;
 
   const rows = [];
-  document.querySelectorAll('#prod-tbody tr').forEach((tr, i) => {
-    const cells = tr.querySelectorAll('input:not([type=checkbox]), select, textarea');
+  DISHES.forEach((dish, i) => {
+    const data = dishData[dish];
     rows.push({
       date, shift, kitchen, supervisor,
-      dish:          DISHES[i],
+      dish:          dish,
       batch:         batchId,
       cookTemp:      cookTemp,
       cookStart:     cookStart,
       cookEnd:       cookEnd,
       cookTime:      cookTime,
-      qtyProduced:   cells[0].value || '0',
-      qtyDiscarded:  cells[1].value || '0',
-      discardReason: cells[2].value,
+      qtyProduced:   data.produced || '0',
+      qtyDiscarded:  data.discarded || '0',
+      discardReason: data.discardReason,
       coolStart:     coolStart,
       coolEnd:       coolEnd,
       coolTime:      coolTime,
-      finalTemp:     finalTemp || cells[3].value,
-      qa:            cells[4].value,
-      qaNotes:       cells[5].value,
-      initials:      cells[6].value,
+      finalTemp:     finalTemp || data.finalTemp,
+      qa:            data.qa,
+      qaNotes:       data.qaNotes,
+      initials:      data.initials,
       generalNotes:  genNotes,
       batchQANotes:  qaNotes,
       formType:      'production',
@@ -736,7 +952,22 @@ function clearAll() {
     if (el.type === 'checkbox') el.checked = false;
     else el.value = '';
   });
-  document.querySelectorAll('.final-temp').forEach(el => { el.style.borderColor=''; el.style.background=''; });
+
+  // Clear dishData and rebuild list
+  DISHES.forEach(dish => {
+    dishData[dish] = {
+      produced: '',
+      discarded: '',
+      discardReason: '',
+      finalTemp: '',
+      qa: 'pass',
+      qaNotes: '',
+      initials: ''
+    };
+  });
+  localStorage.removeItem('tk_production_dish_data');
+  buildDishList();
+
   // Reset batch display fields
   ['b-cook-time','b-cool-time'].forEach(id => {
     const el = document.getElementById(id);
@@ -747,7 +978,6 @@ function clearAll() {
   document.getElementById('b-cool-end').disabled = false;
   document.getElementById('b-cool-end').style.opacity = '1';
   batchCounter = 1;
-  updateTotals();
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
   updateBatchId();
 }
