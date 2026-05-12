@@ -695,7 +695,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('store-header').style.display = 'block';
     document.title = 'Taipei Kitchen · Delivery · ' + storeData.name;
   }
-  document.getElementById('config-banner').style.display = 'none';
   const now = new Date();
   document.getElementById('f-date').value   = now.toISOString().slice(0,10);
   const hh = String(now.getHours()).padStart(2,'0');
