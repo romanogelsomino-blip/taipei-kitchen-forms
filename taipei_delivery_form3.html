@@ -67,6 +67,13 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
 .status-box h3{font-family:'Syne',sans-serif;font-size:1.2rem;font-weight:800;margin-bottom:8px;}
 .status-box p{font-size:.85rem;color:var(--mid);line-height:1.5;}
 .status-box button{margin-top:20px;background:var(--red);color:#fff;border:none;border-radius:6px;padding:10px 24px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;font-size:.9rem;}
+#summary-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;}
+#summary-overlay.show{display:flex;}
+.summary-box{background:#fff;border-radius:12px;padding:28px;max-width:480px;width:92%;max-height:85vh;overflow-y:auto;}
+.summary-section{padding:12px 0;border-bottom:1px solid var(--border);}
+.summary-section:last-of-type{border-bottom:none;}
+.summary-label{font-family:'DM Mono',monospace;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--mid);margin-bottom:4px;}
+.summary-value{font-size:.95rem;font-weight:600;color:var(--dark);}
 .config-banner{background:#FEF9E7;border:1px solid #F9E79F;border-left:4px solid var(--yellow);border-radius:4px;padding:10px 14px;font-size:.8rem;color:#7D6608;margin-bottom:16px;}
 .config-banner code{background:#FEF3C7;padding:1px 5px;border-radius:3px;font-family:'DM Mono',monospace;font-size:.78rem;}
 .drive-link{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--green);word-break:break-all;margin-top:4px;display:none;}
@@ -467,7 +474,7 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
   </div>
 
   <div class="submit-area">
-    <button class="btn-submit" id="submit-btn" onclick="submitForm()">Submit Delivery Log</button>
+    <button class="btn-submit" id="submit-btn" onclick="showSummary()">Review & Submit</button>
     <button class="btn-clear" onclick="clearAll()">Clear Form</button>
   </div>
 </div>
@@ -478,6 +485,38 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
     <h3 id="s-title">Submitting…</h3>
     <p id="s-msg">Uploading photos and sending to Google Sheets…</p>
     <button onclick="closeStatus()" id="s-btn" style="display:none">Done</button>
+  </div>
+</div>
+
+<!-- T-045: Trip Summary Overlay -->
+<div id="summary-overlay">
+  <div class="summary-box">
+    <h2 style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;margin-bottom:16px;">📋 Review Delivery</h2>
+
+    <div class="summary-section">
+      <div class="summary-label">Store</div>
+      <div class="summary-value" id="sum-store">—</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-label">Driver</div>
+      <div class="summary-value" id="sum-driver">—</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-label">Date</div>
+      <div class="summary-value" id="sum-date">—</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-label">Dishes to Submit</div>
+      <div id="sum-dishes" style="font-size:.82rem;color:var(--mid);margin-top:8px;max-height:200px;overflow-y:auto;"></div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:24px;">
+      <button onclick="closeSummary()" style="flex:1;background:var(--border);color:var(--dark);border:none;border-radius:6px;padding:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;">← Edit</button>
+      <button onclick="confirmSubmit()" style="flex:2;background:var(--green);color:#fff;border:none;border-radius:6px;padding:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;">✓ Confirm & Submit</button>
+    </div>
   </div>
 </div>
 
@@ -1453,6 +1492,55 @@ setInterval(retryQueuedPhotos, 120000);
 window.addEventListener('DOMContentLoaded', () => {
   setTimeout(retryQueuedPhotos, 5000); // Wait 5s after page load to retry
 });
+
+// ─── T-045: Trip Summary Screen ───────────────────────────
+function showSummary() {
+  const driver = getDriverValue();
+  if (!driver) { alert('Please select a driver before submitting.'); return; }
+
+  // Get payload to show summary
+  const payload = buildPayload();
+  const storeId = document.getElementById('f-store').value;
+  const storeData = DATA.stores.find(s => s.id === storeId);
+  const date = document.getElementById('f-date').value;
+
+  // Populate summary fields
+  document.getElementById('sum-store').textContent = storeData ? storeData.name : `Store ${storeId}`;
+  document.getElementById('sum-driver').textContent = driver;
+  document.getElementById('sum-date').textContent = new Date(date).toLocaleDateString('en-US', {
+    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+  });
+
+  // Build dish list summary
+  const dishContainer = document.getElementById('sum-dishes');
+  if (payload.rows.length === 0) {
+    dishContainer.innerHTML = '<div style="color:var(--mid);font-style:italic;">No dishes entered</div>';
+  } else {
+    const dishLines = payload.rows.map(row => {
+      const parts = [];
+      if (row.dish) parts.push(`<strong>${row.dish}</strong>`);
+      if (row.added) parts.push(`+${row.added} added`);
+      if (row.before) parts.push(`${row.before} before`);
+      if (row.removed) parts.push(`−${row.removed} removed`);
+      if (row.after && row.after !== '—') parts.push(`→ ${row.after} after`);
+      return `<div style="padding:4px 0;border-bottom:1px solid #f0f0f0;">${parts.join(' · ')}</div>`;
+    });
+    dishContainer.innerHTML = dishLines.join('');
+  }
+
+  // Show overlay
+  document.getElementById('summary-overlay').classList.add('show');
+}
+
+function closeSummary() {
+  document.getElementById('summary-overlay').classList.remove('show');
+}
+
+function confirmSubmit() {
+  // Close summary and trigger actual submission
+  closeSummary();
+  submitForm();
+}
 
 async function submitForm() {
   const driver = getDriverValue();
