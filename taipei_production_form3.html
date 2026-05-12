@@ -255,6 +255,13 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
       </div>
     </div>
 
+    <!-- T-041: Recall Last Submission -->
+    <div style="padding:12px 20px;background:var(--row-alt);border-top:1px solid var(--border);">
+      <button id="recall-btn" onclick="recallLastSubmission()" style="background:var(--green);color:#fff;border:none;border-radius:6px;padding:10px 16px;font-family:'DM Mono',monospace;font-size:.78rem;cursor:pointer;display:none;transition:background .15s;">
+        ⚡ Use Last Values
+      </button>
+    </div>
+
     <!-- Batch ID row -->
     <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--row-alt);">
       <div style="display:flex;flex-direction:column;gap:4px;">
@@ -591,6 +598,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Load supervisor dropdown
   loadSupervisors();
+
+  // T-041: Check for last submission and show recall button if available
+  checkForLastSubmission();
 });
 
 // ─── Batch ID management ─────────────────────────────────
@@ -897,6 +907,78 @@ function buildPayload() {
   return rows;
 }
 
+// ─── T-041: Same-as-Last-Submission Recall ───────────────
+function saveLastSubmission() {
+  const lastValues = {
+    supervisor: getSupervisorValue(),
+    supervisorSelectValue: document.getElementById('f-supervisor').value,
+    supervisorCustomValue: document.getElementById('f-supervisor-custom').value,
+    kitchen: document.getElementById('f-kitchen').value,
+    timestamp: new Date().toISOString()
+  };
+  localStorage.setItem('tk_production_last_submission', JSON.stringify(lastValues));
+  console.log('[Recall] Saved last submission values');
+}
+
+function recallLastSubmission() {
+  const saved = localStorage.getItem('tk_production_last_submission');
+  if (!saved) return;
+
+  try {
+    const lastValues = JSON.parse(saved);
+
+    // Restore supervisor
+    const supervisorSelect = document.getElementById('f-supervisor');
+    const supervisorCustom = document.getElementById('f-supervisor-custom');
+
+    if (lastValues.supervisorSelectValue === '__custom__') {
+      supervisorSelect.value = '__custom__';
+      supervisorCustom.style.display = 'block';
+      supervisorCustom.value = lastValues.supervisorCustomValue;
+    } else {
+      supervisorSelect.value = lastValues.supervisorSelectValue;
+      supervisorCustom.style.display = 'none';
+    }
+
+    // Restore kitchen
+    document.getElementById('f-kitchen').value = lastValues.kitchen;
+
+    console.log('[Recall] Restored last submission from', lastValues.timestamp);
+
+    // Show confirmation
+    const btn = document.getElementById('recall-btn');
+    const originalText = btn.textContent;
+    btn.textContent = '✓ Values Restored';
+    btn.style.background = '#27AE60';
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = 'var(--green)';
+    }, 2000);
+  } catch (e) {
+    console.error('[Recall] Failed to restore:', e);
+  }
+}
+
+function checkForLastSubmission() {
+  const saved = localStorage.getItem('tk_production_last_submission');
+  const btn = document.getElementById('recall-btn');
+  if (saved) {
+    try {
+      const lastValues = JSON.parse(saved);
+      const savedDate = new Date(lastValues.timestamp);
+      const hoursSince = (new Date() - savedDate) / 1000 / 60 / 60;
+
+      // Show button if last submission was within 24 hours
+      if (hoursSince < 24) {
+        btn.style.display = 'block';
+        console.log('[Recall] Last submission available from', savedDate.toLocaleString());
+      }
+    } catch (e) {
+      console.error('[Recall] Failed to check last submission:', e);
+    }
+  }
+}
+
 // ─── Submit ───────────────────────────────────────────────
 async function submitForm() {
   const supervisor = getSupervisorValue();
@@ -928,6 +1010,9 @@ async function submitForm() {
     });
     showStatus('✅', 'Submitted!', payload.length + ' dish rows saved to Google Sheets.');
     document.getElementById('s-btn').style.display = 'block';
+
+    // T-041: Save last submission values for quick recall
+    saveLastSubmission();
   } catch(e) {
     localStorage.setItem('tk_prod_backup_' + Date.now(), JSON.stringify(payload));
     showStatus('❌', 'Connection Error', 'Could not reach Google Sheets. Data saved locally — retry when connected.');

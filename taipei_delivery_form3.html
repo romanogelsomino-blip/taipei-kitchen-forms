@@ -136,6 +136,11 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
       <h2>Delivery Information</h2>
       <p>Fill out before starting the store drop</p>
     </div>
+    <div style="padding:12px 20px;background:var(--row-alt);border-bottom:1px solid var(--border);">
+      <button id="recall-btn" onclick="recallLastSubmission()" style="background:var(--green);color:#fff;border:none;border-radius:6px;padding:10px 16px;font-family:'DM Mono',monospace;font-size:.78rem;cursor:pointer;display:none;transition:background .15s;">
+        ⚡ Use Last Values
+      </button>
+    </div>
     <div class="field-group fg3">
       <div class="field">
         <label>Date</label>
@@ -774,6 +779,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Load driver dropdown
   loadDrivers();
+
+  // T-041: Check for last submission and show recall button if available
+  checkForLastSubmission();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1307,6 +1315,77 @@ async function retryQueuedSubmissions() {
 // Auto-retry queued submissions every 30 seconds
 setInterval(retryQueuedSubmissions, 30000);
 
+// ═══════════════════════════════════════════════════════════════════════════
+// T-041: Same-as-Last-Submission One-Tap Recall
+// ═══════════════════════════════════════════════════════════════════════════
+
+function saveLastSubmission() {
+  const lastValues = {
+    driver: getDriverValue(),
+    driverSelectValue: document.getElementById('f-driver').value,
+    driverCustomValue: document.getElementById('f-driver-custom').value,
+    timestamp: new Date().toISOString()
+  };
+  localStorage.setItem('tk_delivery_last_submission', JSON.stringify(lastValues));
+  console.log('[Recall] Saved last submission values');
+}
+
+function recallLastSubmission() {
+  const saved = localStorage.getItem('tk_delivery_last_submission');
+  if (!saved) return;
+
+  try {
+    const lastValues = JSON.parse(saved);
+
+    // Restore driver
+    const driverSelect = document.getElementById('f-driver');
+    const driverCustom = document.getElementById('f-driver-custom');
+
+    if (lastValues.driverSelectValue === '__custom__') {
+      driverSelect.value = '__custom__';
+      driverCustom.style.display = 'block';
+      driverCustom.value = lastValues.driverCustomValue;
+    } else {
+      driverSelect.value = lastValues.driverSelectValue;
+      driverCustom.style.display = 'none';
+    }
+
+    console.log('[Recall] Restored last submission from', lastValues.timestamp);
+
+    // Show confirmation
+    const btn = document.getElementById('recall-btn');
+    const originalText = btn.textContent;
+    btn.textContent = '✓ Values Restored';
+    btn.style.background = '#27AE60';
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.style.background = 'var(--green)';
+    }, 2000);
+  } catch (e) {
+    console.error('[Recall] Failed to restore:', e);
+  }
+}
+
+function checkForLastSubmission() {
+  const saved = localStorage.getItem('tk_delivery_last_submission');
+  const btn = document.getElementById('recall-btn');
+  if (saved) {
+    try {
+      const lastValues = JSON.parse(saved);
+      const savedDate = new Date(lastValues.timestamp);
+      const hoursSince = (new Date() - savedDate) / 1000 / 60 / 60;
+
+      // Show button if last submission was within 24 hours
+      if (hoursSince < 24) {
+        btn.style.display = 'block';
+        console.log('[Recall] Last submission available from', savedDate.toLocaleString());
+      }
+    } catch (e) {
+      console.error('[Recall] Failed to check last submission:', e);
+    }
+  }
+}
+
 async function submitForm() {
   const driver = getDriverValue();
   if (!driver) { alert('Please select a driver before submitting.'); return; }
@@ -1376,6 +1455,10 @@ async function submitForm() {
       payload.rows.length + ' dish rows saved to Google Sheets for ' +
       (storeData ? storeData.name : 'store ' + storeId) + '. No photos attached.');
   }
+
+  // T-041: Save last submission values for quick recall
+  saveLastSubmission();
+
   document.getElementById('s-btn').style.display = 'block';
 }
 

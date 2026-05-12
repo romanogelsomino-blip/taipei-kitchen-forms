@@ -339,15 +339,16 @@ function renderRecentFeed() {
   }
 
   container.innerHTML = combined.map(item => {
-    const time = new Date(item.time).toLocaleTimeString();
+    const date = new Date(item.time);
+    const time = isNaN(date.getTime()) ? '—' : date.toLocaleTimeString();
     const typeClass = item.type;
     let text = '';
 
     if (item.type === 'delivery') {
       const storeName = DATA.stores.find(s => s.id === item.store)?.name || `Store ${item.store}`;
-      text = `${item.driver} delivered to ${storeName}`;
+      text = `${item.driver || 'Unknown'} delivered to ${storeName}`;
     } else {
-      text = `${item.supervisor} logged production batch ${item.batch}`;
+      text = `${item.supervisor || 'Unknown'} logged production batch ${item.batch || '—'}`;
     }
 
     const violationClass = item.type === 'delivery' && hasViolation(item) ? 'violation' : '';
