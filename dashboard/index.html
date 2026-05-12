@@ -24,7 +24,7 @@
 
 <!-- Main Layout -->
 <div class="main-layout">
-  <!-- Side Navigation -->
+  <!-- Side Navigation (Desktop) -->
   <nav class="side-nav">
     <a href="#overview" class="nav-link active" data-panel="overview">
       <span class="nav-label">Overview</span>
@@ -40,6 +40,30 @@
     </a>
     <a href="#waste" class="nav-link" data-panel="waste">
       <span class="nav-label">Waste Analysis</span>
+    </a>
+  </nav>
+
+  <!-- Mobile Bottom Navigation -->
+  <nav class="mobile-nav">
+    <a href="#overview" class="mobile-nav-link active" data-panel="overview">
+      <span class="mobile-nav-icon">📊</span>
+      <span class="mobile-nav-label">Overview</span>
+    </a>
+    <a href="#deliveries" class="mobile-nav-link" data-panel="deliveries">
+      <span class="mobile-nav-icon">🚚</span>
+      <span class="mobile-nav-label">Delivery</span>
+    </a>
+    <a href="#production" class="mobile-nav-link" data-panel="production">
+      <span class="mobile-nav-icon">🍱</span>
+      <span class="mobile-nav-label">Kitchen</span>
+    </a>
+    <a href="#food-safety" class="mobile-nav-link" data-panel="food-safety">
+      <span class="mobile-nav-icon">🌡️</span>
+      <span class="mobile-nav-label">Safety</span>
+    </a>
+    <a href="#waste" class="mobile-nav-link" data-panel="waste">
+      <span class="mobile-nav-icon">📉</span>
+      <span class="mobile-nav-label">Waste</span>
     </a>
   </nav>
 
@@ -417,6 +441,6 @@
   </main>
 </div>
 
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

@@ -212,7 +212,17 @@ function updateStatus(state, message) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function setupNavigation() {
+  // Setup desktop nav links
   document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const panel = link.dataset.panel;
+      showPanel(panel);
+    });
+  });
+
+  // Setup mobile nav links
+  document.querySelectorAll('.mobile-nav-link').forEach(link => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
       const panel = link.dataset.panel;
@@ -222,14 +232,25 @@ function setupNavigation() {
 }
 
 function showPanel(panelName) {
-  // Update nav links
+  // Update desktop nav links
   document.querySelectorAll('.nav-link').forEach(link => {
     link.classList.toggle('active', link.dataset.panel === panelName);
   });
+
+  // Update mobile nav links
+  document.querySelectorAll('.mobile-nav-link').forEach(link => {
+    link.classList.toggle('active', link.dataset.panel === panelName);
+  });
+
   // Update panels
   document.querySelectorAll('.panel').forEach(panel => {
     panel.classList.toggle('active', panel.id === `panel-${panelName}`);
   });
+
+  // Scroll to top on mobile when switching panels
+  if (window.innerWidth <= 768) {
+    window.scrollTo(0, 0);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
