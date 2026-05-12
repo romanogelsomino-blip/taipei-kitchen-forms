@@ -241,9 +241,9 @@ function renderOverview() {
   const weekStart = getWeekStart(new Date());
 
   // Today's Metrics
-  const deliveriesToday = DATA.deliveries.filter(d => d.date === today).length;
-  const productionToday = DATA.production.filter(p => p.date === today).length;
-  const violationsToday = countViolations(DATA.deliveries.filter(d => d.date === today));
+  const deliveriesToday = DATA.deliveries.filter(d => (d.date || '').slice(0, 10) === today).length;
+  const productionToday = DATA.production.filter(p => (p.date || '').slice(0, 10) === today).length;
+  const violationsToday = countViolations(DATA.deliveries.filter(d => (d.date || '').slice(0, 10) === today));
   const wasteThisWeek = DATA.waste
     .filter(w => new Date(w.date) >= weekStart)
     .reduce((sum, w) => sum + (parseInt(w.qtyRemoved) || 0), 0);
@@ -294,7 +294,8 @@ function renderTopStores() {
   }
 
   container.innerHTML = sorted.map(([storeId, count]) => {
-    const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
+    // storeId is already the full store name from the delivery data
+    const storeName = storeId || 'Unknown Store';
     return `
       <div class="store-item">
         <span class="store-name">${storeName}</span>
