@@ -1500,7 +1500,7 @@ function showSummary() {
 
   // Get payload to show summary
   const payload = buildPayload();
-  const storeId = document.getElementById('f-store').value;
+  // storeId is already a global variable from line 780 (URL parameter)
   const storeData = STORES.find(s => s.id === storeId);
   const date = document.getElementById('f-date').value;
 
