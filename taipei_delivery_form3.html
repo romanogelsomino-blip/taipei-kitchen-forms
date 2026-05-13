@@ -1501,7 +1501,7 @@ function showSummary() {
   // Get payload to show summary
   const payload = buildPayload();
   const storeId = document.getElementById('f-store').value;
-  const storeData = DATA.stores.find(s => s.id === storeId);
+  const storeData = STORES.find(s => s.id === storeId);
   const date = document.getElementById('f-date').value;
 
   // Populate summary fields
