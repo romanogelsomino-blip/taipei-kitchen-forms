@@ -138,8 +138,8 @@ Task ID format: T-###. Add new tasks at the bottom; never renumber.
 | T-039 | F-08 P1: Make Discard Reason required only when Qty Discarded > 0 | @code | TODO | FRICTION_AUDIT.md F-08. 
 | T-040 | F-09 P0: Default QA Result to Pass instead of empty | @code | TODO | FRICTION_AUDIT.md F-09. Forces conscious Fail action. |
 | T-041 | F-10 P1: Same-as-last-submission one-tap recall for driver/supervisor/kitchen | @code | TODO | FRICTION_AUDIT.md F-10. localStorage-backed. |
-| T-042 | F-11 P0: Add Data Validation rules to Driver, Supervisor, Received By columns in master sheet | @browser | TODO | FRICTION_AUDIT.md F-11. Reference same source lists as form dropdowns. |
-| T-043 | F-12 P1: Backfill cleanup: trim trailing spaces, normalize case in Driver/Supervisor/Reason columns | @browser | TODO | FRICTION_AUDIT.md F-12. Run after T-042 lands. Archive original first. |
+| T-042 | F-11 P0: Add Data Validation rules to Driver, Supervisor, Received By columns in production sheet | @browser | TODO | FRICTION_AUDIT.md F-11. Work directly on production sheet (1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI). Prevents "Owen " vs "Owen" and "anna" vs "Anna" splits. |
+| T-043 | F-12 P1: Backfill cleanup: trim trailing spaces, normalize case in Driver/Supervisor/Reason columns on production sheet | @browser | TODO | FRICTION_AUDIT.md F-12. Archive Delivery Log – Live tab first as `_archive_DeliveryLog_2026-05-14`, then clean in place. Work autonomously - DO NOT ASK FOR CONFIRMATION. |
 | T-044 | F-13 P1: Photo upload status feedback + retry queue + verify Drive link writes back to sheet | @code | TODO | FRICTION_AUDIT.md F-13. Photo Link columns currently blank in live data. |
 | T-045 | F-14 P1: Trip Summary final screen on delivery form with single confirm tap | @code | TODO | FRICTION_AUDIT.md F-14. Replaces 13-row visit confusion. |
 | T-046 | F-15 P1: Disable Submit button until required fields filled (no end-of-form alerts) | @code | TODO | FRICTION_AUDIT.md F-15. |
@@ -363,23 +363,35 @@ Proposed bundles for remaining @code TODOs:
 
 ### @browser — run straight through (in this order)
 
-1. **T-005 Sheet Audit** — open master sheet `TaipeiKitchen_BentoOps_v2`, read all 10 tabs (Delivery Log – Live, Store Lookup, Production Log – Live, Production Timeline, Delivery Summary, Production Summary, Weekly Snapshot, Waste Tracker, Editing Guide, Apps Script Code). Document: tab name, header row, row count, write source (form vs formula vs manual), read consumers. Append findings under the `## Sheet Audit` section above.
-2. **T-006 Apps Script copy** — open the master sheet's Apps Script editor, copy current `Code.gs` verbatim into `apps_script/Code.gs` in repo via web edit on main. No edits, just paste. Append under `## Apps Script Snapshot`. Flip to REVIEW.
-3. **T-050 Paste & deploy Web App** — once @code lands T-049 (doGet endpoint) in `apps_script/Code.gs`, paste the updated Code.gs back into the sheet's Apps Script editor, deploy as Web App (execute-as-me, anyone-with-link), capture URL into `dashboard/config.local.json`. Owner may need to click Allow on a single OAuth scope prompt.
-4. **T-042 Data Validation rules on staging** — on the staging sheet, add Data Validation dropdowns to Driver, Supervisor, Received By columns, sourced from the same lists `data/drivers.json`, `data/supervisors.json`, `data/stores.json` will use. Mirrors form-side dropdowns from T-032/T-036.
-5. **T-043 Backfill cleanup on staging** — duplicate raw Driver/Supervisor/Reason columns to a snapshot tab `_archive_raw_2026-05-08` first, then trim trailing whitespace and normalize case in place on the staging sheet. Owen-with-trailing-space, anna→Anna, lucia→Lucia, OOD→Out of date.
-6. **T-028 Production-log dedupe on PRODUCTION** — UPDATED 2026-05-12: Work on PRODUCTION sheet (1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI), not staging. CONFIRMED: production confirmed. First copy entire Production Log to `_archive_ProductionLog_2026-05-12`, then dedupe in place by composite key: (Date + Kitchen + Supervisor + Dish + Batch ID) - this catches same batch logged twice even with different Submitted At timestamps. Archive first, then delete duplicates autonomously. Document: row count before/after, number of duplicates removed. DO NOT ASK FOR CONFIRMATION - just archive and delete.
-7. **T-029 Drive photo folder reorg prep** — Find the delivery photo Drive folder by checking the "Before Photo Link" and "After Photo Link" columns in the production sheet's Delivery Log - Live tab. Extract the folder ID from any photo link URL. Build `/Store-{ID}/{YYYY}/{MM}/{DD}` subfolder tree under that root, move existing photos into matching subfolders by submission date and store. If you can't find photo links in the sheet, search Google Drive for folders related to "Taipei Kitchen" or "delivery photos". **Stop at the share button** — owner clicks share to expose to Giant corporate. Document: folder ID found, number of photos moved. Work autonomously - do not ask for folder location.
-8. **T-022 Repair broken sheet tabs** — ADDED 2026-05-12: Fix formulas/queries in 6 tabs (Store Lookup, Production Timeline, Delivery Summary, Production Summary, Weekly Snapshot, Waste Tracker) so each populates correctly when filtered. Test each tab and document what was fixed.
-9. **T-023 Waste tracker by store** — ADDED 2026-05-12: Add pivot table or per-store tabs to Waste Tracker so Romano can analyze waste patterns by individual store. Choose best approach and implement.
-10. **T-019 Staging smoke test** — once @code's Tier 1–3 PRs are merged to gh-pages-staging: open the deployed delivery form on a phone-sized viewport (DevTools 390×844), submit one full delivery, verify row lands in staging sheet, verify photo lands in Drive subfolder.
-11. **T-020 Regression pass** — DevTools Slow 3G simulation + run full TEST_PLAN.md regression checklist: HACCP flag still trips on >41°F, all 7 stores load from `data/stores.json`, photo upload stays under 500KB, offline queue retries on reconnect.
-12. **Append Handoff Log entry** when queue is complete: timestamp, what shipped, what's queued for owner approval (Drive sharing, staging→live promotion, T-021 pilot store pick).
+**UPDATED 2026-05-14: All work now on PRODUCTION sheet with archive-first safety. No staging sheet duplication. Forms untouched (see Current Status section above).**
+
+**Production Sheet:** https://docs.google.com/spreadsheets/d/1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI/edit
+
+1. **T-005 Sheet Audit** — ✅ COMPLETE (see ## Sheet Audit section above). Skip.
+
+2. **T-006 Apps Script copy** — Open production sheet's Apps Script editor, copy current `Code.gs` verbatim into `apps_script/Code.gs` in repo via GitHub web edit on main branch. No edits, just paste. Commit message: `[T-006] Copy current Apps Script from production sheet`. Flip task to REVIEW in task board above.
+
+3. **T-050 Paste & deploy Web App** — ✅ COMPLETE (deployed 2026-05-11, see handoff log). Skip.
+
+4. **T-042 Data Validation rules on PRODUCTION** — On production sheet, add Data Validation dropdowns: Driver column (Delivery Log – Live): Owen, Sam Blumenthal, Andy, [allow custom]. Supervisor column (Production Log – Live): Anna, Lucia, Jiang, Guy, [allow custom]. Received By column (Delivery Log – Live): store-specific contacts. Prevents "Owen " vs "Owen" and "anna" vs "Anna" splits. Flip task to REVIEW.
+
+5. **T-043 Backfill cleanup on PRODUCTION** — **Archive first:** duplicate Delivery Log – Live tab to new tab `_archive_DeliveryLog_2026-05-14`. Then clean Driver/Supervisor/Received By columns in place: trim spaces ("Owen " → "Owen"), normalize case ("anna" → "Anna", "lucia" → "Lucia"), normalize Expire Reason ("OOD" → "Out of date"). Document row count affected. DO NOT ASK FOR CONFIRMATION - work autonomously. Flip task to REVIEW.
+
+6. **T-028 Production-log dedupe on PRODUCTION** — **Archive first:** duplicate Production Log – Live tab to `_archive_ProductionLog_2026-05-14`. Dedupe by composite key: (Date + Kitchen + Supervisor + Dish + Batch #). Keep earliest Submitted At. Document: row count before/after, duplicates removed. DO NOT ASK FOR CONFIRMATION - work autonomously. Flip task to REVIEW.
+
+7. **T-029 Drive photo folder reorg** — Find photo folder from "Before Photo Link" column (Q) in Delivery Log – Live. Extract folder ID from URL. Create subfolders: `/Store-{ID}/{YYYY}/{MM}/{DD}`. Move photos to correct subfolders by date/store. **Stop at share button** (owner clicks). Document: folder ID, photos moved. Work autonomously - do not ask for folder location. Flip task to REVIEW.
+
+8. **T-022 Repair broken sheet tabs on PRODUCTION** — Fix formulas/queries in 6 tabs: Store Lookup, Production Timeline, Delivery Summary, Production Summary, Weekly Snapshot, Waste Tracker. Test each tab. Document what was fixed. Flip task to REVIEW.
+
+9. **T-023 Waste tracker by store on PRODUCTION** — Add pivot table or per-store breakdown to Waste Tracker tab. Choose best approach. Document approach. Flip task to REVIEW.
+
+10. **T-019/T-020 Testing** — SKIP until @code completes dashboard fixes. Forms already tested in production (drivers using them right now).
+
+11. **Append Handoff Log entry** when queue complete: `2026-05-14 — @browser — Completed production sheet cleanup. T-006 (Apps Script copied), T-042 (data validation added), T-043 (backfill cleaned, [X] rows), T-028 (dedupe: [before]→[after] rows, [N] duplicates), T-029 (Drive reorg: folder [ID], [X] photos), T-022 (6 tabs fixed), T-023 (waste by store: [approach]). All changes reversible via archive tabs. Ready for @code dashboard fixes.`
 
 **@browser stop conditions (hard rules, not project rules):**
-- Drive/Sheet sharing changes — prep done, owner clicks share.
-- OAuth re-authorization prompt during T-006 if Apps Script asks for fresh scopes — owner clicks Allow once.
-- Staging→live promotion (release tag, flipping URLs) — owner-gated.
+- Drive sharing button (T-029) — prep the folder structure, then stop. Owner clicks share.
+- OAuth re-authorization during T-006 — if Apps Script asks for fresh scopes, owner clicks Allow once.
 
 ### End-of-Day Collaboration
 
@@ -387,7 +399,6 @@ When both queues are drained, we reconcile here. Owner pass needed on:
 
 - **T-021 UAT pilot store** — owner picks one of: 6006, 6061, 6253, 6331, 6443, 6542, 6564.
 - **T-029 Drive sharing** — owner clicks share on the reorganized photo folder once Giant corporate distribution is desired.
-- **Staging → live promotion** — owner approves a `release/*` tag; @code cuts the tag once T-019 + T-020 pass.
 - **Anything @code flagged as NEEDS-OWNER** in a bundle PR description.
 
 After this is merged, neither agent waits between items in their own queue. Cross-queue dependencies (e.g. T-042 reads from JSON files @code is publishing) are pulled live when ready, not blocked on synchronous handoff.
