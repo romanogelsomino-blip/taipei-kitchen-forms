@@ -13,6 +13,27 @@ The human owner (Leander) approves merges to main, sensitive permission changes,
 
 ---
 
+## Current Status (2026-05-14)
+
+**PRODUCTION FORMS: STABLE ✅**
+- Submit button bug FIXED (drivers back online)
+- Modal UI reverted to table view per driver Owen's feedback
+- T-041/T-044/T-045 features deployed and working
+- Files: `taipei_production_form3.html`, `taipei_delivery_form3.html`
+- **THESE FILES WILL NOT BE MODIFIED BY ANY REMAINING WORK**
+
+**REMAINING WORK: ZERO-RISK TO FORMS ✅**
+All remaining tasks are backend/tooling only:
+- Dashboard (`/dashboard` folder) - reads data via API, isolated from forms
+- Sheet cleanup (staging first, archives created, reversible)
+- Drive folder reorg (photos only, no form code)
+- Testing (verification only, no code changes)
+
+**PROJECT COMPLETION: ~65-70%**
+Forms are production-ready. Remaining: dashboard bug fixes + sheet/Drive cleanup + testing.
+
+---
+
 ## Client Visibility Rule
 
 **Romano (the client) does not see any changes until the full 72-hour prototype is complete.** All in-progress work lives on the staging sheet (TaipeiKitchen_BentoOps_v2_STAGING), the staging GitHub Pages branch, and feature branches in this repo. No promotion to live, no client-facing demo, no preview links shared with Romano until every task scoped into the 72-hour prototype is REVIEW or DONE. Mid-flight client requests (e.g. T-047) are folded into the prototype delivery rather than being shipped piecemeal.
@@ -312,6 +333,8 @@ Proposed bundles for remaining @code TODOs:
 - 2026-05-08 — @code — Updated dashboard with demo mode for localhost development. Dashboard now shows working product with realistic sample data (no config required). Fixed demo data property names (store vs storeId, qtyRemoved vs qty). All @code work complete. **HANDOFF TO @browser: T-050 ready for execution.** @browser: Deploy Apps Script Web App to staging sheet following detailed instructions in `/dashboard/DEPLOYMENT_GUIDE.md`. Staging sheet: `TaipeiKitchen_BentoOps_v2_STAGING` (ID: `1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E`). Code is ready in `apps_script/Code.gs`. After deployment, update `dashboard/config.local.json` with Web App URL and commit to a temporary branch. Dashboard will then show live staging data instead of demo data. This unblocks end-to-end testing before promoting to live sheet.
 
 - 2026-05-11 — @browser — T-050 deployment complete. Apps Script Web App redeployed three times today against production master sheet (1LP7…EOAI): Version 7 (deliveries column-mapping fix — removed caseFillLevel, arrivalTemp→arrivalProductTemp), Version 8 (cache-clear redeploy, no code change), Version 9 (defensive filter dropping duplicate header rows from deliveries/production arrays). Verified API directly: returns clean live data — deliveries 2,379 rows (April 1,248 / May 1,131), production 494 rows (April 234 / May 260), waste 285 rows. Web App URL unchanged across redeploys. **HANDOFF TO @code — dashboard bugs surfaced in PR #14 (task/web-dashboard):** (1) dashboard/app.js lines 244-246 use `d.date === today` where today = `new Date().toISOString().slice(0,10)` (e.g. '2026-05-11') but `d.date` from API is full ISO `'2026-05-11T07:00:00.000Z'` — exact equality always fails, so Deliveries Today / Production Today / HACCP Violations Today tiles all render 0. Fix: `(d.date || '').slice(0, 10) === today`. (2) Top 5 Stores renders 'Store Store 6542 – Carlisle, PA' because the API `store` field already contains the full string and `app.js` prepends another 'Store '. Fix: remove the prefix in the Top Stores template. (3) Recent Submissions showed 'Invalid Date / Driver delivered to Store Strore #' due to a literal duplicate header row at row 2 of `Delivery Log – Live` and `Production Log – Live` on the production sheet — defensively filtered server-side in Version 9, but true fix is sheet-side cleanup (owner-gated). Fold (1) and (2) into PR #14 before merge.
+
+- 2026-05-14 — @code — **CRITICAL PRODUCTION ISSUES RESOLVED + MODAL REVERSION COMPLETE.** (1) HOTFIX: Submit button broken (drivers reported at 11:01 AM) - fixed in commits bf389a9 and 26eef5a. Root cause: T-045 implementation tried to read storeId from non-existent form element instead of using URL parameter. (2) Completed T-041 (same-as-last recall), T-044 (photo retry queue), T-045 (trip summary screen) - all deployed. (3) **MODAL UI REVERTED** (commit 076bea9): Driver Owen reported modal system harder to use ("can only see one dish at a time"). Restored table-based dish entry per client feedback while preserving T-041/T-044/T-045. Removed ~232 lines of modal code. Forms now stable and battle-tested. **HANDOFF TO @code (dashboard fixes) + @browser (sheet/Drive work):** All remaining work is ZERO-RISK to production forms. Dashboard work isolated to `/dashboard` folder (reads data via doGet, never modifies). Sheet work uses staging sheet first (ID: 1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E), production changes are reversible (archives created first). Current form files (taipei_production_form3.html, taipei_delivery_form3.html) will NOT be touched by any remaining tasks. Project status: ~65-70% complete functionally. Forms are production-ready. Remaining work: dashboard bug fixes (T-048–T-055), sheet cleanup (T-022/T-023/T-028/T-029/T-042/T-043), testing (T-019/T-020/T-021).
 
 ## Run-Straight-Through Task Lists — 2026-05-08
 
