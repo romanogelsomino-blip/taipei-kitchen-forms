@@ -901,7 +901,7 @@ function buildPayload() {
       generalNotes:  genNotes,
       batchQANotes:  qaNotes,
       formType:      'production',
-      submittedAt:   new Date().toISOString()
+      clientTimestamp: new Date().toISOString()
     });
   });
   return rows;

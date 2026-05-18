@@ -1073,7 +1073,7 @@ function buildPayload() {
       incidentNotes:           transit.incidentNotes,
       timeAboveSafeTemp:       transit.timeAboveDisplay,
       formType: 'delivery',
-      submittedAt: new Date().toISOString(),
+      clientTimestamp: new Date().toISOString(),
       // T-027: Timestamp locking
       formLoadTime: timestampData.formLoadTime,
       timezone: timestampData.timezone,

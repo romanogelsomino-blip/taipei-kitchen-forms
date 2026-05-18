@@ -247,6 +247,11 @@ function showPanel(panelName) {
     panel.classList.toggle('active', panel.id === `panel-${panelName}`);
   });
 
+  // Render panel-specific content
+  if (panelName === 'shrink') {
+    renderShrinkDashboard();
+  }
+
   // Scroll to top on mobile when switching panels
   if (window.innerWidth <= 768) {
     window.scrollTo(0, 0);
@@ -1354,4 +1359,330 @@ function getWeekStart(date) {
   const day = d.getDay();
   const diff = d.getDate() - day;
   return new Date(d.setDate(diff));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SHRINK TRACKING DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+
+let shrinkTimeRange = 'today';
+let shrinkCharts = {};
+let shrinkTableData = [];
+
+function applyShrinkFilter(range) {
+  shrinkTimeRange = range;
+
+  // Update button states
+  document.querySelectorAll('#panel-shrink .filter-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  event.target.classList.add('active');
+
+  // Refresh shrink data
+  renderShrinkDashboard();
+}
+
+function renderShrinkDashboard() {
+  // Calculate date range
+  const today = new Date();
+  let startDate;
+
+  switch(shrinkTimeRange) {
+    case 'today':
+      startDate = new Date(today);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case '7days':
+      startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 7);
+      break;
+    case '30days':
+      startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 30);
+      break;
+    case 'all':
+      startDate = new Date(0); // Unix epoch
+      break;
+  }
+
+  // Filter deliveries by date range
+  const filteredDeliveries = DATA.deliveries.filter(d => {
+    const dDate = new Date(d.date);
+    return dDate >= startDate;
+  });
+
+  // Calculate shrink metrics
+  const totalLoaded = filteredDeliveries.reduce((sum, d) => sum + (parseInt(d.qtyAdded) || 0), 0);
+  const totalShrink = filteredDeliveries.reduce((sum, d) => sum + (parseInt(d.removed) || 0), 0);
+  const shrinkRate = totalLoaded > 0 ? ((totalShrink / totalLoaded) * 100).toFixed(2) : 0;
+
+  // Calculate shrink by store
+  const shrinkByStore = {};
+  filteredDeliveries.forEach(d => {
+    if (!shrinkByStore[d.store]) {
+      shrinkByStore[d.store] = { loaded: 0, shrink: 0 };
+    }
+    shrinkByStore[d.store].loaded += parseInt(d.qtyAdded) || 0;
+    shrinkByStore[d.store].shrink += parseInt(d.removed) || 0;
+  });
+
+  // Find highest shrink store
+  let highestShrinkStore = '';
+  let highestShrinkRate = 0;
+  Object.entries(shrinkByStore).forEach(([store, data]) => {
+    const rate = data.loaded > 0 ? (data.shrink / data.loaded) * 100 : 0;
+    if (rate > highestShrinkRate) {
+      highestShrinkRate = rate;
+      highestShrinkStore = store;
+    }
+  });
+
+  // Update metrics
+  document.getElementById('shrink-total-loaded').textContent = totalLoaded.toLocaleString();
+  document.getElementById('shrink-total-shrink').textContent = totalShrink.toLocaleString();
+  document.getElementById('shrink-rate').textContent = shrinkRate + '%';
+  document.getElementById('shrink-top-store').textContent = highestShrinkStore || 'N/A';
+
+  // Add alert styling if shrink rate is high
+  const shrinkRateCard = document.getElementById('shrink-rate').closest('.metric-card');
+  if (parseFloat(shrinkRate) > 10) {
+    shrinkRateCard.style.borderColor = 'var(--red)';
+    shrinkRateCard.style.background = '#FEE';
+  } else {
+    shrinkRateCard.style.borderColor = '';
+    shrinkRateCard.style.background = '';
+  }
+
+  // Render charts
+  renderShrinkCharts(filteredDeliveries, shrinkByStore);
+
+  // Render detailed table
+  renderShrinkTable(filteredDeliveries);
+}
+
+function renderShrinkCharts(deliveries, shrinkByStore) {
+  // Destroy existing charts
+  Object.values(shrinkCharts).forEach(chart => chart.destroy());
+  shrinkCharts = {};
+
+  // Chart 1: Shrink Rate by Store (Bar)
+  const storeLabels = Object.keys(shrinkByStore);
+  const storeRates = storeLabels.map(store => {
+    const data = shrinkByStore[store];
+    return data.loaded > 0 ? ((data.shrink / data.loaded) * 100).toFixed(2) : 0;
+  });
+
+  const ctx1 = document.getElementById('chart-shrink-by-store');
+  shrinkCharts.byStore = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels: storeLabels,
+      datasets: [{
+        label: 'Shrink Rate %',
+        data: storeRates,
+        backgroundColor: 'rgba(239, 68, 68, 0.7)',
+        borderColor: '#DC2626',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Shrink Rate %' }
+        }
+      }
+    }
+  });
+
+  // Chart 2: Shrink Trend Over Time (Line)
+  const shrinkByDate = {};
+  deliveries.forEach(d => {
+    const dateStr = (d.date || '').slice(0, 10);
+    if (!shrinkByDate[dateStr]) {
+      shrinkByDate[dateStr] = { loaded: 0, shrink: 0 };
+    }
+    shrinkByDate[dateStr].loaded += parseInt(d.qtyAdded) || 0;
+    shrinkByDate[dateStr].shrink += parseInt(d.removed) || 0;
+  });
+
+  const sortedDates = Object.keys(shrinkByDate).sort();
+  const trendRates = sortedDates.map(date => {
+    const data = shrinkByDate[date];
+    return data.loaded > 0 ? ((data.shrink / data.loaded) * 100).toFixed(2) : 0;
+  });
+
+  const ctx2 = document.getElementById('chart-shrink-trend');
+  shrinkCharts.trend = new Chart(ctx2, {
+    type: 'line',
+    data: {
+      labels: sortedDates,
+      datasets: [{
+        label: 'Shrink Rate %',
+        data: trendRates,
+        borderColor: '#DC2626',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Shrink Rate %' }
+        }
+      }
+    }
+  });
+
+  // Chart 3: Top 10 Items by Shrink (Horizontal Bar)
+  const shrinkByItem = {};
+  deliveries.forEach(d => {
+    const item = d.dish;
+    if (!shrinkByItem[item]) {
+      shrinkByItem[item] = 0;
+    }
+    shrinkByItem[item] += parseInt(d.removed) || 0;
+  });
+
+  const topItems = Object.entries(shrinkByItem)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  const ctx3 = document.getElementById('chart-shrink-by-item');
+  shrinkCharts.byItem = new Chart(ctx3, {
+    type: 'bar',
+    data: {
+      labels: topItems.map(([item]) => item),
+      datasets: [{
+        label: 'Total Shrink',
+        data: topItems.map(([, shrink]) => shrink),
+        backgroundColor: 'rgba(239, 68, 68, 0.7)',
+        borderColor: '#DC2626',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          title: { display: true, text: 'Units Shrink' }
+        }
+      }
+    }
+  });
+
+  // Chart 4: Loaded vs Shrink by Store (Grouped Bar)
+  const ctx4 = document.getElementById('chart-loaded-vs-shrink');
+  shrinkCharts.loadedVsShrink = new Chart(ctx4, {
+    type: 'bar',
+    data: {
+      labels: storeLabels,
+      datasets: [
+        {
+          label: 'Loaded',
+          data: storeLabels.map(store => shrinkByStore[store].loaded),
+          backgroundColor: 'rgba(34, 197, 94, 0.7)',
+          borderColor: '#16A34A',
+          borderWidth: 1
+        },
+        {
+          label: 'Shrink',
+          data: storeLabels.map(store => shrinkByStore[store].shrink),
+          backgroundColor: 'rgba(239, 68, 68, 0.7)',
+          borderColor: '#DC2626',
+          borderWidth: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'top' }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: 'Units' }
+        }
+      }
+    }
+  });
+}
+
+function renderShrinkTable(deliveries) {
+  // Prepare table data
+  shrinkTableData = deliveries
+    .filter(d => parseInt(d.qtyAdded) > 0 || parseInt(d.removed) > 0)
+    .map(d => ({
+      date: (d.date || '').slice(0, 10),
+      store: d.store || 'Unknown',
+      item: d.dish || 'Unknown',
+      loaded: parseInt(d.qtyAdded) || 0,
+      shrink: parseInt(d.removed) || 0,
+      rate: (parseInt(d.qtyAdded) > 0 ? ((parseInt(d.removed) / parseInt(d.qtyAdded)) * 100).toFixed(2) : 0),
+      reason: d.reason || 'N/A'
+    }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  // Render table (show first 50 rows)
+  updateShrinkTableDisplay();
+}
+
+function updateShrinkTableDisplay() {
+  const tbody = document.getElementById('shrink-table-body');
+  const searchTerm = (document.getElementById('shrink-search')?.value || '').toLowerCase();
+
+  // Filter by search
+  const filtered = shrinkTableData.filter(row =>
+    row.date.includes(searchTerm) ||
+    row.store.toLowerCase().includes(searchTerm) ||
+    row.item.toLowerCase().includes(searchTerm)
+  );
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">No matching records</td></tr>';
+    return;
+  }
+
+  // Show first 50 rows
+  const displayData = filtered.slice(0, 50);
+
+  tbody.innerHTML = displayData.map(row => `
+    <tr>
+      <td>${row.date}</td>
+      <td>${row.store}</td>
+      <td>${row.item}</td>
+      <td>${row.loaded}</td>
+      <td style="color: ${row.shrink > 0 ? '#DC2626' : 'inherit'}">${row.shrink}</td>
+      <td style="color: ${parseFloat(row.rate) > 10 ? '#DC2626' : 'inherit'}; font-weight: ${parseFloat(row.rate) > 10 ? '600' : 'normal'}">${row.rate}%</td>
+      <td>${row.reason}</td>
+    </tr>
+  `).join('');
+
+  // Show count
+  const pagination = document.getElementById('shrink-pagination');
+  pagination.innerHTML = `<p style="margin: 0; color: var(--soft);">Showing ${displayData.length} of ${filtered.length} records${filtered.length !== shrinkTableData.length ? ` (filtered from ${shrinkTableData.length} total)` : ''}</p>`;
+}
+
+function filterShrinkTable() {
+  updateShrinkTableDisplay();
 }
