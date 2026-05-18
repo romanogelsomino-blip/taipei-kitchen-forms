@@ -153,7 +153,7 @@ body {
 
 /* Side Navigation */
 .side-nav {
-  width: 220px;
+  width: 70px;
   background: var(--surface);
   border-right: 1px solid var(--border);
   padding: 20px 0;
@@ -162,21 +162,33 @@ body {
   gap: 4px;
   transition: width 0.3s ease;
   position: relative;
-}
-
-.side-nav.collapsed {
-  width: 70px;
-}
-
-.side-nav.collapsed .nav-label {
-  opacity: 0;
-  width: 0;
   overflow: hidden;
 }
 
-.side-nav.collapsed .nav-link {
+.side-nav:hover {
+  width: 220px;
+}
+
+.side-nav .nav-label {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  transition: opacity 0.3s ease;
+}
+
+.side-nav:hover .nav-label {
+  opacity: 1;
+  width: auto;
+}
+
+.side-nav .nav-link {
   padding: 12px;
   justify-content: center;
+}
+
+.side-nav:hover .nav-link {
+  padding: 12px 20px;
+  justify-content: flex-start;
 }
 
 .nav-toggle {
@@ -188,7 +200,7 @@ body {
   margin: 0 8px 12px 8px;
   border-radius: 6px;
   transition: all 0.2s;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
 }

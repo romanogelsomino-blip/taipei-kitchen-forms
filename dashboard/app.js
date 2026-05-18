@@ -2197,22 +2197,6 @@ function clearLocalSettings() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Collapsible Sidebar
+// Auto-Collapsible Sidebar (CSS-based, no JS needed)
+// Sidebar starts collapsed (70px) and expands on hover (220px)
 // ═══════════════════════════════════════════════════════════════════════════════
-
-function toggleSidebar() {
-  const sidebar = document.getElementById('side-nav');
-  sidebar.classList.toggle('collapsed');
-
-  // Save state to localStorage
-  const isCollapsed = sidebar.classList.contains('collapsed');
-  localStorage.setItem('sidebar-collapsed', isCollapsed);
-}
-
-// Restore sidebar state on load
-window.addEventListener('DOMContentLoaded', function() {
-  const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
-  if (isCollapsed) {
-    document.getElementById('side-nav').classList.add('collapsed');
-  }
-});
