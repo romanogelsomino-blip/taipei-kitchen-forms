@@ -249,7 +249,12 @@ function showPanel(panelName) {
 
   // Render panel-specific content
   if (panelName === 'shrink') {
+    populateShrinkFilters(); // Populate filter dropdowns
     renderShrinkDashboard();
+  }
+
+  if (panelName === 'settings') {
+    loadSettings(); // Load saved settings into form
   }
 
   // Scroll to top on mobile when switching panels
@@ -296,11 +301,10 @@ function renderOverview() {
   document.getElementById('stat-total-production').textContent = totalProduction.toLocaleString();
   document.getElementById('stat-total-stores').textContent = activeStores;
 
-  // Top 5 stores by volume
-  renderTopStores();
-
-  // Recent submissions feed
-  renderRecentFeed();
+  // New high-value widgets
+  renderCriticalAlerts();
+  renderStorePerformance();
+  renderFinancialImpact();
 }
 
 function renderTopStores() {
@@ -380,6 +384,165 @@ function hasHACCPViolation(delivery) {
 
 function countViolations(deliveries) {
   return deliveries.filter(hasViolation).length;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW HIGH-VALUE WIDGETS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function renderCriticalAlerts() {
+  const today = new Date().toISOString().slice(0, 10);
+  const todayDeliveries = DATA.deliveries.filter(d => (d.date || '').slice(0, 10) === today);
+
+  const alerts = [];
+
+  // Check for temperature violations
+  const violations = todayDeliveries.filter(d => hasViolation(d));
+  if (violations.length > 0) {
+    alerts.push({
+      level: 'critical',
+      message: `${violations.length} temperature violation${violations.length > 1 ? 's' : ''} today`,
+      details: violations.map(v => `Store ${v.store}: ${v.coolerTemp}°F`).slice(0, 3).join(', ')
+    });
+  }
+
+  // Check for high shrink stores
+  const shrinkByStore = {};
+  todayDeliveries.forEach(d => {
+    if (!shrinkByStore[d.store]) shrinkByStore[d.store] = { added: 0, removed: 0 };
+    shrinkByStore[d.store].added += parseInt(d.added) || 0;
+    shrinkByStore[d.store].removed += parseInt(d.removed) || 0;
+  });
+
+  Object.entries(shrinkByStore).forEach(([store, data]) => {
+    const rate = data.added > 0 ? (data.removed / data.added) * 100 : 0;
+    if (rate > 15) {
+      alerts.push({
+        level: 'warning',
+        message: `Store ${store}: ${rate.toFixed(1)}% shrink rate`,
+        details: `${data.removed} units shrink out of ${data.added} loaded`
+      });
+    }
+  });
+
+  const container = document.getElementById('critical-alerts-content');
+
+  if (alerts.length === 0) {
+    container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--green);font-weight:600;">✅ All systems normal - no critical alerts</div>';
+    return;
+  }
+
+  container.innerHTML = alerts.map(alert => `
+    <div style="padding:12px;margin-bottom:8px;border-left:4px solid ${alert.level === 'critical' ? 'var(--red)' : '#F59E0B'};background:${alert.level === 'critical' ? 'var(--red-lt)' : '#FEF3C7'};border-radius:4px;">
+      <div style="font-weight:600;color:${alert.level === 'critical' ? 'var(--red)' : '#B45309'};margin-bottom:4px;">${alert.message}</div>
+      <div style="font-size:0.85rem;color:var(--mid);">${alert.details}</div>
+    </div>
+  `).join('');
+}
+
+function renderStorePerformance() {
+  // Calculate shrink rate per store
+  const storeMetrics = {};
+
+  DATA.deliveries.forEach(d => {
+    const store = d.store;
+    if (!storeMetrics[store]) {
+      storeMetrics[store] = { added: 0, removed: 0, violations: 0, deliveries: 0 };
+    }
+    storeMetrics[store].added += parseInt(d.added) || 0;
+    storeMetrics[store].removed += parseInt(d.removed) || 0;
+    if (hasViolation(d)) storeMetrics[store].violations++;
+    storeMetrics[store].deliveries++;
+  });
+
+  // Calculate rates and rank
+  const ranked = Object.entries(storeMetrics).map(([store, data]) => ({
+    store,
+    shrinkRate: data.added > 0 ? (data.removed / data.added) * 100 : 0,
+    violationRate: data.deliveries > 0 ? (data.violations / data.deliveries) * 100 : 0,
+    ...data
+  })).filter(s => s.deliveries >= 5); // Only stores with 5+ deliveries
+
+  // Sort by shrink rate
+  ranked.sort((a, b) => a.shrinkRate - b.shrinkRate);
+
+  const bestStores = ranked.slice(0, 3);
+  const problemStores = ranked.slice(-3).reverse();
+
+  // Render best performers
+  const bestContainer = document.getElementById('best-stores-list');
+  bestContainer.innerHTML = bestStores.map((s, i) => `
+    <div style="padding:10px;margin-bottom:8px;background:var(--green-lt);border-radius:6px;border:1px solid var(--green);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <span style="font-weight:600;color:var(--dark);">Store ${s.store}</span>
+          <div style="font-size:0.8rem;color:var(--mid);margin-top:2px;">${s.deliveries} deliveries</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-weight:700;font-size:1.1rem;color:var(--green);">${s.shrinkRate.toFixed(1)}%</div>
+          <div style="font-size:0.75rem;color:var(--mid);">shrink rate</div>
+        </div>
+      </div>
+    </div>
+  `).join('') || '<div style="padding:16px;text-align:center;color:var(--soft);">Not enough data</div>';
+
+  // Render problem stores
+  const problemContainer = document.getElementById('problem-stores-list');
+  problemContainer.innerHTML = problemStores.map((s, i) => `
+    <div style="padding:10px;margin-bottom:8px;background:var(--red-lt);border-radius:6px;border:1px solid var(--red);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <span style="font-weight:600;color:var(--dark);">Store ${s.store}</span>
+          <div style="font-size:0.8rem;color:var(--mid);margin-top:2px;">${s.violations} violations</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-weight:700;font-size:1.1rem;color:var(--red);">${s.shrinkRate.toFixed(1)}%</div>
+          <div style="font-size:0.75rem;color:var(--mid);">shrink rate</div>
+        </div>
+      </div>
+    </div>
+  `).join('') || '<div style="padding:16px;text-align:center;color:var(--soft);">Not enough data</div>';
+}
+
+function renderFinancialImpact() {
+  const weekStart = getWeekStart(new Date());
+  const weekDeliveries = DATA.deliveries.filter(d => new Date(d.date) >= weekStart);
+
+  const totalAdded = weekDeliveries.reduce((sum, d) => sum + (parseInt(d.added) || 0), 0);
+  const totalShrink = weekDeliveries.reduce((sum, d) => sum + (parseInt(d.removed) || 0), 0);
+  const shrinkRate = totalAdded > 0 ? (totalShrink / totalAdded) * 100 : 0;
+
+  // Estimate cost (assuming avg $5 per unit - client can adjust)
+  const avgUnitCost = 5;
+  const totalLoadedValue = totalAdded * avgUnitCost;
+  const shrinkCost = totalShrink * avgUnitCost;
+  const targetShrinkRate = 5; // Industry standard
+  const potentialSavings = totalAdded > 0 ? ((shrinkRate - targetShrinkRate) / 100) * totalLoadedValue : 0;
+
+  const container = document.getElementById('financial-metrics');
+  container.innerHTML = `
+    <div style="padding:12px 0;">
+      <div style="margin-bottom:16px;">
+        <div style="font-size:0.75rem;color:var(--soft);text-transform:uppercase;margin-bottom:4px;">Total Loaded (This Week)</div>
+        <div style="font-size:1.5rem;font-weight:700;color:var(--dark);">$${totalLoadedValue.toLocaleString()}</div>
+        <div style="font-size:0.8rem;color:var(--mid);">${totalAdded.toLocaleString()} units @ $${avgUnitCost}/unit</div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="font-size:0.75rem;color:var(--soft);text-transform:uppercase;margin-bottom:4px;">Shrink Cost</div>
+        <div style="font-size:1.5rem;font-weight:700;color:var(--red);">$${shrinkCost.toLocaleString()}</div>
+        <div style="font-size:0.8rem;color:var(--mid);">${shrinkRate.toFixed(1)}% shrink rate</div>
+      </div>
+
+      ${potentialSavings > 0 ? `
+      <div style="padding:12px;background:var(--yellow);border-radius:6px;">
+        <div style="font-size:0.75rem;color:var(--dark);text-transform:uppercase;margin-bottom:4px;">Potential Savings</div>
+        <div style="font-size:1.3rem;font-weight:700;color:var(--dark);">$${potentialSavings.toLocaleString()}</div>
+        <div style="font-size:0.75rem;color:var(--dark);">If shrink reduced to ${targetShrinkRate}%</div>
+      </div>
+      ` : '<div style="padding:12px;background:var(--green-lt);border-radius:6px;text-align:center;color:var(--green);font-weight:600;">✓ Meeting target shrink rate!</div>'}
+    </div>
+  `;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1368,6 +1531,8 @@ function getWeekStart(date) {
 let shrinkTimeRange = 'today';
 let shrinkCharts = {};
 let shrinkTableData = [];
+let shrinkCurrentPage = 1;
+const SHRINK_ROWS_PER_PAGE = 25;
 
 function applyShrinkFilter(range) {
   shrinkTimeRange = range;
@@ -1412,7 +1577,7 @@ function renderShrinkDashboard() {
   });
 
   // Calculate shrink metrics
-  const totalLoaded = filteredDeliveries.reduce((sum, d) => sum + (parseInt(d.qtyAdded) || 0), 0);
+  const totalLoaded = filteredDeliveries.reduce((sum, d) => sum + (parseInt(d.added) || 0), 0);
   const totalShrink = filteredDeliveries.reduce((sum, d) => sum + (parseInt(d.removed) || 0), 0);
   const shrinkRate = totalLoaded > 0 ? ((totalShrink / totalLoaded) * 100).toFixed(2) : 0;
 
@@ -1422,7 +1587,7 @@ function renderShrinkDashboard() {
     if (!shrinkByStore[d.store]) {
       shrinkByStore[d.store] = { loaded: 0, shrink: 0 };
     }
-    shrinkByStore[d.store].loaded += parseInt(d.qtyAdded) || 0;
+    shrinkByStore[d.store].loaded += parseInt(d.added) || 0;
     shrinkByStore[d.store].shrink += parseInt(d.removed) || 0;
   });
 
@@ -1441,7 +1606,8 @@ function renderShrinkDashboard() {
   document.getElementById('shrink-total-loaded').textContent = totalLoaded.toLocaleString();
   document.getElementById('shrink-total-shrink').textContent = totalShrink.toLocaleString();
   document.getElementById('shrink-rate').textContent = shrinkRate + '%';
-  document.getElementById('shrink-top-store').textContent = highestShrinkStore || 'N/A';
+  // Show only store ID (operators know stores by number)
+  document.getElementById('shrink-top-store').textContent = highestShrinkStore ? `Store ${highestShrinkStore}` : 'N/A';
 
   // Add alert styling if shrink rate is high
   const shrinkRateCard = document.getElementById('shrink-rate').closest('.metric-card');
@@ -1631,14 +1797,14 @@ function renderShrinkCharts(deliveries, shrinkByStore) {
 function renderShrinkTable(deliveries) {
   // Prepare table data
   shrinkTableData = deliveries
-    .filter(d => parseInt(d.qtyAdded) > 0 || parseInt(d.removed) > 0)
+    .filter(d => parseInt(d.added) > 0 || parseInt(d.removed) > 0)
     .map(d => ({
       date: (d.date || '').slice(0, 10),
       store: d.store || 'Unknown',
       item: d.dish || 'Unknown',
-      loaded: parseInt(d.qtyAdded) || 0,
+      loaded: parseInt(d.added) || 0,
       shrink: parseInt(d.removed) || 0,
-      rate: (parseInt(d.qtyAdded) > 0 ? ((parseInt(d.removed) / parseInt(d.qtyAdded)) * 100).toFixed(2) : 0),
+      rate: (parseInt(d.added) > 0 ? ((parseInt(d.removed) / parseInt(d.added)) * 100).toFixed(2) : 0),
       reason: d.reason || 'N/A'
     }))
     .sort((a, b) => b.date.localeCompare(a.date));
@@ -1660,16 +1826,23 @@ function updateShrinkTableDisplay() {
 
   if (filtered.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">No matching records</td></tr>';
+    document.getElementById('shrink-pagination').innerHTML = '';
     return;
   }
 
-  // Show first 50 rows
-  const displayData = filtered.slice(0, 50);
+  // Calculate pagination
+  const totalPages = Math.ceil(filtered.length / SHRINK_ROWS_PER_PAGE);
+  if (shrinkCurrentPage > totalPages) shrinkCurrentPage = 1;
 
+  const startIdx = (shrinkCurrentPage - 1) * SHRINK_ROWS_PER_PAGE;
+  const endIdx = startIdx + SHRINK_ROWS_PER_PAGE;
+  const displayData = filtered.slice(startIdx, endIdx);
+
+  // Render table rows
   tbody.innerHTML = displayData.map(row => `
     <tr>
       <td>${row.date}</td>
-      <td>${row.store}</td>
+      <td style="font-weight: 600; color: var(--dark);">${row.store}</td>
       <td>${row.item}</td>
       <td>${row.loaded}</td>
       <td style="color: ${row.shrink > 0 ? '#DC2626' : 'inherit'}">${row.shrink}</td>
@@ -1678,11 +1851,368 @@ function updateShrinkTableDisplay() {
     </tr>
   `).join('');
 
-  // Show count
+  // Render pagination controls
+  renderShrinkPagination(filtered.length, totalPages);
+}
+
+function renderShrinkPagination(totalRecords, totalPages) {
   const pagination = document.getElementById('shrink-pagination');
-  pagination.innerHTML = `<p style="margin: 0; color: var(--soft);">Showing ${displayData.length} of ${filtered.length} records${filtered.length !== shrinkTableData.length ? ` (filtered from ${shrinkTableData.length} total)` : ''}</p>`;
+
+  if (totalPages <= 1) {
+    pagination.innerHTML = `<p style="margin: 0; color: var(--soft); text-align: center;">Showing all ${totalRecords} records</p>`;
+    return;
+  }
+
+  const startRecord = ((shrinkCurrentPage - 1) * SHRINK_ROWS_PER_PAGE) + 1;
+  const endRecord = Math.min(shrinkCurrentPage * SHRINK_ROWS_PER_PAGE, totalRecords);
+
+  // Generate page buttons (show max 7: first, ..., current-1, current, current+1, ..., last)
+  let pageButtons = '';
+
+  if (totalPages <= 7) {
+    // Show all pages
+    for (let i = 1; i <= totalPages; i++) {
+      pageButtons += `<button onclick="goToShrinkPage(${i})" class="pagination-btn ${i === shrinkCurrentPage ? 'active' : ''}">${i}</button>`;
+    }
+  } else {
+    // Show first page
+    pageButtons += `<button onclick="goToShrinkPage(1)" class="pagination-btn ${1 === shrinkCurrentPage ? 'active' : ''}">1</button>`;
+
+    if (shrinkCurrentPage > 3) {
+      pageButtons += `<span class="pagination-ellipsis">...</span>`;
+    }
+
+    // Show pages around current
+    const start = Math.max(2, shrinkCurrentPage - 1);
+    const end = Math.min(totalPages - 1, shrinkCurrentPage + 1);
+
+    for (let i = start; i <= end; i++) {
+      pageButtons += `<button onclick="goToShrinkPage(${i})" class="pagination-btn ${i === shrinkCurrentPage ? 'active' : ''}">${i}</button>`;
+    }
+
+    if (shrinkCurrentPage < totalPages - 2) {
+      pageButtons += `<span class="pagination-ellipsis">...</span>`;
+    }
+
+    // Show last page
+    pageButtons += `<button onclick="goToShrinkPage(${totalPages})" class="pagination-btn ${totalPages === shrinkCurrentPage ? 'active' : ''}">${totalPages}</button>`;
+  }
+
+  pagination.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 16px;">
+      <div style="color: var(--soft); font-size: 0.9rem;">
+        Showing ${startRecord}-${endRecord} of ${totalRecords} records
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button onclick="goToShrinkPage(${shrinkCurrentPage - 1})" ${shrinkCurrentPage === 1 ? 'disabled' : ''} class="pagination-btn">← Prev</button>
+        ${pageButtons}
+        <button onclick="goToShrinkPage(${shrinkCurrentPage + 1})" ${shrinkCurrentPage === totalPages ? 'disabled' : ''} class="pagination-btn">Next →</button>
+      </div>
+    </div>
+  `;
+}
+
+function goToShrinkPage(page) {
+  const totalPages = Math.ceil(shrinkTableData.length / SHRINK_ROWS_PER_PAGE);
+  if (page < 1 || page > totalPages) return;
+  shrinkCurrentPage = page;
+  updateShrinkTableDisplay();
 }
 
 function filterShrinkTable() {
+  shrinkCurrentPage = 1; // Reset to first page on search
   updateShrinkTableDisplay();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Advanced Shrink Filters & Export
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function populateShrinkFilters() {
+  // Populate Store dropdown
+  const stores = [...new Set(DATA.deliveries.map(d => d.store))].filter(s => s).sort();
+  const storeSelect = document.getElementById('shrink-store-filter');
+  storeSelect.innerHTML = '<option value="">All Stores</option>' +
+    stores.map(store => `<option value="${store}">Store ${store}</option>`).join('');
+
+  // Populate Item dropdown
+  const items = [...new Set(DATA.deliveries.map(d => d.dish))].filter(i => i).sort();
+  const itemSelect = document.getElementById('shrink-item-filter');
+  itemSelect.innerHTML = '<option value="">All Items</option>' +
+    items.map(item => `<option value="${item}">${item}</option>`).join('');
+}
+
+function applyAdvancedShrinkFilters() {
+  const startDate = document.getElementById('shrink-date-start').value;
+  const endDate = document.getElementById('shrink-date-end').value;
+  const store = document.getElementById('shrink-store-filter').value;
+  const item = document.getElementById('shrink-item-filter').value;
+
+  // Clear quick filter button states
+  document.querySelectorAll('#panel-shrink .filter-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+
+  // Filter deliveries
+  let filtered = DATA.deliveries;
+
+  // Date range filter
+  if (startDate) {
+    const start = new Date(startDate);
+    filtered = filtered.filter(d => new Date(d.date) >= start);
+  }
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999); // Include full end date
+    filtered = filtered.filter(d => new Date(d.date) <= end);
+  }
+
+  // Store filter
+  if (store) {
+    filtered = filtered.filter(d => d.store === store);
+  }
+
+  // Item filter
+  if (item) {
+    filtered = filtered.filter(d => d.dish === item);
+  }
+
+  // Update metrics
+  const totalLoaded = filtered.reduce((sum, d) => sum + (parseInt(d.added) || 0), 0);
+  const totalShrink = filtered.reduce((sum, d) => sum + (parseInt(d.removed) || 0), 0);
+  const shrinkRate = totalLoaded > 0 ? ((totalShrink / totalLoaded) * 100).toFixed(2) : 0;
+
+  // Calculate shrink by store
+  const shrinkByStore = {};
+  filtered.forEach(d => {
+    if (!shrinkByStore[d.store]) {
+      shrinkByStore[d.store] = { loaded: 0, shrink: 0 };
+    }
+    shrinkByStore[d.store].loaded += parseInt(d.added) || 0;
+    shrinkByStore[d.store].shrink += parseInt(d.removed) || 0;
+  });
+
+  // Find highest shrink store
+  let highestShrinkStore = '';
+  let highestShrinkRate = 0;
+  Object.entries(shrinkByStore).forEach(([s, data]) => {
+    const rate = data.loaded > 0 ? (data.shrink / data.loaded) * 100 : 0;
+    if (rate > highestShrinkRate) {
+      highestShrinkRate = rate;
+      highestShrinkStore = s;
+    }
+  });
+
+  // Update metrics display
+  document.getElementById('shrink-total-loaded').textContent = totalLoaded.toLocaleString();
+  document.getElementById('shrink-total-shrink').textContent = totalShrink.toLocaleString();
+  document.getElementById('shrink-rate').textContent = shrinkRate + '%';
+  document.getElementById('shrink-top-store').textContent = highestShrinkStore ? `Store ${highestShrinkStore}` : 'N/A';
+
+  // Update charts and table
+  renderShrinkCharts(filtered, shrinkByStore);
+  renderShrinkTable(filtered);
+}
+
+function exportShrinkToCSV() {
+  // Get current filtered data from shrinkTableData
+  if (!shrinkTableData || shrinkTableData.length === 0) {
+    alert('No data to export');
+    return;
+  }
+
+  // Create CSV header
+  const headers = ['Date', 'Store', 'Item', 'Loaded (Qty Added)', 'Shrink (Qty Removed)', 'Shrink Rate %', 'Reason'];
+  let csv = headers.join(',') + '\n';
+
+  // Add data rows
+  shrinkTableData.forEach(row => {
+    const csvRow = [
+      row.date,
+      row.store,
+      `"${row.dish}"`, // Quote in case of commas in dish name
+      row.loaded,
+      row.shrink,
+      row.shrinkRate,
+      `"${row.reason || ''}"` // Quote reason field
+    ];
+    csv += csvRow.join(',') + '\n';
+  });
+
+  // Create download link
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+
+  // Generate filename with timestamp
+  const timestamp = new Date().toISOString().slice(0, 10);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `shrink-report-${timestamp}.csv`);
+  link.style.visibility = 'hidden';
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Settings Panel Functions
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Settings object with defaults
+const SETTINGS = {
+  theme: 'light',
+  tempThreshold: 41,
+  shrinkThreshold: 15,
+  targetShrink: 5,
+  avgUnitCost: 5,
+  currencyFormat: 'USD',
+  showBugButton: true,
+  bugEmail: 'YOUR_EMAIL@example.com'
+};
+
+function loadSettings() {
+  const saved = localStorage.getItem('dashboard-settings');
+  if (saved) {
+    Object.assign(SETTINGS, JSON.parse(saved));
+  }
+
+  // Apply settings to UI
+  document.getElementById('temp-threshold').value = SETTINGS.tempThreshold;
+  document.getElementById('shrink-threshold').value = SETTINGS.shrinkThreshold;
+  document.getElementById('target-shrink').value = SETTINGS.targetShrink;
+  document.getElementById('avg-unit-cost').value = SETTINGS.avgUnitCost;
+  document.getElementById('currency-format').value = SETTINGS.currencyFormat;
+  document.getElementById('show-bug-button').checked = SETTINGS.showBugButton;
+  document.getElementById('bug-email').value = SETTINGS.bugEmail;
+
+  // Apply theme button states
+  updateThemeButtonStates(SETTINGS.theme);
+
+  // Apply bug button visibility
+  const bugBtn = document.getElementById('bug-report-btn');
+  if (bugBtn) {
+    bugBtn.style.display = SETTINGS.showBugButton ? 'block' : 'none';
+  }
+}
+
+function saveSettings() {
+  // Read values from inputs
+  SETTINGS.tempThreshold = parseFloat(document.getElementById('temp-threshold').value);
+  SETTINGS.shrinkThreshold = parseFloat(document.getElementById('shrink-threshold').value);
+  SETTINGS.targetShrink = parseFloat(document.getElementById('target-shrink').value);
+  SETTINGS.avgUnitCost = parseFloat(document.getElementById('avg-unit-cost').value);
+  SETTINGS.currencyFormat = document.getElementById('currency-format').value;
+  SETTINGS.showBugButton = document.getElementById('show-bug-button').checked;
+  SETTINGS.bugEmail = document.getElementById('bug-email').value;
+
+  // Save to localStorage
+  localStorage.setItem('dashboard-settings', JSON.stringify(SETTINGS));
+
+  // Apply bug button visibility
+  const bugBtn = document.getElementById('bug-report-btn');
+  if (bugBtn) {
+    bugBtn.style.display = SETTINGS.showBugButton ? 'block' : 'none';
+  }
+
+  // Show confirmation
+  alert('Settings saved successfully! Refresh the dashboard to see updated calculations.');
+}
+
+function setThemeFromSettings(theme) {
+  SETTINGS.theme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('dashboard-theme', theme);
+  updateThemeButtonStates(theme);
+  updateThemeIcon(theme);
+}
+
+function updateThemeButtonStates(theme) {
+  const lightBtn = document.getElementById('theme-light-btn');
+  const darkBtn = document.getElementById('theme-dark-btn');
+
+  if (lightBtn && darkBtn) {
+    if (theme === 'dark') {
+      lightBtn.style.borderColor = 'var(--border)';
+      lightBtn.style.background = 'var(--surface)';
+      lightBtn.style.color = 'var(--dark)';
+      darkBtn.style.borderColor = 'var(--red)';
+      darkBtn.style.background = 'var(--red)';
+      darkBtn.style.color = '#fff';
+    } else {
+      lightBtn.style.borderColor = 'var(--red)';
+      lightBtn.style.background = 'var(--red)';
+      lightBtn.style.color = '#fff';
+      darkBtn.style.borderColor = 'var(--border)';
+      darkBtn.style.background = 'var(--surface)';
+      darkBtn.style.color = 'var(--dark)';
+    }
+  }
+}
+
+function resetDashboardTour() {
+  localStorage.removeItem('dashboard-tour-seen');
+  localStorage.removeItem('dashboard-tour-version');
+  alert('Dashboard tour has been reset! It will show again when you refresh the page.');
+}
+
+function exportAllDataToJSON() {
+  if (!DATA.deliveries || !DATA.production) {
+    alert('No data available to export');
+    return;
+  }
+
+  const exportData = {
+    exportDate: new Date().toISOString(),
+    version: '2.0',
+    deliveries: DATA.deliveries,
+    production: DATA.production,
+    stores: DATA.stores
+  };
+
+  const json = JSON.stringify(exportData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+
+  const timestamp = new Date().toISOString().slice(0, 10);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `taipei-kitchen-data-${timestamp}.json`);
+  link.style.visibility = 'hidden';
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function clearLocalSettings() {
+  if (confirm('Are you sure you want to reset all settings to defaults? This cannot be undone.')) {
+    localStorage.removeItem('dashboard-settings');
+    localStorage.removeItem('dashboard-theme');
+    localStorage.removeItem('dashboard-tour-seen');
+    localStorage.removeItem('dashboard-tour-version');
+    alert('All settings have been cleared! The page will now reload with default settings.');
+    location.reload();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Collapsible Sidebar
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('side-nav');
+  sidebar.classList.toggle('collapsed');
+
+  // Save state to localStorage
+  const isCollapsed = sidebar.classList.contains('collapsed');
+  localStorage.setItem('sidebar-collapsed', isCollapsed);
+}
+
+// Restore sidebar state on load
+window.addEventListener('DOMContentLoaded', function() {
+  const isCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+  if (isCollapsed) {
+    document.getElementById('side-nav').classList.add('collapsed');
+  }
+});
