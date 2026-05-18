@@ -441,10 +441,14 @@ function renderCriticalAlerts() {
 }
 
 function renderStorePerformance() {
-  // Calculate shrink rate per store
+  // Calculate shrink rate per store - Last 30 Days
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const recentDeliveries = DATA.deliveries.filter(d => new Date(d.date) >= thirtyDaysAgo);
   const storeMetrics = {};
 
-  DATA.deliveries.forEach(d => {
+  recentDeliveries.forEach(d => {
     const store = d.store;
     if (!storeMetrics[store]) {
       storeMetrics[store] = { added: 0, removed: 0, violations: 0, deliveries: 0 };
