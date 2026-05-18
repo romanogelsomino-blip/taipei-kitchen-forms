@@ -14,6 +14,23 @@
   --green-lt: #D5F4E6;
   --surface: #FFFFFF;
   --row-alt: #F7F4EF;
+  --panel-bg: #FFFFFF;
+  --light: #F8F9FA;
+}
+
+/* Dark Mode */
+[data-theme="dark"] {
+  --cream: #1a1a1a;
+  --dark: #E5E5E5;
+  --mid: #B8B8B8;
+  --soft: #888888;
+  --border: #333333;
+  --surface: #242424;
+  --row-alt: #2a2a2a;
+  --panel-bg: #242424;
+  --light: #2a2a2a;
+  --green-lt: #1a3a2a;
+  --red-lt: #3a1a1a;
 }
 
 *, *::before, *::after {
