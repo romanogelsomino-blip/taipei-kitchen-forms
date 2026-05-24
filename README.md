@@ -75,7 +75,18 @@ Dashboard highlights all violations in red with corrective action notes.
 
 ## Recent Improvements
 
-**✅ Completed:**
+**✅ v2.1 (2026-05-24):**
+- **Programmatic Web App Deployment** — Fully automated deployment via Apps Script API (no browser GUI required)
+- **Admin Token Authentication** — UUID-based token auth for protected automation endpoints
+- **Violation Email Alerts** — Automatic HACCP cooler temp violation notifications with Alert Log tracking
+- **Bulletproof Boolean Handling** — Normalized config value handling (true/TRUE/1/yes all work)
+- **Token Rotation** — Secure token regeneration and rotation endpoints (force and authenticated modes)
+- **Config Reset Automation** — `npm run config:reset:staging/production` to wipe and reinitialize Config sheet
+- Multi-select filters for stores and days-of-week on dashboard
+- Case fullness analytics with trend visualizations
+- HACCP drill-down with detailed violation history
+
+**✅ Earlier (v2.0):**
 - Offline-first form behavior with localStorage queue
 - Client-side image compression (<500KB target)
 - Locked submission timestamps (regulatory requirement)
@@ -124,29 +135,68 @@ To update the dashboard:
 ### Apps Script
 The backend (`Code.gs`) runs as a Google Apps Script attached to both staging and production sheets.
 
-**Deployment is automated via `clasp`** — no more manual copy-paste.
+**Deployment is fully automated** — no browser GUI required. Web App deployments are created programmatically via Apps Script API.
+
+#### Programmatic Web App Deployment (NO MANUAL STEPS)
+```bash
+# Create Web App deployment via Apps Script API (automatic)
+bash scripts/create-webapp-deployment.sh staging
+bash scripts/create-webapp-deployment.sh production
+
+# What happens:
+# 1. Creates a new version via Apps Script API
+# 2. Creates deployment with webapp config from appsscript.json
+# 3. Returns deployment URL
+# 4. Script output shows: Update .env.staging with WEB_APP_URL=...
+
+# IMPORTANT: This creates a NEW deployment URL
+# Update .env.staging or .env.production immediately
+```
+
+#### Admin Token Authentication
+All automation endpoints are protected by UUID tokens stored in Script Properties.
+
+```bash
+# Generate initial token (first time only)
+curl -sL "${WEB_APP_URL}?action=setupAdminToken"
+# Save the returned token to .env.staging or .env.production
+
+# Force regenerate token (invalidates old one)
+curl -sL "${WEB_APP_URL}?action=setupAdminToken&force=true"
+
+# Rotate token (requires current valid token)
+source .env.staging && curl -sL "${WEB_APP_URL}?action=rotateAdminToken&token=${ADMIN_TOKEN}"
+```
+
+Tokens are stored in `.env.staging` and `.env.production` (gitignored) and used by all npm scripts for authentication.
 
 #### Automated Workflow (Staging → Production)
 ```bash
-# 1. Deploy to staging
+# 1. Deploy code to staging
 npm run deploy
 
-# 2. Initialize staging sheets (first time only)
+# 2. Create Web App deployment (if needed)
+bash scripts/create-webapp-deployment.sh staging
+
+# 3. Initialize staging sheets (first time only)
 npm run init:staging
 
-# 3. Test email alerts on staging
+# 4. Test email alerts on staging
 npm run test:violation:staging
 
-# 4. Verify email received at leandertoney@gmail.com
+# 5. Verify email received at leandertoney@gmail.com
 # Check email inbox + Alert Log sheet for SUCCESS status
 
-# 5. Deploy to production (only after staging tests pass)
+# 6. Deploy to production (only after staging tests pass)
 npm run deploy:production
 
-# 6. Initialize production sheets (first time only)
+# 7. Create Web App deployment for production
+bash scripts/create-webapp-deployment.sh production
+
+# 8. Initialize production sheets (first time only)
 npm run init:production
 
-# 7. Test email alerts on production
+# 9. Test email alerts on production
 npm run test:violation:production
 ```
 

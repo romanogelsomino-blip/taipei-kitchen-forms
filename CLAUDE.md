@@ -63,22 +63,80 @@ npm run open:production
 
 #### Automation Philosophy
 - ✅ **NO GUI CLICKING**: All Apps Script functions must be runnable via npm scripts
-- ✅ **NO MANUAL STEPS**: Setup, testing, and maintenance fully automated via `clasp run`
+- ✅ **NO MANUAL STEPS**: Setup, testing, and maintenance fully automated via HTTP endpoints
 - ✅ **TESTABLE**: Every Apps Script function has an npm script equivalent
 - ✅ **CI-READY**: All commands can run in automated pipelines
+- ✅ **PROGRAMMATIC WEB APP DEPLOYMENT**: Use `bash scripts/create-webapp-deployment.sh <staging|production>` to create deployments via Apps Script API
 
-**Example**: Adding a new Apps Script function
+#### Admin Token Authentication Pattern
+
+All admin endpoints are protected by UUID tokens stored in Script Properties. This enables secure automation without manual GUI access.
+
+**Token Management**:
+```bash
+# Generate initial token (first time only)
+curl -sL "${WEB_APP_URL}?action=setupAdminToken"
+# Response: {"status":"SUCCESS","token":"uuid-here",...}
+
+# Force regenerate token (invalidates old one)
+curl -sL "${WEB_APP_URL}?action=setupAdminToken&force=true"
+# Response: {"status":"SUCCESS","token":"new-uuid",...}
+
+# Rotate token (requires current valid token)
+source .env.staging && curl -sL "${WEB_APP_URL}?action=rotateAdminToken&token=${ADMIN_TOKEN}"
+# Response: {"status":"ok","newToken":"new-uuid",...}
+```
+
+**Protected Admin Endpoints**:
+- `?action=init&token=xxx` - Initialize Config + Alert Log sheets
+- `?action=resetConfig&token=xxx` - Delete and reinitialize Config sheet
+- `?action=test&token=xxx` - Simulate HACCP violation and send email
+- `?action=ping&token=xxx` - Health check (returns sheet ID and environment)
+- `?action=debugConfig&key=xxx&token=xxx` - Inspect raw config value types
+
+**Security**:
+- Tokens stored in `.env.staging` and `.env.production` (gitignored)
+- All admin actions verify token via `verifyAdminToken()`
+- `setupAdminToken` is the only endpoint that doesn't require auth (one-time setup)
+- Use `force=true` cautiously - invalidates all existing tokens immediately
+
+**Web App Deployment Automation**:
+```bash
+# Create new Web App deployment programmatically (no browser required)
+bash scripts/create-webapp-deployment.sh staging
+bash scripts/create-webapp-deployment.sh production
+
+# Process:
+# 1. Creates version via Apps Script API
+# 2. Creates deployment with webapp config from appsscript.json
+# 3. Returns deployment URL
+# 4. Updates .env.staging or .env.production
+
+# IMPORTANT: This creates a NEW deployment URL
+# Old URLs will stop working - update .env files immediately
+```
+
+**Example**: Adding a new protected endpoint
 ```javascript
-// In Code.gs
-function myNewFunction() {
-  // Implementation
+// In Code.gs - inside doGet(e)
+if (e.parameter.action === 'myAction') {
+  if (!verifyAdminToken(e.parameter.token)) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // Your protected logic here
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: 'ok', result: 'data' }))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 ```
 ```json
 // In package.json
 "scripts": {
-  "run:myFunction:staging": "cp .clasp.staging.json .clasp.json && clasp run myNewFunction",
-  "run:myFunction:production": "cp .clasp.production.json .clasp.json && clasp run myNewFunction"
+  "myAction:staging": "node scripts/admin-action.js staging myAction",
+  "myAction:production": "node scripts/admin-action.js production myAction"
 }
 ```
 
