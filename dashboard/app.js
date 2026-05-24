@@ -18,6 +18,116 @@ const POLL_INTERVAL_MS = 30000; // Changed from 10s to 30s for better UX
 const DEMO_MODE = true; // Enable demo data for local development
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Multi-Select Dropdown Component
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Creates a multi-select dropdown component
+ * @param {string} containerId - ID of the container element
+ * @param {Array} options - Array of {value, label} objects
+ * @param {string} placeholder - Placeholder text
+ * @param {Function} onChange - Callback when selection changes
+ * @returns {Object} - Component instance with getValue() method
+ */
+function createMultiSelect(containerId, options, placeholder, onChange) {
+  const container = document.getElementById(containerId);
+  if (!container) return null;
+
+  const id = `ms-${Math.random().toString(36).substr(2, 9)}`;
+  const selectedValues = new Set();
+
+  // Build HTML
+  container.innerHTML = `
+    <div class="multiselect">
+      <div class="multiselect-button" id="${id}-button">
+        <span id="${id}-text" class="placeholder">${placeholder}</span>
+        <span class="multiselect-arrow">▼</span>
+      </div>
+      <div class="multiselect-dropdown" id="${id}-dropdown"></div>
+    </div>
+  `;
+
+  const button = document.getElementById(`${id}-button`);
+  const dropdown = document.getElementById(`${id}-dropdown`);
+  const textEl = document.getElementById(`${id}-text`);
+
+  // Populate options
+  dropdown.innerHTML = options.map(opt => `
+    <div class="multiselect-option">
+      <input type="checkbox" id="${id}-opt-${opt.value}" value="${opt.value}">
+      <label for="${id}-opt-${opt.value}">${opt.label}</label>
+    </div>
+  `).join('');
+
+  // Toggle dropdown
+  button.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = dropdown.classList.contains('open');
+    // Close all other multi-selects
+    document.querySelectorAll('.multiselect-dropdown.open').forEach(el => {
+      el.classList.remove('open');
+      el.previousElementSibling.classList.remove('open');
+    });
+    if (!isOpen) {
+      dropdown.classList.add('open');
+      button.classList.add('open');
+    }
+  });
+
+  // Close on outside click
+  document.addEventListener('click', (e) => {
+    if (!container.contains(e.target)) {
+      dropdown.classList.remove('open');
+      button.classList.remove('open');
+    }
+  });
+
+  // Handle checkbox changes
+  dropdown.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) {
+        selectedValues.add(checkbox.value);
+      } else {
+        selectedValues.delete(checkbox.value);
+      }
+      updateButtonText();
+      if (onChange) onChange(Array.from(selectedValues));
+    });
+  });
+
+  function updateButtonText() {
+    const count = selectedValues.size;
+    if (count === 0) {
+      textEl.innerHTML = `<span class="placeholder">${placeholder}</span>`;
+    } else if (count === 1) {
+      const selected = options.find(o => o.value === Array.from(selectedValues)[0]);
+      textEl.innerHTML = selected ? selected.label : `${count} selected`;
+    } else {
+      textEl.innerHTML = `<span class="selected-count">${count} selected</span>`;
+    }
+  }
+
+  return {
+    getValue: () => Array.from(selectedValues),
+    setValue: (values) => {
+      selectedValues.clear();
+      dropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+      values.forEach(val => {
+        selectedValues.add(val);
+        const cb = dropdown.querySelector(`input[value="${val}"]`);
+        if (cb) cb.checked = true;
+      });
+      updateButtonText();
+    },
+    clear: () => {
+      selectedValues.clear();
+      dropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+      updateButtonText();
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Initialization
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -669,9 +779,15 @@ const DELIVERY_STATE = {
   // Persistent filter state
   filters: {
     driver: '',
-    store: '',
+    stores: [],  // Multi-select: array of store IDs
+    daysOfWeek: [],  // Multi-select: array of day numbers (0=Sun, 6=Sat)
     dish: '',
     search: ''
+  },
+  // Multi-select component instances
+  multiSelects: {
+    store: null,
+    dayOfWeek: null
   }
 };
 
@@ -744,19 +860,19 @@ function applyDeliveryCustomRange() {
 function applyDeliveryAdvancedFilters() {
   // Get current filter values from UI (or use saved state on refresh)
   const driver = document.getElementById('delivery-driver-filter')?.value || DELIVERY_STATE.filters.driver;
-  const store = document.getElementById('delivery-store-filter')?.value || DELIVERY_STATE.filters.store;
   const dish = document.getElementById('delivery-dish-filter')?.value || DELIVERY_STATE.filters.dish;
   const search = (document.getElementById('delivery-search')?.value || DELIVERY_STATE.filters.search).toLowerCase();
 
+  // Multi-select values come from state (updated via onChange callbacks)
+  const stores = DELIVERY_STATE.filters.stores || [];
+  const daysOfWeek = DELIVERY_STATE.filters.daysOfWeek || [];
+
   // Save filter state for persistence across refreshes
-  DELIVERY_STATE.filters = { driver, store, dish, search };
+  DELIVERY_STATE.filters = { driver, stores, daysOfWeek, dish, search };
 
   // Restore UI state (in case this is called after data refresh)
   if (document.getElementById('delivery-driver-filter')) {
     document.getElementById('delivery-driver-filter').value = driver;
-  }
-  if (document.getElementById('delivery-store-filter')) {
-    document.getElementById('delivery-store-filter').value = store;
   }
   if (document.getElementById('delivery-dish-filter')) {
     document.getElementById('delivery-dish-filter').value = dish;
@@ -765,10 +881,33 @@ function applyDeliveryAdvancedFilters() {
     document.getElementById('delivery-search').value = DELIVERY_STATE.filters.search;
   }
 
+  // Restore multi-select values
+  if (DELIVERY_STATE.multiSelects.store && stores.length > 0) {
+    DELIVERY_STATE.multiSelects.store.setValue(stores);
+  }
+  if (DELIVERY_STATE.multiSelects.dayOfWeek && daysOfWeek.length > 0) {
+    DELIVERY_STATE.multiSelects.dayOfWeek.setValue(daysOfWeek.map(d => d.toString()));
+  }
+
   let filtered = [...DELIVERY_STATE.filtered];
 
+  // Apply filters
   if (driver) filtered = filtered.filter(d => d.driver === driver);
-  if (store) filtered = filtered.filter(d => d.store === store);
+
+  // Multi-select store filter
+  if (stores.length > 0) {
+    filtered = filtered.filter(d => stores.includes(d.store));
+  }
+
+  // Day of week filter
+  if (daysOfWeek.length > 0) {
+    filtered = filtered.filter(d => {
+      if (!d.date) return false;
+      const dayOfWeek = new Date(d.date).getDay();
+      return daysOfWeek.includes(dayOfWeek);
+    });
+  }
+
   if (dish) filtered = filtered.filter(d => d.dish === dish);
   if (search) {
     filtered = filtered.filter(d =>
@@ -786,14 +925,21 @@ function applyDeliveryAdvancedFilters() {
 }
 
 function clearAllDeliveryFilters() {
-  // Clear UI
+  // Clear single-select UI
   document.getElementById('delivery-driver-filter').value = '';
-  document.getElementById('delivery-store-filter').value = '';
   document.getElementById('delivery-dish-filter').value = '';
   document.getElementById('delivery-search').value = '';
 
+  // Clear multi-select components
+  if (DELIVERY_STATE.multiSelects.store) {
+    DELIVERY_STATE.multiSelects.store.clear();
+  }
+  if (DELIVERY_STATE.multiSelects.dayOfWeek) {
+    DELIVERY_STATE.multiSelects.dayOfWeek.clear();
+  }
+
   // Clear saved filter state
-  DELIVERY_STATE.filters = { driver: '', store: '', dish: '', search: '' };
+  DELIVERY_STATE.filters = { driver: '', stores: [], daysOfWeek: [], dish: '', search: '' };
 
   setDeliveryQuickRange(7); // Reset to default
 }
@@ -886,12 +1032,39 @@ function populateDeliveryFilters() {
   populateSelect('delivery-driver-filter', new Set(filtered.map(d => d.driver).filter(Boolean)));
   populateSelect('delivery-dish-filter', new Set(filtered.map(d => d.dish).filter(Boolean)));
 
-  const storeSelect = document.getElementById('delivery-store-filter');
-  storeSelect.innerHTML = '<option value="">All Stores</option>';
-  const storesInFiltered = new Set(filtered.map(d => d.store).filter(Boolean));
-  Array.from(storesInFiltered).sort().forEach(storeName => {
-    storeSelect.innerHTML += `<option value="${storeName}">${storeName}</option>`;
-  });
+  // Initialize Store Multi-Select (only once)
+  if (!DELIVERY_STATE.multiSelects.store) {
+    const storeOptions = DATA.stores.map(s => ({ value: s.id, label: s.name }));
+    DELIVERY_STATE.multiSelects.store = createMultiSelect(
+      'delivery-store-multiselect-container',
+      storeOptions,
+      'All Stores',
+      (selectedStores) => {
+        DELIVERY_STATE.filters.stores = selectedStores;
+      }
+    );
+  }
+
+  // Initialize Day of Week Multi-Select (only once)
+  if (!DELIVERY_STATE.multiSelects.dayOfWeek) {
+    const dowOptions = [
+      { value: '0', label: 'Sunday' },
+      { value: '1', label: 'Monday' },
+      { value: '2', label: 'Tuesday' },
+      { value: '3', label: 'Wednesday' },
+      { value: '4', label: 'Thursday' },
+      { value: '5', label: 'Friday' },
+      { value: '6', label: 'Saturday' }
+    ];
+    DELIVERY_STATE.multiSelects.dayOfWeek = createMultiSelect(
+      'delivery-dow-multiselect-container',
+      dowOptions,
+      'All Days',
+      (selectedDays) => {
+        DELIVERY_STATE.filters.daysOfWeek = selectedDays.map(d => parseInt(d));
+      }
+    );
+  }
 }
 
 function displayDeliveryTable() {
