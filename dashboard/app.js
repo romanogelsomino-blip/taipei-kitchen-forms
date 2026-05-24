@@ -14,7 +14,7 @@ let DATA = {
   lastUpdated: null
 };
 let REFRESH_INTERVAL = null;
-const POLL_INTERVAL_MS = 10000; // T-055: 10-second polling
+const POLL_INTERVAL_MS = 30000; // Changed from 10s to 30s for better UX
 const DEMO_MODE = true; // Enable demo data for local development
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -664,12 +664,27 @@ const DELIVERY_STATE = {
   perPage: 20,
   filtered: [],
   quickRange: 7, // Default: last 7 days
-  chart: null
+  chart: null,
+  isInitialized: false,
+  // Persistent filter state
+  filters: {
+    driver: '',
+    store: '',
+    dish: '',
+    search: ''
+  }
 };
 
 function renderDeliveries() {
-  // Default to last 7 days
-  setDeliveryQuickRange(7);
+  // Only set defaults on first load, preserve filters on refresh
+  if (!DELIVERY_STATE.isInitialized) {
+    DELIVERY_STATE.isInitialized = true;
+    setDeliveryQuickRange(7);
+  } else {
+    // On refresh: re-apply current filters without resetting UI
+    setDeliveryQuickRange(DELIVERY_STATE.quickRange);
+    applyDeliveryAdvancedFilters();
+  }
 }
 
 function setDeliveryQuickRange(range) {
@@ -727,10 +742,28 @@ function applyDeliveryCustomRange() {
 }
 
 function applyDeliveryAdvancedFilters() {
-  const driver = document.getElementById('delivery-driver-filter').value;
-  const store = document.getElementById('delivery-store-filter').value;
-  const dish = document.getElementById('delivery-dish-filter').value;
-  const search = document.getElementById('delivery-search').value.toLowerCase();
+  // Get current filter values from UI (or use saved state on refresh)
+  const driver = document.getElementById('delivery-driver-filter')?.value || DELIVERY_STATE.filters.driver;
+  const store = document.getElementById('delivery-store-filter')?.value || DELIVERY_STATE.filters.store;
+  const dish = document.getElementById('delivery-dish-filter')?.value || DELIVERY_STATE.filters.dish;
+  const search = (document.getElementById('delivery-search')?.value || DELIVERY_STATE.filters.search).toLowerCase();
+
+  // Save filter state for persistence across refreshes
+  DELIVERY_STATE.filters = { driver, store, dish, search };
+
+  // Restore UI state (in case this is called after data refresh)
+  if (document.getElementById('delivery-driver-filter')) {
+    document.getElementById('delivery-driver-filter').value = driver;
+  }
+  if (document.getElementById('delivery-store-filter')) {
+    document.getElementById('delivery-store-filter').value = store;
+  }
+  if (document.getElementById('delivery-dish-filter')) {
+    document.getElementById('delivery-dish-filter').value = dish;
+  }
+  if (document.getElementById('delivery-search')) {
+    document.getElementById('delivery-search').value = DELIVERY_STATE.filters.search;
+  }
 
   let filtered = [...DELIVERY_STATE.filtered];
 
@@ -753,10 +786,15 @@ function applyDeliveryAdvancedFilters() {
 }
 
 function clearAllDeliveryFilters() {
+  // Clear UI
   document.getElementById('delivery-driver-filter').value = '';
   document.getElementById('delivery-store-filter').value = '';
   document.getElementById('delivery-dish-filter').value = '';
   document.getElementById('delivery-search').value = '';
+
+  // Clear saved filter state
+  DELIVERY_STATE.filters = { driver: '', store: '', dish: '', search: '' };
+
   setDeliveryQuickRange(7); // Reset to default
 }
 
@@ -1279,6 +1317,7 @@ function nextProductionPage() {
 const WASTE_STATE = {
   quickRange: 30,
   filtered: [],
+  isInitialized: false,
   charts: {
     byStore: null,
     byDish: null,
@@ -1288,8 +1327,14 @@ const WASTE_STATE = {
 };
 
 function renderWaste() {
-  // Default to last 30 days
-  setWasteQuickRange(30);
+  // Only set defaults on first load, preserve filters on refresh
+  if (!WASTE_STATE.isInitialized) {
+    WASTE_STATE.isInitialized = true;
+    setWasteQuickRange(30);
+  } else {
+    // On refresh: re-apply current date range without resetting UI
+    setWasteQuickRange(WASTE_STATE.quickRange);
+  }
 }
 
 function setWasteQuickRange(range) {
