@@ -11,6 +11,7 @@ let DATA = {
   production: [],
   waste: [],
   stores: [],
+  violations: [],
   lastUpdated: null
 };
 let REFRESH_INTERVAL = null;
@@ -278,6 +279,10 @@ async function fetchData() {
     console.log('[Data] Fetched:', DATA);
 
     updateStatus('connected', `Updated ${new Date(DATA.lastUpdated).toLocaleTimeString()}`);
+
+    // Fetch violations tracker data
+    fetchViolations();
+
     renderOverview();
     renderDeliveries();
     renderProduction();
@@ -286,6 +291,36 @@ async function fetchData() {
   } catch (e) {
     console.error('[Data] Fetch failed:', e);
     updateStatus('error', 'Fetch failed');
+  }
+}
+
+// Fetch violations from tracker
+async function fetchViolations() {
+  if (!CONFIG.webAppUrl) {
+    DATA.violations = [];
+    return;
+  }
+
+  try {
+    const url = `${CONFIG.webAppUrl}?action=getViolations`;
+    const response = await fetch(url, {
+      method: 'GET',
+      mode: 'cors'
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const data = await response.json();
+    if (data.status === 'ok') {
+      DATA.violations = data.violations || [];
+      console.log('[Violations] Fetched:', DATA.violations.length);
+    } else {
+      console.warn('[Violations] API error:', data.message);
+      DATA.violations = [];
+    }
+  } catch (e) {
+    console.error('[Violations] Fetch failed:', e);
+    DATA.violations = [];
   }
 }
 
@@ -1921,57 +1956,229 @@ function renderFoodSafety() {
   console.log('[Food Safety] Panel rendered');
 }
 
+let violationStatusFilter = 'all'; // all, open, in_progress, resolved
+
 function refreshViolationsQueue() {
   const container = document.getElementById('violations-queue');
   if (!container) return;
 
-  // Get violations from last 7 days
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  // Apply status filter
+  let filteredViolations = DATA.violations;
+  if (violationStatusFilter !== 'all') {
+    filteredViolations = DATA.violations.filter(v => v.status === violationStatusFilter);
+  }
 
-  const recentViolations = DATA.deliveries.filter(d => {
-    const date = new Date(d.date);
-    return date >= sevenDaysAgo && (parseFloat(d.coolerTemp) > 41 || parseFloat(d.arrivalTemp) > 41);
-  }).sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort newest first
+  // Sort newest first
+  filteredViolations = filteredViolations.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-  if (recentViolations.length === 0) {
-    container.innerHTML = '<div class="loading" style="color: var(--green);">✓ No violations in the last 7 days</div>';
+  if (filteredViolations.length === 0) {
+    const message = violationStatusFilter === 'all'
+      ? '✓ No violations found'
+      : `✓ No ${violationStatusFilter.replace('_', ' ')} violations`;
+    container.innerHTML = `<div class="loading" style="color: var(--green);">${message}</div>`;
     return;
   }
 
-  container.innerHTML = recentViolations.map(v => {
-    const storeName = DATA.stores.find(s => s.id === v.store)?.name || `Store ${v.store}`;
-    const coolerViolation = parseFloat(v.coolerTemp) > 41;
-    const deliveryViolation = parseFloat(v.arrivalTemp) > 41;
-    const violationType = coolerViolation ? 'Cooler Temp' : 'Delivery Temp';
-    const temp = coolerViolation ? v.coolerTemp : v.arrivalTemp;
+  container.innerHTML = filteredViolations.map(v => {
+    const statusBadge = getStatusBadge(v.status);
+    const timestamp = new Date(v.timestamp);
+    const displayDate = timestamp.toLocaleDateString();
+    const displayTime = timestamp.toLocaleTimeString();
 
     return `
-      <div class="violation-queue-item">
+      <div class="violation-queue-item" data-violation-id="${v.violationId}">
         <div class="violation-queue-header">
-          <div class="violation-queue-badge">${violationType}</div>
-          <div class="violation-queue-date">${v.date} ${v.arrive || ''}</div>
+          <div class="violation-queue-badge">${v.violationType}</div>
+          ${statusBadge}
+          <div class="violation-queue-date">${displayDate} ${displayTime}</div>
         </div>
         <div class="violation-queue-details">
-          <div class="violation-queue-store">📍 ${storeName}</div>
-          <div class="violation-queue-temp" style="color: var(--red); font-weight: 700;">${temp}°F</div>
-          <div class="violation-queue-threshold">Threshold: 41°F</div>
-          <div class="violation-queue-received">Received by: ${v.receivedBy || 'N/A'}</div>
+          <div class="violation-queue-store">📍 ${v.storeName}</div>
+          <div class="violation-queue-temp" style="color: var(--red); font-weight: 700;">${v.value}°F</div>
+          <div class="violation-queue-threshold">Threshold: ${v.threshold}°F</div>
+          ${v.notes ? `<div class="violation-queue-notes">📝 ${v.notes.split('\\n')[v.notes.split('\\n').length - 1]}</div>` : ''}
+          ${v.resolvedAt ? `<div class="violation-queue-resolved">✅ Resolved ${new Date(v.resolvedAt).toLocaleDateString()} by ${v.resolvedBy}</div>` : ''}
         </div>
         <div class="violation-queue-actions">
-          <button class="violation-queue-btn" disabled title="Requires backend integration">
-            Mark Resolved
-          </button>
-          <button class="violation-queue-btn" disabled title="Requires backend integration">
-            Add Note
-          </button>
-          <button class="violation-queue-btn-secondary" onclick="openViolationModal('${v.store}', '${coolerViolation ? 'cooler' : 'delivery'}', '${sevenDaysAgo.toISOString()}', '${new Date().toISOString()}')">
+          ${v.status !== 'resolved' ? `
+            <button class="violation-queue-btn" onclick="markViolationResolved('${v.violationId}')">
+              Mark Resolved
+            </button>
+            <button class="violation-queue-btn" onclick="openAddNoteModal('${v.violationId}', '${v.storeName}', '${v.violationType}')">
+              Add Note
+            </button>
+          ` : `
+            <button class="violation-queue-btn" disabled style="opacity: 0.5;">
+              Resolved
+            </button>
+          `}
+          <button class="violation-queue-btn-secondary" onclick="openViolationDetailsModal('${v.violationId}')">
             View Details
           </button>
         </div>
       </div>
     `;
   }).join('');
+}
+
+function getStatusBadge(status) {
+  const badges = {
+    'open': '<span class="status-badge status-open">Open</span>',
+    'in_progress': '<span class="status-badge status-in-progress">In Progress</span>',
+    'resolved': '<span class="status-badge status-resolved">Resolved</span>'
+  };
+  return badges[status] || badges['open'];
+}
+
+function setViolationFilter(status) {
+  violationStatusFilter = status;
+
+  // Update filter button states
+  document.querySelectorAll('.violation-filter-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  event.target.classList.add('active');
+
+  refreshViolationsQueue();
+}
+
+async function markViolationResolved(violationId) {
+  if (!CONFIG.webAppUrl) {
+    alert('Backend not configured. Cannot update violation status.');
+    return;
+  }
+
+  if (!confirm('Mark this violation as resolved?')) return;
+
+  try {
+    const url = `${CONFIG.webAppUrl}?action=updateViolationStatus&violationId=${violationId}&status=resolved&resolvedBy=Dashboard User`;
+    const response = await fetch(url, { method: 'GET', mode: 'cors' });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const data = await response.json();
+    if (data.status === 'ok') {
+      // Update local data
+      const violation = DATA.violations.find(v => v.violationId === violationId);
+      if (violation) {
+        violation.status = 'resolved';
+        violation.resolvedAt = new Date().toISOString();
+        violation.resolvedBy = 'Dashboard User';
+      }
+      refreshViolationsQueue();
+      alert('Violation marked as resolved!');
+    } else {
+      throw new Error(data.message);
+    }
+  } catch (e) {
+    console.error('[Violation] Update failed:', e);
+    alert(`Failed to update violation: ${e.message}`);
+  }
+}
+
+function openAddNoteModal(violationId, storeName, violationType) {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h2>Add Note to Violation</h2>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+      </div>
+      <div class="modal-body">
+        <p><strong>Store:</strong> ${storeName}</p>
+        <p><strong>Type:</strong> ${violationType}</p>
+        <textarea id="violation-note-input" rows="4" style="width: 100%; padding: 8px; border: 1px solid var(--mid); border-radius: 4px;" placeholder="Enter note (corrective action, investigation findings, etc.)"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+        <button class="btn-primary" onclick="submitViolationNote('${violationId}')">Add Note</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.getElementById('violation-note-input').focus();
+}
+
+async function submitViolationNote(violationId) {
+  const noteInput = document.getElementById('violation-note-input');
+  const note = noteInput.value.trim();
+
+  if (!note) {
+    alert('Please enter a note.');
+    return;
+  }
+
+  if (!CONFIG.webAppUrl) {
+    alert('Backend not configured. Cannot add note.');
+    return;
+  }
+
+  try {
+    const url = `${CONFIG.webAppUrl}?action=addViolationNote&violationId=${encodeURIComponent(violationId)}&note=${encodeURIComponent(note)}&author=Dashboard User`;
+    const response = await fetch(url, { method: 'GET', mode: 'cors' });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const data = await response.json();
+    if (data.status === 'ok') {
+      // Update local data
+      const violation = DATA.violations.find(v => v.violationId === violationId);
+      if (violation) {
+        const timestamp = new Date().toISOString();
+        const newNote = `[${timestamp}] Dashboard User: ${note}`;
+        violation.notes = violation.notes ? `${violation.notes}\\n${newNote}` : newNote;
+      }
+      refreshViolationsQueue();
+      document.querySelector('.modal-overlay').remove();
+      alert('Note added successfully!');
+    } else {
+      throw new Error(data.message);
+    }
+  } catch (e) {
+    console.error('[Violation] Add note failed:', e);
+    alert(`Failed to add note: ${e.message}`);
+  }
+}
+
+function openViolationDetailsModal(violationId) {
+  const violation = DATA.violations.find(v => v.violationId === violationId);
+  if (!violation) return;
+
+  const timestamp = new Date(violation.timestamp);
+  const notesHtml = violation.notes
+    ? violation.notes.split('\\n').map(n => `<div style="margin-bottom: 8px; padding: 8px; background: var(--cream); border-radius: 4px;">${n}</div>`).join('')
+    : '<p class="hint">No notes</p>';
+
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Violation Details</h2>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+      </div>
+      <div class="modal-body">
+        ${getStatusBadge(violation.status)}
+        <p><strong>Type:</strong> ${violation.violationType}</p>
+        <p><strong>Store:</strong> ${violation.storeName} (${violation.storeId})</p>
+        <p><strong>Timestamp:</strong> ${timestamp.toLocaleString()}</p>
+        <p><strong>Temperature:</strong> <span style="color: var(--red); font-weight: 700;">${violation.value}°F</span></p>
+        <p><strong>Threshold:</strong> ${violation.threshold}°F</p>
+        <p><strong>Violation ID:</strong> <code>${violation.violationId}</code></p>
+        ${violation.resolvedAt ? `
+          <p><strong>Resolved:</strong> ${new Date(violation.resolvedAt).toLocaleString()}</p>
+          <p><strong>Resolved By:</strong> ${violation.resolvedBy}</p>
+        ` : ''}
+        <h3 style="margin-top: 20px;">Notes & Resolution History</h3>
+        ${notesHtml}
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

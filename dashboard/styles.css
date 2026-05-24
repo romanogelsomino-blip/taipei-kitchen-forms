@@ -1380,6 +1380,55 @@ body {
   gap: 16px;
 }
 
+/* Status Badges */
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-open {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.status-in-progress {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.status-resolved {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+/* Violation Filter Buttons */
+.violation-filter-btn {
+  padding: 8px 16px;
+  border: 2px solid var(--border);
+  background: white;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.violation-filter-btn:hover {
+  border-color: var(--red);
+  background: var(--red-lt);
+}
+
+.violation-filter-btn.active {
+  border-color: var(--red);
+  background: var(--red);
+  color: white;
+}
+
 .violation-queue-item {
   background: var(--surface);
   border: 2px solid var(--border);

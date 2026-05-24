@@ -377,12 +377,20 @@
       <div style="margin-top: 32px; padding-top: 24px; border-top: 2px solid var(--border);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
           <div>
-            <h2 class="section-title">Recent Violations Queue</h2>
-            <p style="font-size: 0.9rem; color: var(--mid); margin: 4px 0 0;">Last 7 days • Requires follow-up</p>
+            <h2 class="section-title">Violations Tracker</h2>
+            <p style="font-size: 0.9rem; color: var(--mid); margin: 4px 0 0;">Track and resolve HACCP violations</p>
           </div>
           <button onclick="refreshViolationsQueue()" style="background: var(--red); color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
             Refresh
           </button>
+        </div>
+
+        <!-- Status Filter Buttons -->
+        <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+          <button class="violation-filter-btn active" onclick="setViolationFilter('all')">All</button>
+          <button class="violation-filter-btn" onclick="setViolationFilter('open')">Open</button>
+          <button class="violation-filter-btn" onclick="setViolationFilter('in_progress')">In Progress</button>
+          <button class="violation-filter-btn" onclick="setViolationFilter('resolved')">Resolved</button>
         </div>
 
         <div id="violations-queue" class="violations-queue">
