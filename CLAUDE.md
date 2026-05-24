@@ -4,6 +4,16 @@ This file documents standards for all Claude Code sessions working on this proje
 
 ---
 
+## Decision-Making & Self-Sufficiency
+
+- **Investigate before asking**. Make reasonable defaults and report what you did. Only ask when there's genuinely no way to determine the answer from the repo, available tools, git history, or conversation context.
+- **If the dashboard is live and pulling real data, the credentials, IDs, URLs, and config are ALREADY in this repo**. Trace them, don't ask.
+- **Cross-reference sources**: grep the codebase, check git log, inspect deployed URLs, run `npx clasp list`, read docs in /docs. Deduce, don't interrogate.
+- **When in doubt between two reasonable options**, pick the safer default (staging over production, hide over disable, etc.), proceed, and flag the choice in your status report.
+- **Asking the user for info the system already has access to = a failure mode**. Do the work.
+
+---
+
 ## Deployment & Infrastructure
 
 ### Apps Script
