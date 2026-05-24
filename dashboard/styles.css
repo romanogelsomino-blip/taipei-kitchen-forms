@@ -1265,4 +1265,350 @@ body {
     page-break-inside: avoid;
     border: 2px solid #000;
   }
+
+  /* Hide modal overlay when printing */
+  .modal {
+    display: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HACCP Violation Alert Banner
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.alert-banner {
+  background: linear-gradient(135deg, #FADBD8 0%, #F8CAC6 100%);
+  border: 2px solid var(--red);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  box-shadow: 0 4px 12px rgba(192, 57, 43, 0.15);
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.alert-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.alert-banner-icon {
+  font-size: 1.75rem;
+  flex-shrink: 0;
+}
+
+.alert-banner-text {
+  flex: 1;
+  color: var(--red-dk);
+  font-size: 1rem;
+}
+
+.alert-banner-text strong {
+  font-weight: 700;
+}
+
+.alert-banner-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.alert-banner-btn {
+  background: var(--red);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.alert-banner-btn:hover {
+  background: var(--red-dk);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(192, 57, 43, 0.3);
+}
+
+.alert-banner-close {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--red);
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.alert-banner-close:hover {
+  transform: scale(1.2);
+  color: var(--red-dk);
+}
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+  .alert-banner-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .alert-banner-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .alert-banner-btn {
+    flex: 1;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Violations Queue Styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.violations-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.violation-queue-item {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-left: 4px solid var(--red);
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.violation-queue-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-left-width: 6px;
+}
+
+.violation-queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.violation-queue-badge {
+  background: var(--red);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.violation-queue-date {
+  color: var(--mid);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.violation-queue-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--light);
+  border-radius: 6px;
+}
+
+.violation-queue-details > div {
+  font-size: 0.9rem;
+  color: var(--dark);
+}
+
+.violation-queue-store {
+  font-weight: 600;
+}
+
+.violation-queue-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.violation-queue-btn,
+.violation-queue-btn-secondary {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.violation-queue-btn {
+  background: var(--red);
+  color: white;
+}
+
+.violation-queue-btn:hover:not(:disabled) {
+  background: var(--red-dk);
+  transform: translateY(-1px);
+}
+
+.violation-queue-btn:disabled {
+  background: var(--soft);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.violation-queue-btn-secondary {
+  background: transparent;
+  border: 2px solid var(--border);
+  color: var(--dark);
+}
+
+.violation-queue-btn-secondary:hover {
+  background: var(--light);
+  border-color: var(--mid);
+}
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+  .violation-queue-details {
+    grid-template-columns: 1fr;
+  }
+
+  .violation-queue-actions {
+    flex-direction: column;
+  }
+
+  .violation-queue-btn,
+  .violation-queue-btn-secondary {
+    width: 100%;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HACCP Violation Modal Styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 10000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-content {
+  background: var(--surface);
+  border-radius: 12px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from { transform: translateY(-30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.violation-modal-header {
+  padding: 24px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.violation-modal-header h2 {
+  margin: 0 0 8px;
+  color: var(--dark);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.violation-modal-header p {
+  margin: 0;
+  color: var(--mid);
+  font-size: 0.95rem;
+}
+
+.violation-modal-body {
+  padding: 24px;
+  overflow-x: auto;
+}
+
+.violation-modal-body .data-table {
+  margin: 0;
+}
+
+.violation-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+/* Clickable violation count */
+.violation-count.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.violation-count.clickable:hover {
+  transform: scale(1.05);
+  background: var(--red);
+  color: white;
+  box-shadow: 0 4px 12px rgba(192, 57, 43, 0.3);
+}
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+  .modal {
+    padding: 10px;
+  }
+
+  .modal-content {
+    max-height: 95vh;
+  }
+
+  .violation-modal-header,
+  .violation-modal-body {
+    padding: 16px;
+  }
+
+  .violation-modal-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .violation-modal-footer {
+    flex-direction: column;
+  }
+
+  .violation-modal-footer .btn {
+    width: 100%;
+  }
 }

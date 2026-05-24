@@ -744,17 +744,24 @@ function loadFoodSafety() {
     const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
     const totalViolations = violations.coolerViolations + violations.deliveryTempViolations;
     const countClass = totalViolations === 0 ? 'zero' : '';
+    const clickableClass = totalViolations === 0 ? '' : 'clickable';
 
     return `
       <div class="safety-store-card">
         <div class="safety-store-name">${storeName}</div>
         <div class="safety-violations">
           <div>
-            <div class="violation-count ${countClass}">${violations.coolerViolations}</div>
+            <div class="violation-count ${countClass} ${clickableClass}"
+                 onclick="${violations.coolerViolations > 0 ? `openViolationModal('${storeId}', 'cooler', '${weekStart.toISOString()}', '${weekEndDate.toISOString()}')` : ''}">
+              ${violations.coolerViolations}
+            </div>
             <div class="violation-label">Cooler Temp Violations</div>
           </div>
           <div>
-            <div class="violation-count ${countClass}">${violations.deliveryTempViolations}</div>
+            <div class="violation-count ${countClass} ${clickableClass}"
+                 onclick="${violations.deliveryTempViolations > 0 ? `openViolationModal('${storeId}', 'delivery', '${weekStart.toISOString()}', '${weekEndDate.toISOString()}')` : ''}">
+              ${violations.deliveryTempViolations}
+            </div>
             <div class="violation-label">Delivery Temp Violations</div>
           </div>
         </div>
@@ -762,6 +769,116 @@ function loadFoodSafety() {
       </div>
     `;
   }).join('');
+}
+
+function openViolationModal(storeId, violationType, weekStartISO, weekEndISO) {
+  const weekStart = new Date(weekStartISO);
+  const weekEnd = new Date(weekEndISO);
+  const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
+
+  // Filter deliveries for this store and date range
+  const storeDeliveries = DATA.deliveries.filter(d => {
+    const date = new Date(d.date);
+    return d.store === storeId && date >= weekStart && date <= weekEnd;
+  });
+
+  // Filter for specific violation type
+  const violations = storeDeliveries.filter(d => {
+    if (violationType === 'cooler') {
+      return parseFloat(d.coolerTemp) > 41;
+    } else {
+      return parseFloat(d.arrivalTemp) > 41;
+    }
+  });
+
+  const violationTypeLabel = violationType === 'cooler' ? 'Cooler Temp' : 'Delivery Temp';
+  const tempField = violationType === 'cooler' ? 'coolerTemp' : 'arrivalTemp';
+  const threshold = '41°F';
+
+  // Build modal content
+  const modalContent = `
+    <div class="violation-modal-header">
+      <h2>${violationTypeLabel} Violations</h2>
+      <p>${storeName} • ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+    </div>
+    <div class="violation-modal-body">
+      ${violations.length === 0 ? '<p class="hint">No violations found</p>' : `
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Recorded Temp</th>
+              <th>Threshold</th>
+              <th>Received By</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${violations.map(v => `
+              <tr>
+                <td>${v.date}</td>
+                <td>${v.arrive || 'N/A'}</td>
+                <td style="color: var(--red); font-weight: 600;">${v[tempField]}°F</td>
+                <td>${threshold}</td>
+                <td>${v.receivedBy || 'N/A'}</td>
+                <td>${v.notes || '—'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `}
+    </div>
+    <div class="violation-modal-footer">
+      <button class="btn btn-secondary" onclick="closeViolationModal()">Close</button>
+      <button class="btn btn-primary" onclick="window.print()">Export to PDF</button>
+    </div>
+  `;
+
+  // Show modal
+  const modal = document.getElementById('violation-modal');
+  const modalBody = document.getElementById('violation-modal-content');
+  modalBody.innerHTML = modalContent;
+  modal.style.display = 'flex';
+}
+
+function closeViolationModal() {
+  document.getElementById('violation-modal').style.display = 'none';
+}
+
+// Violation Alert Banner Functions
+function dismissViolationBanner() {
+  document.getElementById('violation-alert-banner').style.display = 'none';
+  localStorage.setItem('violation-banner-dismissed', new Date().toISOString());
+}
+
+function checkForViolations() {
+  // Count recent violations (last 7 days)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const recentViolations = DATA.deliveries.filter(d => {
+    const date = new Date(d.date);
+    return date >= sevenDaysAgo && (parseFloat(d.coolerTemp) > 41 || parseFloat(d.arrivalTemp) > 41);
+  });
+
+  if (recentViolations.length > 0) {
+    // Check if banner was dismissed in the last hour
+    const dismissed = localStorage.getItem('violation-banner-dismissed');
+    if (dismissed) {
+      const dismissedTime = new Date(dismissed);
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      if (dismissedTime > oneHourAgo) {
+        return; // Don't show banner if dismissed within last hour
+      }
+    }
+
+    // Show banner
+    document.getElementById('violation-alert-count').textContent = recentViolations.length;
+    document.getElementById('violation-alert-banner').style.display = 'block';
+  } else {
+    document.getElementById('violation-alert-banner').style.display = 'none';
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -781,13 +898,15 @@ const DELIVERY_STATE = {
     driver: '',
     stores: [],  // Multi-select: array of store IDs
     daysOfWeek: [],  // Multi-select: array of day numbers (0=Sun, 6=Sat)
+    caseFullness: [],  // Multi-select: array of fullness ranges
     dish: '',
     search: ''
   },
   // Multi-select component instances
   multiSelects: {
     store: null,
-    dayOfWeek: null
+    dayOfWeek: null,
+    caseFullness: null
   }
 };
 
@@ -866,9 +985,10 @@ function applyDeliveryAdvancedFilters() {
   // Multi-select values come from state (updated via onChange callbacks)
   const stores = DELIVERY_STATE.filters.stores || [];
   const daysOfWeek = DELIVERY_STATE.filters.daysOfWeek || [];
+  const caseFullness = DELIVERY_STATE.filters.caseFullness || [];
 
   // Save filter state for persistence across refreshes
-  DELIVERY_STATE.filters = { driver, stores, daysOfWeek, dish, search };
+  DELIVERY_STATE.filters = { driver, stores, daysOfWeek, caseFullness, dish, search };
 
   // Restore UI state (in case this is called after data refresh)
   if (document.getElementById('delivery-driver-filter')) {
@@ -888,6 +1008,9 @@ function applyDeliveryAdvancedFilters() {
   if (DELIVERY_STATE.multiSelects.dayOfWeek && daysOfWeek.length > 0) {
     DELIVERY_STATE.multiSelects.dayOfWeek.setValue(daysOfWeek.map(d => d.toString()));
   }
+  if (DELIVERY_STATE.multiSelects.caseFullness && caseFullness.length > 0) {
+    DELIVERY_STATE.multiSelects.caseFullness.setValue(caseFullness);
+  }
 
   let filtered = [...DELIVERY_STATE.filtered];
 
@@ -905,6 +1028,13 @@ function applyDeliveryAdvancedFilters() {
       if (!d.date) return false;
       const dayOfWeek = new Date(d.date).getDay();
       return daysOfWeek.includes(dayOfWeek);
+    });
+  }
+
+  // Case fullness filter
+  if (caseFullness.length > 0) {
+    filtered = filtered.filter(d => {
+      return caseFullness.includes(d.casePrefillPercent);
     });
   }
 
@@ -937,9 +1067,12 @@ function clearAllDeliveryFilters() {
   if (DELIVERY_STATE.multiSelects.dayOfWeek) {
     DELIVERY_STATE.multiSelects.dayOfWeek.clear();
   }
+  if (DELIVERY_STATE.multiSelects.caseFullness) {
+    DELIVERY_STATE.multiSelects.caseFullness.clear();
+  }
 
   // Clear saved filter state
-  DELIVERY_STATE.filters = { driver: '', stores: [], daysOfWeek: [], dish: '', search: '' };
+  DELIVERY_STATE.filters = { driver: '', stores: [], daysOfWeek: [], caseFullness: [], dish: '', search: '' };
 
   setDeliveryQuickRange(7); // Reset to default
 }
@@ -950,6 +1083,31 @@ function updateDeliveryMetrics() {
   const totalUnitsDelivered = filtered.reduce((sum, d) => sum + (parseInt(d.added) || 0), 0);
   const uniqueStores = new Set(filtered.map(d => d.store)).size;
   const uniqueDrivers = new Set(filtered.map(d => d.driver)).size;
+
+  // Calculate average case fullness
+  const fullnessMap = { '0-25%': 12.5, '25-50%': 37.5, '50-75%': 62.5, '75-100%': 87.5 };
+  const deliveriesWithFullness = filtered.filter(d => d.casePrefillPercent && fullnessMap[d.casePrefillPercent]);
+  const avgFullness = deliveriesWithFullness.length > 0
+    ? deliveriesWithFullness.reduce((sum, d) => sum + fullnessMap[d.casePrefillPercent], 0) / deliveriesWithFullness.length
+    : 0;
+
+  // Calculate fullness by store
+  const fullnessByStore = {};
+  deliveriesWithFullness.forEach(d => {
+    if (!fullnessByStore[d.store]) {
+      fullnessByStore[d.store] = { sum: 0, count: 0 };
+    }
+    fullnessByStore[d.store].sum += fullnessMap[d.casePrefillPercent];
+    fullnessByStore[d.store].count++;
+  });
+
+  const storeBreakdown = Object.entries(fullnessByStore)
+    .map(([storeId, data]) => {
+      const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
+      const avg = data.sum / data.count;
+      return `${storeName}: ${avg.toFixed(0)}%`;
+    })
+    .join(' • ');
 
   document.getElementById('delivery-metrics').innerHTML = `
     <div class="metric-card">
@@ -966,6 +1124,11 @@ function updateDeliveryMetrics() {
       <div class="metric-label">Average per Delivery</div>
       <div class="metric-value">${totalDeliveries > 0 ? (totalUnitsDelivered / totalDeliveries).toFixed(1) : '0'}</div>
       <div class="metric-sub">Units per drop</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Avg Case Fullness</div>
+      <div class="metric-value">${avgFullness.toFixed(0)}%</div>
+      <div class="metric-sub" style="font-size: 0.75rem;">${storeBreakdown || 'No data'}</div>
     </div>
   `;
 }
@@ -1065,6 +1228,24 @@ function populateDeliveryFilters() {
       }
     );
   }
+
+  // Initialize Case Fullness Multi-Select (only once)
+  if (!DELIVERY_STATE.multiSelects.caseFullness) {
+    const fullnessOptions = [
+      { value: '0-25%', label: '0-25% (Nearly Empty)' },
+      { value: '25-50%', label: '25-50% (Low)' },
+      { value: '50-75%', label: '50-75% (Moderate)' },
+      { value: '75-100%', label: '75-100% (Nearly Full)' }
+    ];
+    DELIVERY_STATE.multiSelects.caseFullness = createMultiSelect(
+      'delivery-fullness-multiselect-container',
+      fullnessOptions,
+      'All Fullness Levels',
+      (selectedFullness) => {
+        DELIVERY_STATE.filters.caseFullness = selectedFullness;
+      }
+    );
+  }
 }
 
 function displayDeliveryTable() {
@@ -1101,6 +1282,7 @@ function displayDeliveryTable() {
         <td>${d.arrive || 'N/A'}</td>
         <td>${d.driver}</td>
         <td>${tempIcon}${storeName}</td>
+        <td>${d.casePrefillPercent || 'N/A'}</td>
         <td>${d.dish}</td>
         <td>${d.added || 0}</td>
         <td>${d.removed || 0}</td>
@@ -1117,6 +1299,7 @@ function displayDeliveryTable() {
           <th>Arrival</th>
           <th>Driver</th>
           <th>Store</th>
+          <th>Case Fullness</th>
           <th>Dish</th>
           <th>Added</th>
           <th>Removed</th>
@@ -1731,8 +1914,64 @@ function updateWasteCharts() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function renderFoodSafety() {
-  // Stub function for food safety - can be expanded later
+  // Check for violations and update alert banner
+  checkForViolations();
+  // Load violations queue
+  refreshViolationsQueue();
   console.log('[Food Safety] Panel rendered');
+}
+
+function refreshViolationsQueue() {
+  const container = document.getElementById('violations-queue');
+  if (!container) return;
+
+  // Get violations from last 7 days
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const recentViolations = DATA.deliveries.filter(d => {
+    const date = new Date(d.date);
+    return date >= sevenDaysAgo && (parseFloat(d.coolerTemp) > 41 || parseFloat(d.arrivalTemp) > 41);
+  }).sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort newest first
+
+  if (recentViolations.length === 0) {
+    container.innerHTML = '<div class="loading" style="color: var(--green);">✓ No violations in the last 7 days</div>';
+    return;
+  }
+
+  container.innerHTML = recentViolations.map(v => {
+    const storeName = DATA.stores.find(s => s.id === v.store)?.name || `Store ${v.store}`;
+    const coolerViolation = parseFloat(v.coolerTemp) > 41;
+    const deliveryViolation = parseFloat(v.arrivalTemp) > 41;
+    const violationType = coolerViolation ? 'Cooler Temp' : 'Delivery Temp';
+    const temp = coolerViolation ? v.coolerTemp : v.arrivalTemp;
+
+    return `
+      <div class="violation-queue-item">
+        <div class="violation-queue-header">
+          <div class="violation-queue-badge">${violationType}</div>
+          <div class="violation-queue-date">${v.date} ${v.arrive || ''}</div>
+        </div>
+        <div class="violation-queue-details">
+          <div class="violation-queue-store">📍 ${storeName}</div>
+          <div class="violation-queue-temp" style="color: var(--red); font-weight: 700;">${temp}°F</div>
+          <div class="violation-queue-threshold">Threshold: 41°F</div>
+          <div class="violation-queue-received">Received by: ${v.receivedBy || 'N/A'}</div>
+        </div>
+        <div class="violation-queue-actions">
+          <button class="violation-queue-btn" disabled title="Requires backend integration">
+            Mark Resolved
+          </button>
+          <button class="violation-queue-btn" disabled title="Requires backend integration">
+            Add Note
+          </button>
+          <button class="violation-queue-btn-secondary" onclick="openViolationModal('${v.store}', '${coolerViolation ? 'cooler' : 'delivery'}', '${sevenDaysAgo.toISOString()}', '${new Date().toISOString()}')">
+            View Details
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2290,7 +2529,9 @@ const SETTINGS = {
   avgUnitCost: 5,
   currencyFormat: 'USD',
   showBugButton: true,
-  bugEmail: 'YOUR_EMAIL@example.com'
+  bugEmail: 'YOUR_EMAIL@example.com',
+  violationAlertEmails: [],
+  enableViolationAlerts: true
 };
 
 function loadSettings() {
@@ -2307,6 +2548,8 @@ function loadSettings() {
   document.getElementById('currency-format').value = SETTINGS.currencyFormat;
   document.getElementById('show-bug-button').checked = SETTINGS.showBugButton;
   document.getElementById('bug-email').value = SETTINGS.bugEmail;
+  document.getElementById('violation-alert-emails').value = SETTINGS.violationAlertEmails.join('\n');
+  document.getElementById('enable-violation-alerts').checked = SETTINGS.enableViolationAlerts;
 
   // Apply theme button states
   updateThemeButtonStates(SETTINGS.theme);
@@ -2339,6 +2582,23 @@ function saveSettings() {
 
   // Show confirmation
   alert('Settings saved successfully! Refresh the dashboard to see updated calculations.');
+}
+
+function saveViolationAlertSettings() {
+  // Read email list from textarea (one per line)
+  const emailText = document.getElementById('violation-alert-emails').value;
+  const emails = emailText.split('\n')
+    .map(e => e.trim())
+    .filter(e => e.length > 0);
+
+  SETTINGS.violationAlertEmails = emails;
+  SETTINGS.enableViolationAlerts = document.getElementById('enable-violation-alerts').checked;
+
+  // Save to localStorage
+  localStorage.setItem('dashboard-settings', JSON.stringify(SETTINGS));
+
+  // Show confirmation
+  alert(`Alert settings saved!\n\n${emails.length} recipient(s) configured.\nAlerts ${SETTINGS.enableViolationAlerts ? 'enabled' : 'disabled'}.\n\nNote: Backend configuration required for email delivery.`);
 }
 
 function setThemeFromSettings(theme) {

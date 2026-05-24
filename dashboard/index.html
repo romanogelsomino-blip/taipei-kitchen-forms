@@ -113,6 +113,20 @@
 
   <!-- Content Area -->
   <main class="content">
+    <!-- HACCP Violation Alert Banner -->
+    <div id="violation-alert-banner" class="alert-banner" style="display: none;">
+      <div class="alert-banner-content">
+        <div class="alert-banner-icon">⚠️</div>
+        <div class="alert-banner-text">
+          <strong id="violation-alert-count">0</strong> unresolved HACCP violation(s) require attention
+        </div>
+        <div class="alert-banner-actions">
+          <button onclick="navigateTo('food-safety')" class="alert-banner-btn">View Violations</button>
+          <button onclick="dismissViolationBanner()" class="alert-banner-close">✕</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Overview Panel -->
     <section id="panel-overview" class="panel active">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -302,6 +316,10 @@
             <div id="delivery-dow-multiselect-container"></div>
           </div>
           <div class="filter-field">
+            <label>Case Fullness</label>
+            <div id="delivery-fullness-multiselect-container"></div>
+          </div>
+          <div class="filter-field">
             <label>Dish</label>
             <select id="delivery-dish-filter">
               <option value="">All Dishes</option>
@@ -353,6 +371,31 @@
 
       <div id="safety-summary" class="safety-summary">
         <div class="loading">Select a week to view food safety summary</div>
+      </div>
+
+      <!-- Violations Queue Mini-Panel -->
+      <div style="margin-top: 32px; padding-top: 24px; border-top: 2px solid var(--border);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <div>
+            <h2 class="section-title">Recent Violations Queue</h2>
+            <p style="font-size: 0.9rem; color: var(--mid); margin: 4px 0 0;">Last 7 days • Requires follow-up</p>
+          </div>
+          <button onclick="refreshViolationsQueue()" style="background: var(--red); color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+            Refresh
+          </button>
+        </div>
+
+        <div id="violations-queue" class="violations-queue">
+          <div class="loading">Loading violations...</div>
+        </div>
+
+        <div style="margin-top: 16px; padding: 12px; background: var(--light); border-radius: 6px; border-left: 4px solid var(--yellow);">
+          <p style="font-size: 0.85rem; color: var(--mid); margin: 0;">
+            <strong>Note:</strong> Violation tracking and status management require backend configuration.
+            Currently showing recent violations from the last 7 days.
+            Contact your administrator to enable status tracking (open/in_progress/resolved) and automated email alerts.
+          </p>
+        </div>
       </div>
     </section>
 
@@ -753,6 +796,32 @@
           </button>
         </div>
 
+        <!-- HACCP Violation Alerts -->
+        <div class="section-card">
+          <h2 class="section-title">HACCP Violation Alerts</h2>
+
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--dark);">Email Recipients</label>
+            <textarea id="violation-alert-emails" rows="4" placeholder="manager@example.com&#10;supervisor@example.com&#10;safety@example.com" style="width: 100%; padding: 10px; border: 2px solid var(--border); border-radius: 6px; font-size: 1rem; background: var(--surface); color: var(--dark); font-family: inherit; resize: vertical;"></textarea>
+            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px;">Enter one email address per line. These recipients will be notified when HACCP violations are logged.</p>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
+              <input type="checkbox" id="enable-violation-alerts" checked style="width: 20px; height: 20px; cursor: pointer;">
+              <span style="font-weight: 600; color: var(--dark);">Enable Alert Emails</span>
+            </label>
+            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px; margin-left: 32px;">Send email notifications when temperature violations are detected</p>
+          </div>
+
+          <button onclick="saveViolationAlertSettings()" style="width: 100%; padding: 14px; background: var(--red); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 1rem; transition: all 0.2s;">
+            Save Alert Settings
+          </button>
+          <p style="font-size: 0.85rem; color: var(--soft); margin-top: 12px; padding: 12px; background: var(--light); border-radius: 6px; border-left: 4px solid var(--yellow);">
+            <strong>Note:</strong> Email alerts require backend configuration in Google Apps Script. Contact your administrator to enable this feature.
+          </p>
+        </div>
+
         <!-- Data Management -->
         <div class="section-card">
           <h2 class="section-title">Data Management</h2>
@@ -1121,5 +1190,13 @@ window.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
+
+<!-- HACCP Violation Drill-Down Modal -->
+<div id="violation-modal" class="modal" onclick="if(event.target === this) closeViolationModal()">
+  <div class="modal-content" id="violation-modal-content">
+    <!-- Content populated by openViolationModal() -->
+  </div>
+</div>
+
 </body>
 </html>
