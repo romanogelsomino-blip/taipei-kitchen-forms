@@ -490,11 +490,160 @@ function simulateViolation() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// doGet Handler - Dashboard API & Config Management
+// Admin Token Management - For Automation via Web App
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * One-time setup: Generate and store admin token for protected endpoints.
+ * Call this via Web App URL with ?action=setupAdminToken (first time only).
+ * Returns the generated token - save it to .env.staging or .env.production.
+ *
+ * @returns {Object} Generated token and instructions
+ */
+function setupAdminToken() {
+  const scriptProperties = PropertiesService.getScriptProperties();
+
+  // Check if token already exists
+  const existingToken = scriptProperties.getProperty('ADMIN_TOKEN');
+  if (existingToken) {
+    return {
+      status: 'EXISTS',
+      message: 'Admin token already configured. To regenerate, manually delete ADMIN_TOKEN from Script Properties first.',
+      token: '[REDACTED]'
+    };
+  }
+
+  // Generate strong random token
+  const token = Utilities.getUuid();
+
+  // Store in Script Properties
+  scriptProperties.setProperty('ADMIN_TOKEN', token);
+
+  Logger.log(`✅ Admin token generated: ${token}`);
+
+  return {
+    status: 'SUCCESS',
+    message: 'Admin token generated and stored in Script Properties',
+    token: token,
+    instructions: 'Save this token to .env.staging or .env.production (gitignored). You will need it for all admin API calls.'
+  };
+}
+
+/**
+ * Verify admin token from request parameter.
+ *
+ * @param {string} providedToken - Token from request
+ * @returns {boolean} True if token matches
+ */
+function verifyAdminToken(providedToken) {
+  if (!providedToken) {
+    return false;
+  }
+
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const storedToken = scriptProperties.getProperty('ADMIN_TOKEN');
+
+  if (!storedToken) {
+    Logger.log('⚠️ No admin token configured. Run setupAdminToken first.');
+    return false;
+  }
+
+  return providedToken === storedToken;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// doGet Handler - Dashboard API & Config Management & Admin Actions
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function doGet(e) {
   const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+
+  // ────────────────────────────────────────────────────────────────────────────────
+  // Admin Actions (Protected by Token)
+  // ────────────────────────────────────────────────────────────────────────────────
+
+  // One-time setup: Generate admin token (no auth required - first time only)
+  if (e.parameter.action === 'setupAdminToken') {
+    try {
+      const result = setupAdminToken();
+      return ContentService
+        .createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Initialize Config and Alert Log sheets (requires admin token)
+  if (e.parameter.action === 'init') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized: Invalid or missing admin token' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      initializeConfigSheet();
+      initializeAlertLogSheet();
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          message: 'Initialization complete',
+          sheets_created: ['Config', 'Alert Log']
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Test violation simulation (requires admin token)
+  if (e.parameter.action === 'test') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized: Invalid or missing admin token' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const result = simulateViolation();
+      return ContentService
+        .createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Health check ping (requires admin token)
+  if (e.parameter.action === 'ping') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized: Invalid or missing admin token' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        status: 'ok',
+        environment: ss.getName(),
+        sheet_id: SPREADSHEET_ID,
+        timestamp: new Date().toISOString()
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────────
+  // Public Actions (No Auth Required)
+  // ────────────────────────────────────────────────────────────────────────────────
 
   // Handle config read request
   if (e.parameter.action === 'getConfig') {
