@@ -300,7 +300,7 @@ function logViolationAlert(violationType, storeId, storeName, temp, threshold, d
  */
 function onViolationDetected(deliveryData, storeName) {
   const enableAlerts = getConfig('enable_violation_alerts');
-  if (enableAlerts !== 'true') {
+  if (enableAlerts !== 'true' && enableAlerts !== true) {
     Logger.log('Violation alerts disabled');
     return;
   }
@@ -439,7 +439,7 @@ function simulateViolation() {
     }
 
     const enableAlerts = getConfig('enable_violation_alerts');
-    if (enableAlerts !== 'true') {
+    if (enableAlerts !== 'true' && enableAlerts !== true) {
       return {
         status: 'FAILED',
         error: 'Violation alerts are disabled. Set enable_violation_alerts to "true" in Config sheet cell B3.'
