@@ -416,6 +416,80 @@ View dashboard: https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dash
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Test Helper - Simulate Violation
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Simulates a delivery violation for end-to-end testing.
+ * Can be run via: npm run test:violation:staging or npm run test:violation:production
+ *
+ * @returns {Object} Test result with status and details
+ */
+function simulateViolation() {
+  Logger.log('🧪 Starting violation simulation test...');
+
+  try {
+    // Step 1: Verify Config sheet is initialized
+    const emailList = getConfig('violation_alert_emails');
+    if (!emailList || emailList.trim() === '') {
+      return {
+        status: 'FAILED',
+        error: 'No email recipients configured in Config sheet. Run initializeConfigSheet first and set violation_alert_emails in cell B2.'
+      };
+    }
+
+    const enableAlerts = getConfig('enable_violation_alerts');
+    if (enableAlerts !== 'true') {
+      return {
+        status: 'FAILED',
+        error: 'Violation alerts are disabled. Set enable_violation_alerts to "true" in Config sheet cell B3.'
+      };
+    }
+
+    Logger.log(`📧 Email recipients: ${emailList}`);
+
+    // Step 2: Construct fake delivery with violation (cooler temp 45°F > threshold 41°F)
+    const fakeDelivery = {
+      store: '6542',
+      coolerTemp: '45',        // ⚠️ VIOLATION: Above 41°F threshold
+      arrivalTemp: '38',       // Normal temp (no violation)
+      date: new Date().toLocaleDateString('en-US'),
+      arrive: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      driver: 'TEST_DRIVER',
+      receivedBy: 'TEST_SUPERVISOR',
+      dish: 'General Tso Chicken Bento',
+      added: '10',
+      notes: '🧪 AUTOMATED TEST - This is a simulated violation for testing email alerts'
+    };
+
+    const storeName = 'Giant Laurel';
+
+    Logger.log(`🚨 Triggering violation check for ${storeName} with cooler temp ${fakeDelivery.coolerTemp}°F`);
+
+    // Step 3: Call onViolationDetected (same code path as real submissions)
+    onViolationDetected(fakeDelivery, storeName);
+
+    Logger.log('✅ Violation simulation completed');
+
+    return {
+      status: 'SUCCESS',
+      message: 'Simulated cooler temperature violation (45°F)',
+      store: storeName,
+      recipients: emailList,
+      timestamp: new Date().toISOString(),
+      note: 'Check email inbox and Alert Log sheet for confirmation'
+    };
+
+  } catch (error) {
+    Logger.log(`❌ Simulation failed: ${error}`);
+    return {
+      status: 'FAILED',
+      error: error.toString()
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // doGet Handler - Dashboard API & Config Management
 // ═══════════════════════════════════════════════════════════════════════════════
 
