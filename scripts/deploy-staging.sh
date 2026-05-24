@@ -12,7 +12,7 @@ sed -i.bak "s/${PRODUCTION_SHEET_ID}/${STAGING_SHEET_ID}/g" apps_script/Code.gs
 
 # Deploy to staging
 cp .clasp.staging.json .clasp.json
-clasp push
+echo "y" | clasp push
 
 # Restore original Code.gs
 mv apps_script/Code.gs.backup apps_script/Code.gs
