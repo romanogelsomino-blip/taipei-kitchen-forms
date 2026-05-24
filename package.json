@@ -3,9 +3,9 @@
   "version": "2.1.0",
   "description": "Taipei Kitchen Bento operations system - production, delivery, food safety, and analytics",
   "scripts": {
-    "deploy": "cp .clasp.staging.json .clasp.json && clasp push",
-    "deploy:staging": "cp .clasp.staging.json .clasp.json && clasp push",
-    "deploy:production": "cp .clasp.production.json .clasp.json && clasp push",
+    "deploy": "bash scripts/deploy-staging.sh",
+    "deploy:staging": "bash scripts/deploy-staging.sh",
+    "deploy:production": "bash scripts/deploy-production.sh",
     "init:staging": "cp .clasp.staging.json .clasp.json && clasp run initializeConfigSheet && clasp run initializeAlertLogSheet",
     "init:production": "cp .clasp.production.json .clasp.json && clasp run initializeConfigSheet && clasp run initializeAlertLogSheet",
     "test:violation:staging": "cp .clasp.staging.json .clasp.json && clasp run simulateViolation",
