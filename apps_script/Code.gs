@@ -152,7 +152,7 @@ function initializeConfigSheet() {
     // Set up headers and default values
     configSheet.appendRow(['Setting', 'Value', 'Description']);
     configSheet.appendRow(['violation_alert_emails', '', 'Comma-separated email addresses for HACCP violation alerts']);
-    configSheet.appendRow(['enable_violation_alerts', 'true', 'Enable/disable email alerts (true/false)']);
+    configSheet.appendRow(['enable_violation_alerts', 'TRUE', 'Enable/disable email alerts (TRUE/FALSE)']);
     configSheet.appendRow(['temp_threshold', '41', 'Temperature threshold in °F for violations']);
 
     // Format header row
@@ -229,7 +229,21 @@ function getConfig(key) {
   const data = configSheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === key) {
-      return data[i][1];
+      const rawValue = data[i][1];
+
+      // Normalize boolean values for bulletproof checking
+      // Handle: true (bool), "true", "TRUE", "True", 1, "1", "yes", "YES"
+      // Handle: false (bool), "false", "FALSE", "False", 0, "0", "no", "NO"
+      if (key === 'enable_violation_alerts' || key.toLowerCase().includes('enable')) {
+        const stringValue = String(rawValue).trim().toLowerCase();
+        if (stringValue === 'true' || stringValue === '1' || stringValue === 'yes' || rawValue === true) {
+          return 'true';  // Return canonical string
+        } else if (stringValue === 'false' || stringValue === '0' || stringValue === 'no' || rawValue === false) {
+          return 'false';  // Return canonical string
+        }
+      }
+
+      return rawValue;
     }
   }
   return null;
@@ -248,19 +262,30 @@ function setConfig(key, value) {
     configSheet = ss.getSheetByName('Config');
   }
 
+  // Normalize boolean values to canonical TRUE/FALSE for human readability
+  let normalizedValue = value;
+  if (key === 'enable_violation_alerts' || key.toLowerCase().includes('enable')) {
+    const stringValue = String(value).trim().toLowerCase();
+    if (stringValue === 'true' || stringValue === '1' || stringValue === 'yes' || value === true) {
+      normalizedValue = 'TRUE';  // Canonical uppercase for sheet display
+    } else if (stringValue === 'false' || stringValue === '0' || stringValue === 'no' || value === false) {
+      normalizedValue = 'FALSE';  // Canonical uppercase for sheet display
+    }
+  }
+
   const data = configSheet.getDataRange().getValues();
   let found = false;
 
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === key) {
-      configSheet.getRange(i + 1, 2).setValue(value);
+      configSheet.getRange(i + 1, 2).setValue(normalizedValue);
       found = true;
       break;
     }
   }
 
   if (!found) {
-    configSheet.appendRow([key, value, '']);
+    configSheet.appendRow([key, normalizedValue, '']);
   }
 }
 
@@ -576,6 +601,44 @@ function doGet(e) {
     }
   }
 
+  // Reset/reinitialize Config sheet (requires admin token)
+  if (e.parameter.action === 'resetConfig') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized: Invalid or missing admin token' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const existingConfig = ss.getSheetByName('Config');
+
+      // Delete existing Config sheet if it exists
+      if (existingConfig) {
+        ss.deleteSheet(existingConfig);
+      }
+
+      // Reinitialize with defaults
+      initializeConfigSheet();
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          message: 'Config sheet reset to defaults',
+          defaults: {
+            violation_alert_emails: '',
+            enable_violation_alerts: 'TRUE',
+            temp_threshold: '41'
+          }
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // Initialize Config and Alert Log sheets (requires admin token)
   if (e.parameter.action === 'init') {
     if (!verifyAdminToken(e.parameter.token)) {
@@ -620,6 +683,34 @@ function doGet(e) {
         .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
         .setMimeType(ContentService.MimeType.JSON);
     }
+  }
+
+  // Debug config value (requires admin token)
+  if (e.parameter.action === 'debugConfig') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized: Invalid or missing admin token' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const key = e.parameter.key || 'enable_violation_alerts';
+    const rawValue = getConfig(key);
+
+    return ContentService
+      .createTextOutput(JSON.stringify({
+        status: 'ok',
+        key: key,
+        rawValue: rawValue,
+        valueType: typeof rawValue,
+        isString: typeof rawValue === 'string',
+        isBoolean: typeof rawValue === 'boolean',
+        stringValue: String(rawValue),
+        booleanValue: Boolean(rawValue),
+        equalsStringTrue: rawValue === 'true',
+        equalsBooleanTrue: rawValue === true,
+        strictEquality: rawValue === true || rawValue === 'true'
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 
   // Health check ping (requires admin token)

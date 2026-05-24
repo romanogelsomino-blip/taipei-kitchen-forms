@@ -12,6 +12,8 @@
     "test:violation:production": "node scripts/admin-action.js production test",
     "ping:staging": "node scripts/admin-action.js staging ping",
     "ping:production": "node scripts/admin-action.js production ping",
+    "config:reset:staging": "node scripts/admin-action.js staging resetConfig",
+    "config:reset:production": "node scripts/admin-action.js production resetConfig",
     "watch": "clasp push --watch",
     "open": "clasp open",
     "open:staging": "cp .clasp.staging.json .clasp.json && clasp open",
