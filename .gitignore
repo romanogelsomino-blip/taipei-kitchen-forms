@@ -9,3 +9,8 @@ package-lock.json
 
 # Local config (contains sensitive URLs)
 dashboard/config.local.json
+
+# Environment files with admin tokens (NEVER COMMIT)
+.env.staging
+.env.production
+.env
