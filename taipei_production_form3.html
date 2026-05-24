@@ -153,7 +153,50 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
 /* ── TEMP COLOR HINT ── */
 .temp-hint{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--soft);text-align:center;padding:6px;border-top:1px solid var(--border);}
 
-/* ── DISH LIST (replaces table) ── */
+/* ── PRODUCTION TABLE ── */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative;}
+.table-wrap::after{content:'';position:absolute;top:0;right:0;bottom:0;width:40px;background:linear-gradient(90deg,transparent,rgba(0,0,0,.05));pointer-events:none;}
+table{width:100%;border-collapse:collapse;font-size:.875rem;}
+thead th{
+  background:#2C2C2C;color:#fff;
+  font-family:'DM Mono',monospace;font-size:.75rem;
+  letter-spacing:.07em;text-transform:uppercase;
+  padding:10px 7px;text-align:center;
+  border-right:1px solid rgba(255,255,255,.1);
+  white-space:nowrap;
+}
+thead th:first-child{text-align:left;padding-left:14px;min-width:185px;position:sticky;left:0;z-index:10;background:#2C2C2C;}
+tbody tr:nth-child(even) td{background:var(--row-alt);}
+tbody tr:hover td{background:#EEE8DF;}
+tbody td{padding:4px 4px;border-bottom:1px solid var(--border);border-right:1px solid #eee;vertical-align:middle;}
+.dish-label{font-size:.875rem;font-weight:500;padding:7px 8px 7px 14px;white-space:nowrap;color:var(--dark);position:sticky;left:0;background:inherit;z-index:5;}
+
+/* inputs inside table */
+tbody input[type="number"],
+tbody input[type="text"],
+tbody select,
+tbody textarea{
+  width:100%;min-width:80px;border:1.5px solid transparent;background:transparent;
+  font-family:'Inter',sans-serif;font-size:.875rem;color:var(--dark);
+  padding:10px 8px;border-radius:4px;text-align:center;min-height:44px;
+  outline:none;transition:border-color .15s,background .15s;
+}
+tbody input:focus,tbody select:focus,tbody textarea:focus{border-color:var(--red);background:#fff;}
+tbody textarea{resize:none;height:34px;text-align:left;line-height:1.4;}
+
+/* QA select */
+select.qa-select option[value="pass"]{color:var(--green);}
+select.qa-select option[value="fail"]{color:var(--red);}
+
+/* tfoot */
+tfoot td{
+  background:var(--dark);color:#fff;
+  font-family:'Syne',sans-serif;font-weight:700;
+  font-size:.82rem;padding:9px 7px;text-align:center;
+}
+tfoot td:first-child{text-align:left;padding-left:14px;}
+
+/* ── DISH LIST (mobile alternative to table) ── */
 .dish-list{padding:10px;}
 .dish-card{background:var(--row-alt);border:1.5px solid var(--border);border-radius:6px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:all .15s;}
 .dish-card:hover{border-color:var(--red);background:#fff;}
@@ -167,6 +210,22 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
 .dish-card:hover .dish-card-icon{opacity:1;}
 .dish-card.completed{border-color:var(--green);background:#F0FBF4;}
 .dish-card.completed .dish-card-icon{opacity:1;}
+
+/* ── RESPONSIVE: Desktop = Table, Mobile = Cards + Modal ── */
+.desktop-only { display: none; }
+.mobile-only { display: block; }
+
+@media (min-width: 768px) {
+  .desktop-only { display: block; }
+  .mobile-only { display: none !important; }
+  .table-wrap { display: block; }
+  .dish-list { display: none !important; }
+  .dish-modal { display: none !important; }
+}
+@media (max-width: 767px) {
+  .table-wrap { display: none; }
+  .dish-list { display: block; }
+}
 
 /* ── DISH MODAL ── */
 .dish-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;align-items:flex-end;justify-content:center;animation:fadeIn .2s;}
@@ -326,14 +385,46 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
     </div>
   </div>
 
-  <!-- ── PRODUCTION TABLE ── -->
+  <!-- ── PRODUCTION DATA ENTRY ── -->
   <div class="form-card">
     <div class="card-header">
       <h2>Dish-by-Dish Production Log</h2>
-      <p>Tap each dish to enter production data · <span id="progress-text">0 of 13 completed</span></p>
+      <p class="desktop-only">One row per dish · batch cook and cooling times are set above and apply to all</p>
+      <p class="mobile-only">Tap each dish to enter production data · <span id="progress-text">0 of 13 completed</span></p>
     </div>
+
+    <!-- Desktop: Table Grid -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width:185px;">Dish</th>
+            <th>Qty<br>Produced</th>
+            <th>Qty<br>Discarded</th>
+            <th style="min-width:130px;">Discard<br>Reason</th>
+            <th>Final<br>Temp °F</th>
+            <th>QA</th>
+            <th style="min-width:160px;">QA / Quality Notes</th>
+            <th>Initials</th>
+          </tr>
+        </thead>
+        <tbody id="prod-tbody"></tbody>
+        <tfoot>
+          <tr>
+            <td>TOTALS</td>
+            <td id="total-produced-desktop">0</td>
+            <td id="total-discarded-desktop">0</td>
+            <td colspan="5"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- Mobile: Dish Cards -->
     <div id="dish-list" class="dish-list"></div>
-    <div style="padding:16px 20px;border-top:2px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+
+    <!-- Totals (shown on mobile) -->
+    <div class="mobile-only" style="padding:16px 20px;border-top:2px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
       <div style="font-family:'DM Mono',monospace;font-size:.78rem;color:var(--soft);">
         Totals: <strong style="color:var(--dark)"><span id="total-produced">0</span> produced</strong> · <strong style="color:var(--dark)"><span id="total-discarded">0</span> discarded</strong>
       </div>
@@ -593,7 +684,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
-  buildDishList();
+  buildDishList();  // Mobile: dish cards
+  buildProductionTable();  // Desktop: table grid
   updateBatchId();
 
   // Load supervisor dropdown
@@ -736,6 +828,51 @@ function buildDishList() {
   updateProgress();
 }
 
+// ─── DESKTOP TABLE (for screens ≥768px) ─────────────────────
+function buildProductionTable() {
+  initDishData();
+  const tbody = document.getElementById('prod-tbody');
+  tbody.innerHTML = '';
+
+  DISHES.forEach((dish, index) => {
+    const data = dishData[dish];
+    const row = document.createElement('tr');
+    row.dataset.dish = dish;
+
+    row.innerHTML = `
+      <td class="dish-label">${dish}</td>
+      <td><input type="number" min="0" placeholder="0" value="${data.produced}" oninput="syncTableToData('${dish}', 'produced', this.value)"></td>
+      <td><input type="number" min="0" placeholder="0" value="${data.discarded}" oninput="syncTableToData('${dish}', 'discarded', this.value)"></td>
+      <td><input type="text" placeholder="Reason…" value="${data.discardReason}" oninput="syncTableToData('${dish}', 'discardReason', this.value)"></td>
+      <td><input type="number" min="30" max="212" placeholder="°F" value="${data.finalTemp}" oninput="syncTableToData('${dish}', 'finalTemp', this.value); flagTableTemp(this)"></td>
+      <td>
+        <select class="qa-select" onchange="syncTableToData('${dish}', 'qa', this.value)">
+          <option value="pass" ${data.qa === 'pass' ? 'selected' : ''}>Pass</option>
+          <option value="fail" ${data.qa === 'fail' ? 'selected' : ''}>Fail</option>
+        </select>
+      </td>
+      <td><textarea placeholder="Notes…" oninput="syncTableToData('${dish}', 'qaNotes', this.value)">${data.qaNotes}</textarea></td>
+      <td><input type="text" placeholder="XY" value="${data.initials}" oninput="syncTableToData('${dish}', 'initials', this.value)"></td>
+    `;
+
+    tbody.appendChild(row);
+  });
+
+  updateProgress();
+}
+
+function syncTableToData(dish, field, value) {
+  dishData[dish][field] = value;
+  saveDishDataToStorage();
+  updateProgress();
+}
+
+function flagTableTemp(el) {
+  const val = parseFloat(el.value);
+  el.style.borderColor = val > 41 ? 'var(--red)' : (val > 0 ? 'var(--green)' : '');
+  el.style.background = val > 41 ? 'var(--red-lt)' : '';
+}
+
 function getDishStatus(dish) {
   const data = dishData[dish];
   const hasData = data.produced || data.discarded || data.finalTemp || data.qaNotes || data.initials;
@@ -748,16 +885,27 @@ function getDishStatus(dish) {
 
 function updateProgress() {
   const complete = DISHES.filter(d => getDishStatus(d) === 'complete').length;
-  document.getElementById('progress-text').textContent = `${complete} of ${DISHES.length} completed`;
+  const progressEl = document.getElementById('progress-text');
+  if (progressEl) progressEl.textContent = `${complete} of ${DISHES.length} completed`;
 
-  // Update totals
+  // Update totals (both mobile and desktop)
   let totalProduced = 0, totalDiscarded = 0;
   DISHES.forEach(dish => {
     totalProduced += parseInt(dishData[dish].produced) || 0;
     totalDiscarded += parseInt(dishData[dish].discarded) || 0;
   });
-  document.getElementById('total-produced').textContent = totalProduced;
-  document.getElementById('total-discarded').textContent = totalDiscarded;
+
+  // Mobile totals
+  const mobileProduced = document.getElementById('total-produced');
+  const mobileDiscarded = document.getElementById('total-discarded');
+  if (mobileProduced) mobileProduced.textContent = totalProduced;
+  if (mobileDiscarded) mobileDiscarded.textContent = totalDiscarded;
+
+  // Desktop table totals
+  const desktopProduced = document.getElementById('total-produced-desktop');
+  const desktopDiscarded = document.getElementById('total-discarded-desktop');
+  if (desktopProduced) desktopProduced.textContent = totalProduced;
+  if (desktopDiscarded) desktopDiscarded.textContent = totalDiscarded;
 }
 
 function openDishModal(index) {
@@ -825,8 +973,9 @@ function saveDishAndNext() {
   // Save to localStorage
   saveDishDataToStorage();
 
-  // Update the card in the list
-  buildDishList();
+  // Update both UIs
+  buildDishList();  // Mobile: dish cards
+  buildProductionTable();  // Desktop: table grid
 
   // Move to next dish or close
   if (currentDishIndex < DISHES.length - 1) {
