@@ -126,29 +126,51 @@ The backend (`Code.gs`) runs as a Google Apps Script attached to both staging an
 
 **Deployment is automated via `clasp`** — no more manual copy-paste.
 
-#### Staging First (Required)
+#### Automated Workflow (Staging → Production)
 ```bash
 # 1. Deploy to staging
 npm run deploy
 
-# 2. Test on staging sheet
-# - Run initializeConfigSheet() in Apps Script editor
-# - Submit test forms
-# - Verify dashboard shows data
-# - Test email alerts
+# 2. Initialize staging sheets (first time only)
+npm run init:staging
 
-# 3. Only after staging tests pass → deploy to production
+# 3. Test email alerts on staging
+npm run test:violation:staging
+
+# 4. Verify email received at leandertoney@gmail.com
+# Check email inbox + Alert Log sheet for SUCCESS status
+
+# 5. Deploy to production (only after staging tests pass)
 npm run deploy:production
+
+# 6. Initialize production sheets (first time only)
+npm run init:production
+
+# 7. Test email alerts on production
+npm run test:violation:production
 ```
 
-#### Manual Deployment (If Needed)
-1. Edit `apps_script/Code.gs` in this repo
-2. Open the Google Sheet → Extensions → Apps Script
-3. Paste the updated code
-4. Save (Cmd/Ctrl+S)
-5. For dashboard API changes: Deploy → Manage deployments → Edit → New version → Deploy
+#### Available Commands
+```bash
+# Deployment
+npm run deploy                      # Deploy to staging (default)
+npm run deploy:staging              # Deploy to staging (explicit)
+npm run deploy:production           # Deploy to production
 
-**Note**: Always test on staging before production. Production issues affect live driver operations.
+# Initialization (first time setup)
+npm run init:staging                # Create Config & Alert Log sheets
+npm run init:production             # Create Config & Alert Log sheets
+
+# Testing
+npm run test:violation:staging      # Simulate HACCP violation alert
+npm run test:violation:production   # Simulate HACCP violation alert
+
+# Utilities
+npm run open:staging                # Open staging script in browser
+npm run open:production             # Open production script in browser
+```
+
+**Note**: All Apps Script functions are automated via `clasp run` — no GUI clicking required. Always test on staging before production.
 
 ---
 
