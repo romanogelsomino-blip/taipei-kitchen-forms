@@ -3,11 +3,13 @@
   "version": "2.1.0",
   "description": "Taipei Kitchen Bento operations system - production, delivery, food safety, and analytics",
   "scripts": {
-    "deploy": "clasp push",
-    "deploy:staging": "clasp push --scriptId $STAGING_SCRIPT_ID",
-    "deploy:production": "clasp push --scriptId $PRODUCTION_SCRIPT_ID",
+    "deploy": "cp .clasp.staging.json .clasp.json && clasp push",
+    "deploy:staging": "cp .clasp.staging.json .clasp.json && clasp push",
+    "deploy:production": "cp .clasp.production.json .clasp.json && clasp push",
     "watch": "clasp push --watch",
     "open": "clasp open",
+    "open:staging": "cp .clasp.staging.json .clasp.json && clasp open",
+    "open:production": "cp .clasp.production.json .clasp.json && clasp open",
     "logs": "clasp logs"
   },
   "repository": {

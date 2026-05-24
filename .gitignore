@@ -5,6 +5,7 @@ package-lock.json
 
 # Clasp
 .clasprc.json
+.clasp.json  # Generated dynamically from .clasp.staging.json or .clasp.production.json
 
 # Local config (contains sensitive URLs)
 dashboard/config.local.json

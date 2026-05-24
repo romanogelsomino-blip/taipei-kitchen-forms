@@ -122,14 +122,33 @@ To update the dashboard:
 4. Dashboard updates at https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
 
 ### Apps Script
-The backend (`Code.gs`) runs as a Google Apps Script attached to the master sheet.
+The backend (`Code.gs`) runs as a Google Apps Script attached to both staging and production sheets.
 
-To update:
-1. Edit `Code.gs` in this repo
+**Deployment is automated via `clasp`** — no more manual copy-paste.
+
+#### Staging First (Required)
+```bash
+# 1. Deploy to staging
+npm run deploy
+
+# 2. Test on staging sheet
+# - Run initializeConfigSheet() in Apps Script editor
+# - Submit test forms
+# - Verify dashboard shows data
+# - Test email alerts
+
+# 3. Only after staging tests pass → deploy to production
+npm run deploy:production
+```
+
+#### Manual Deployment (If Needed)
+1. Edit `apps_script/Code.gs` in this repo
 2. Open the Google Sheet → Extensions → Apps Script
 3. Paste the updated code
 4. Save (Cmd/Ctrl+S)
 5. For dashboard API changes: Deploy → Manage deployments → Edit → New version → Deploy
+
+**Note**: Always test on staging before production. Production issues affect live driver operations.
 
 ---
 
