@@ -59,6 +59,25 @@ function doPost(e) {
           row.notes,              // Col Q  – Store Notes
           row.receivedBy          // Col R  – Received By
         ]);
+
+        // P2.4: Check for HACCP violations and send alerts
+        try {
+          // Get store name from data/stores.json format
+          const storeNames = {
+            '6006': 'Giant Hampden',
+            '6061': 'Giant Columbia Gateway',
+            '6253': 'Giant Columbia',
+            '6331': 'Giant Clarksville',
+            '6443': 'Giant Elkridge',
+            '6542': 'Giant Laurel',
+            '6564': 'Giant Catonsville'
+          };
+          const storeName = storeNames[row.store] || `Store ${row.store}`;
+          onViolationDetected(row, storeName);
+        } catch (alertError) {
+          Logger.log(`Warning: Violation check failed for ${row.store}: ${alertError}`);
+          // Don't fail the whole submission if alert fails
+        }
       });
     }
 
@@ -112,4 +131,346 @@ function testConnection() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   Logger.log('Connected to: ' + ss.getName());
   Logger.log('Sheets found: ' + ss.getSheets().map(s => s.getName()).join(', '));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// P2.4: HACCP Violation Alerts System (Backend)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Initialize Config sheet if it doesn't exist
+ * Run this once manually after deploying to create the Config tab
+ */
+function initializeConfigSheet() {
+  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  let configSheet = ss.getSheetByName('Config');
+  if (!configSheet) {
+    configSheet = ss.insertSheet('Config');
+
+    // Set up headers and default values
+    configSheet.appendRow(['Setting', 'Value', 'Description']);
+    configSheet.appendRow(['violation_alert_emails', '', 'Comma-separated email addresses for HACCP violation alerts']);
+    configSheet.appendRow(['enable_violation_alerts', 'true', 'Enable/disable email alerts (true/false)']);
+    configSheet.appendRow(['temp_threshold', '41', 'Temperature threshold in °F for violations']);
+
+    // Format header row
+    const headerRange = configSheet.getRange('A1:C1');
+    headerRange.setFontWeight('bold');
+    headerRange.setBackground('#1C1C1C');
+    headerRange.setFontColor('#FFFFFF');
+
+    // Auto-resize columns
+    configSheet.autoResizeColumns(1, 3);
+
+    Logger.log('✅ Config sheet created');
+  } else {
+    Logger.log('Config sheet already exists');
+  }
+}
+
+/**
+ * Initialize Alert Log sheet if it doesn't exist
+ */
+function initializeAlertLogSheet() {
+  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  let alertLogSheet = ss.getSheetByName('Alert Log');
+  if (!alertLogSheet) {
+    alertLogSheet = ss.insertSheet('Alert Log');
+
+    // Set up headers
+    alertLogSheet.appendRow([
+      'Timestamp',
+      'Violation Type',
+      'Store',
+      'Store Name',
+      'Temperature',
+      'Threshold',
+      'Date',
+      'Time',
+      'Driver',
+      'Received By',
+      'Recipients',
+      'Email Status',
+      'Error Message'
+    ]);
+
+    // Format header row
+    const headerRange = alertLogSheet.getRange('A1:M1');
+    headerRange.setFontWeight('bold');
+    headerRange.setBackground('#C0392B');
+    headerRange.setFontColor('#FFFFFF');
+
+    // Freeze header row
+    alertLogSheet.setFrozenRows(1);
+
+    // Auto-resize columns
+    alertLogSheet.autoResizeColumns(1, 13);
+
+    Logger.log('✅ Alert Log sheet created');
+  } else {
+    Logger.log('Alert Log sheet already exists');
+  }
+}
+
+/**
+ * Get config value from Config sheet
+ */
+function getConfig(key) {
+  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const configSheet = ss.getSheetByName('Config');
+
+  if (!configSheet) return null;
+
+  const data = configSheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === key) {
+      return data[i][1];
+    }
+  }
+  return null;
+}
+
+/**
+ * Set config value in Config sheet
+ */
+function setConfig(key, value) {
+  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let configSheet = ss.getSheetByName('Config');
+
+  if (!configSheet) {
+    initializeConfigSheet();
+    configSheet = ss.getSheetByName('Config');
+  }
+
+  const data = configSheet.getDataRange().getValues();
+  let found = false;
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === key) {
+      configSheet.getRange(i + 1, 2).setValue(value);
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    configSheet.appendRow([key, value, '']);
+  }
+}
+
+/**
+ * Log violation alert attempt
+ */
+function logViolationAlert(violationType, storeId, storeName, temp, threshold, date, time, driver, receivedBy, recipients, emailStatus, errorMessage) {
+  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let alertLogSheet = ss.getSheetByName('Alert Log');
+
+  if (!alertLogSheet) {
+    initializeAlertLogSheet();
+    alertLogSheet = ss.getSheetByName('Alert Log');
+  }
+
+  alertLogSheet.appendRow([
+    new Date(),
+    violationType,
+    storeId,
+    storeName,
+    temp,
+    threshold,
+    date,
+    time,
+    driver,
+    receivedBy,
+    recipients,
+    emailStatus,
+    errorMessage || ''
+  ]);
+}
+
+/**
+ * Check for HACCP violation and send alert if needed
+ * Called automatically after delivery form submission
+ */
+function onViolationDetected(deliveryData, storeName) {
+  const enableAlerts = getConfig('enable_violation_alerts');
+  if (enableAlerts !== 'true') {
+    Logger.log('Violation alerts disabled');
+    return;
+  }
+
+  const emailList = getConfig('violation_alert_emails');
+  if (!emailList || emailList.trim() === '') {
+    Logger.log('No email recipients configured');
+    return;
+  }
+
+  const recipients = emailList.split(',').map(e => e.trim()).filter(e => e);
+  if (recipients.length === 0) {
+    Logger.log('No valid email recipients');
+    return;
+  }
+
+  const threshold = parseFloat(getConfig('temp_threshold') || '41');
+  const coolerTemp = parseFloat(deliveryData.coolerTemp);
+  const arrivalTemp = parseFloat(deliveryData.arrivalTemp);
+
+  let violations = [];
+
+  if (!isNaN(coolerTemp) && coolerTemp > threshold) {
+    violations.push({
+      type: 'Cooler Temperature',
+      temp: coolerTemp,
+      threshold: threshold
+    });
+  }
+
+  if (!isNaN(arrivalTemp) && arrivalTemp > threshold) {
+    violations.push({
+      type: 'Delivery Temperature',
+      temp: arrivalTemp,
+      threshold: threshold
+    });
+  }
+
+  if (violations.length === 0) {
+    return; // No violations
+  }
+
+  // Send email for each violation
+  violations.forEach(violation => {
+    try {
+      const subject = `⚠️ HACCP Violation Alert: ${violation.type} - ${storeName}`;
+      const body = `
+HACCP VIOLATION DETECTED
+
+Store: ${storeName} (${deliveryData.store})
+Date: ${deliveryData.date}
+Time: ${deliveryData.arrive || 'N/A'}
+
+Violation Type: ${violation.type}
+Recorded Temperature: ${violation.temp}°F
+Threshold: ${violation.threshold}°F
+
+Driver: ${deliveryData.driver}
+Received By: ${deliveryData.receivedBy || 'N/A'}
+
+Dish: ${deliveryData.dish}
+Quantity Added: ${deliveryData.added || 0}
+
+Notes: ${deliveryData.notes || 'None'}
+
+This is an automated alert from the Taipei Kitchen Bento Operations System.
+Please take corrective action and document the response.
+
+View dashboard: https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
+      `.trim();
+
+      MailApp.sendEmail({
+        to: recipients.join(','),
+        subject: subject,
+        body: body
+      });
+
+      logViolationAlert(
+        violation.type,
+        deliveryData.store,
+        storeName,
+        violation.temp,
+        violation.threshold,
+        deliveryData.date,
+        deliveryData.arrive,
+        deliveryData.driver,
+        deliveryData.receivedBy,
+        recipients.join(', '),
+        'SUCCESS',
+        null
+      );
+
+      Logger.log(`✅ Violation alert sent to ${recipients.length} recipient(s)`);
+    } catch (error) {
+      logViolationAlert(
+        violation.type,
+        deliveryData.store,
+        storeName,
+        violation.temp,
+        violation.threshold,
+        deliveryData.date,
+        deliveryData.arrive,
+        deliveryData.driver,
+        deliveryData.receivedBy,
+        recipients.join(', '),
+        'FAILED',
+        error.toString()
+      );
+
+      Logger.log(`❌ Failed to send violation alert: ${error}`);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// doGet Handler - Dashboard API & Config Management
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function doGet(e) {
+  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+
+  // Handle config read request
+  if (e.parameter.action === 'getConfig') {
+    try {
+      const key = e.parameter.key;
+      if (!key) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'error', message: 'Missing key parameter' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const value = getConfig(key);
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok', value: value }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Handle config write request
+  if (e.parameter.action === 'setConfig') {
+    try {
+      const key = e.parameter.key;
+      const value = e.parameter.value;
+
+      if (!key) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'error', message: 'Missing key parameter' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      setConfig(key, value || '');
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok', message: 'Config saved' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Default: Return error for unknown action
+  return ContentService
+    .createTextOutput(JSON.stringify({
+      status: 'error',
+      message: 'Unknown action. Supported actions: getConfig, setConfig'
+    }))
+    .setMimeType(ContentService.MimeType.JSON);
 }

@@ -1055,7 +1055,7 @@ ${lastError ? `
 
 <!-- Dashboard Tour Script -->
 <script>
-const TOUR_VERSION = '2.0';
+const TOUR_VERSION = '2.1';
 
 function startDashboardTour() {
   const driver = window.driver.js.driver;
@@ -1066,8 +1066,8 @@ function startDashboardTour() {
       {
         element: '.brand',
         popover: {
-          title: 'Welcome to Taipei Kitchen Dashboard v2.0',
-          description: 'This interactive tour will guide you through all features, including new additions in v2.0. Click "Next" to continue or "Close" to exit anytime.',
+          title: 'Welcome to Taipei Kitchen Dashboard v2.1',
+          description: 'This interactive tour will guide you through all features, including new additions in v2.1: multi-select filters, case fullness analytics, HACCP drill-down, and violation alerts. Click "Next" to continue or "Close" to exit anytime.',
           side: "bottom",
           align: 'start'
         }
@@ -1154,6 +1154,51 @@ function startDashboardTour() {
         }
       },
       {
+        element: '#violation-alert-banner',
+        popover: {
+          title: 'NEW v2.1: HACCP Violation Banner',
+          description: 'Get immediate visibility when temperature violations are detected in the last 7 days. Click "View Violations" to jump to Food Safety, or dismiss for 1 hour.',
+          side: "bottom",
+          align: 'start'
+        }
+      },
+      {
+        element: '.nav-link[data-panel="deliveries"]',
+        popover: {
+          title: 'NEW v2.1: Multi-Select Filters',
+          description: 'Filter deliveries by multiple stores or days of the week simultaneously. Select "All Stores" + "Monday, Tuesday, Wednesday" to analyze weekday patterns across all locations.',
+          side: "right",
+          align: 'start'
+        }
+      },
+      {
+        element: '#delivery-fullness-multiselect-container',
+        popover: {
+          title: 'NEW v2.1: Case Fullness Analytics',
+          description: 'Track how full cooler cases are on arrival (0-25%, 25-50%, 50-75%, 75-100%). See average fullness per store in the metrics cards and filter by fullness levels.',
+          side: "top",
+          align: 'start'
+        }
+      },
+      {
+        element: '.nav-link[data-panel="food-safety"]',
+        popover: {
+          title: 'NEW v2.1: HACCP Drill-Down & Alerts',
+          description: 'Click violation counts in the Weekly Food Safety Summary to see detailed incident reports. Automatic email alerts notify your team when violations are detected. Configure recipients in Settings.',
+          side: "right",
+          align: 'start'
+        }
+      },
+      {
+        element: '#violations-queue',
+        popover: {
+          title: 'NEW v2.1: Violations Queue',
+          description: 'Track all HACCP violations from the last 7 days in one place. View details, export to PDF, and stay on top of corrective actions.',
+          side: "top",
+          align: 'start'
+        }
+      },
+      {
         element: '#bug-report-btn',
         popover: {
           title: 'Bug Reporting',
@@ -1165,7 +1210,7 @@ function startDashboardTour() {
       {
         popover: {
           title: 'Tour Complete!',
-          description: 'You\'re all set with v2.0! Visit Settings to customize thresholds and restart this tour anytime. Enjoy the new features!',
+          description: 'You\'re all set with v2.1! Explore multi-select filters, case fullness tracking, HACCP drill-down, and automated violation alerts. Visit Settings to customize thresholds and restart this tour anytime. Enjoy!',
         }
       }
     ]

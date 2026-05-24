@@ -2584,7 +2584,7 @@ function saveSettings() {
   alert('Settings saved successfully! Refresh the dashboard to see updated calculations.');
 }
 
-function saveViolationAlertSettings() {
+async function saveViolationAlertSettings() {
   // Read email list from textarea (one per line)
   const emailText = document.getElementById('violation-alert-emails').value;
   const emails = emailText.split('\n')
@@ -2597,8 +2597,24 @@ function saveViolationAlertSettings() {
   // Save to localStorage
   localStorage.setItem('dashboard-settings', JSON.stringify(SETTINGS));
 
-  // Show confirmation
-  alert(`Alert settings saved!\n\n${emails.length} recipient(s) configured.\nAlerts ${SETTINGS.enableViolationAlerts ? 'enabled' : 'disabled'}.\n\nNote: Backend configuration required for email delivery.`);
+  // Sync to backend Config sheet
+  if (CONFIG.webAppUrl && CONFIG.webAppUrl !== 'DEMO_MODE') {
+    try {
+      // Save email list
+      const emailListUrl = `${CONFIG.webAppUrl}?action=setConfig&key=violation_alert_emails&value=${encodeURIComponent(emails.join(','))}`;
+      await fetch(emailListUrl);
+
+      // Save enable/disable flag
+      const enableUrl = `${CONFIG.webAppUrl}?action=setConfig&key=enable_violation_alerts&value=${SETTINGS.enableViolationAlerts}`;
+      await fetch(enableUrl);
+
+      alert(`Alert settings saved!\n\n✅ ${emails.length} recipient(s) configured in Config sheet.\n✅ Alerts ${SETTINGS.enableViolationAlerts ? 'enabled' : 'disabled'}.\n\nEmail alerts will now be sent automatically when HACCP violations are detected.`);
+    } catch (error) {
+      alert(`Alert settings saved locally, but failed to sync to backend.\n\n${emails.length} recipient(s) configured.\nAlerts ${SETTINGS.enableViolationAlerts ? 'enabled' : 'disabled'}.\n\nError: ${error.message}\n\nPlease check your Apps Script deployment.`);
+    }
+  } else {
+    alert(`Alert settings saved!\n\n${emails.length} recipient(s) configured.\nAlerts ${SETTINGS.enableViolationAlerts ? 'enabled' : 'disabled'}.\n\nNote: Configure CONFIG.webAppUrl to enable backend sync.`);
+  }
 }
 
 function setThemeFromSettings(theme) {
