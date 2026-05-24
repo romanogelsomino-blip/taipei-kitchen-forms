@@ -42,11 +42,44 @@ npm run deploy:staging
 # Deploy to production (ONLY after staging tests pass)
 npm run deploy:production
 
+# Initialize Config and Alert Log sheets on staging
+npm run init:staging
+
+# Initialize Config and Alert Log sheets on production
+npm run init:production
+
+# Test email alerts end-to-end on staging
+npm run test:violation:staging
+
+# Test email alerts end-to-end on production
+npm run test:violation:production
+
 # Open staging script in browser
 npm run open:staging
 
 # Open production script in browser
 npm run open:production
+```
+
+#### Automation Philosophy
+- ✅ **NO GUI CLICKING**: All Apps Script functions must be runnable via npm scripts
+- ✅ **NO MANUAL STEPS**: Setup, testing, and maintenance fully automated via `clasp run`
+- ✅ **TESTABLE**: Every Apps Script function has an npm script equivalent
+- ✅ **CI-READY**: All commands can run in automated pipelines
+
+**Example**: Adding a new Apps Script function
+```javascript
+// In Code.gs
+function myNewFunction() {
+  // Implementation
+}
+```
+```json
+// In package.json
+"scripts": {
+  "run:myFunction:staging": "cp .clasp.staging.json .clasp.json && clasp run myNewFunction",
+  "run:myFunction:production": "cp .clasp.production.json .clasp.json && clasp run myNewFunction"
+}
 ```
 
 ### GitHub Pages
