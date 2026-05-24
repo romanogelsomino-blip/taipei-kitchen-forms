@@ -523,17 +523,18 @@ function simulateViolation() {
  * Call this via Web App URL with ?action=setupAdminToken (first time only).
  * Returns the generated token - save it to .env.staging or .env.production.
  *
+ * @param {boolean} force - If true, overwrite existing token (use cautiously)
  * @returns {Object} Generated token and instructions
  */
-function setupAdminToken() {
+function setupAdminToken(force) {
   const scriptProperties = PropertiesService.getScriptProperties();
 
   // Check if token already exists
   const existingToken = scriptProperties.getProperty('ADMIN_TOKEN');
-  if (existingToken) {
+  if (existingToken && !force) {
     return {
       status: 'EXISTS',
-      message: 'Admin token already configured. To regenerate, manually delete ADMIN_TOKEN from Script Properties first.',
+      message: 'Admin token already configured. Use force=true to overwrite (this will invalidate the old token).',
       token: '[REDACTED]'
     };
   }
@@ -548,7 +549,7 @@ function setupAdminToken() {
 
   return {
     status: 'SUCCESS',
-    message: 'Admin token generated and stored in Script Properties',
+    message: existingToken ? 'Admin token regenerated (old token invalidated)' : 'Admin token generated and stored in Script Properties',
     token: token,
     instructions: 'Save this token to .env.staging or .env.production (gitignored). You will need it for all admin API calls.'
   };
@@ -590,9 +591,38 @@ function doGet(e) {
   // One-time setup: Generate admin token (no auth required - first time only)
   if (e.parameter.action === 'setupAdminToken') {
     try {
-      const result = setupAdminToken();
+      const force = e.parameter.force === 'true' || e.parameter.force === '1';
+      const result = setupAdminToken(force);
       return ContentService
         .createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Rotate admin token: generate new token (requires current valid token)
+  if (e.parameter.action === 'rotateAdminToken') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized: Invalid or missing admin token' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const scriptProperties = PropertiesService.getScriptProperties();
+      const newToken = Utilities.getUuid();
+      scriptProperties.setProperty('ADMIN_TOKEN', newToken);
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          message: 'Admin token rotated successfully',
+          newToken: newToken,
+          instructions: 'Update .env.staging or .env.production with the new token'
+        }))
         .setMimeType(ContentService.MimeType.JSON);
     } catch (error) {
       return ContentService
