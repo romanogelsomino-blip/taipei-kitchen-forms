@@ -1,0 +1,23 @@
+{
+  "name": "taipei-kitchen-forms",
+  "version": "2.1.0",
+  "description": "Taipei Kitchen Bento operations system - production, delivery, food safety, and analytics",
+  "scripts": {
+    "deploy": "clasp push",
+    "deploy:staging": "clasp push --scriptId $STAGING_SCRIPT_ID",
+    "deploy:production": "clasp push --scriptId $PRODUCTION_SCRIPT_ID",
+    "watch": "clasp push --watch",
+    "open": "clasp open",
+    "logs": "clasp logs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/romanogelsomino-blip/taipei-kitchen-forms.git"
+  },
+  "author": "Leander Toney <leandertoney@gmail.com>",
+  "license": "UNLICENSED",
+  "private": true,
+  "devDependencies": {
+    "@google/clasp": "^2.4.2"
+  }
+}
