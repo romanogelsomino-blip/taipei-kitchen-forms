@@ -3,14 +3,14 @@
 // Taipei Kitchen — Google Apps Script
 // 1. In your Google Sheet go to Extensions → Apps Script
 // 2. Delete everything there and paste ALL of the code below
-// 3. Replace YOUR_SPREADSHEET_ID with your actual Sheet ID
+// 3. Replace 1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E with your actual Sheet ID
 // 4. Click Deploy → New deployment → Web app → Execute as: Me → Anyone → Deploy
 // 5. Copy the Web app URL and paste it into both HTML form files
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function doPost(e) {
-  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID'; // ← Replace this
-  const BUG_REPORT_EMAIL = 'YOUR_EMAIL@example.com'; // ← Replace with your email for bug reports
+  const SPREADSHEET_ID = '1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E'; // ← Replace this
+  const BUG_REPORT_EMAIL = 'leandertoney@gmail.com'; // ← Replace with your email for bug reports
 
   try {
     const payload  = JSON.parse(e.postData.contents);
@@ -127,7 +127,7 @@ function doPost(e) {
 
 // Test function — run this manually in the editor to verify your Sheet ID is correct
 function testConnection() {
-  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const SPREADSHEET_ID = '1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   Logger.log('Connected to: ' + ss.getName());
   Logger.log('Sheets found: ' + ss.getSheets().map(s => s.getName()).join(', '));
@@ -142,7 +142,7 @@ function testConnection() {
  * Run this once manually after deploying to create the Config tab
  */
 function initializeConfigSheet() {
-  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const SPREADSHEET_ID = '1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
   let configSheet = ss.getSheetByName('Config');
@@ -174,7 +174,7 @@ function initializeConfigSheet() {
  * Initialize Alert Log sheet if it doesn't exist
  */
 function initializeAlertLogSheet() {
-  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const SPREADSHEET_ID = '1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
   let alertLogSheet = ss.getSheetByName('Alert Log');
@@ -220,7 +220,7 @@ function initializeAlertLogSheet() {
  * Get config value from Config sheet
  */
 function getConfig(key) {
-  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const SPREADSHEET_ID = '1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const configSheet = ss.getSheetByName('Config');
 
@@ -239,7 +239,7 @@ function getConfig(key) {
  * Set config value in Config sheet
  */
 function setConfig(key, value) {
-  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const SPREADSHEET_ID = '1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let configSheet = ss.getSheetByName('Config');
 
@@ -268,7 +268,7 @@ function setConfig(key, value) {
  * Log violation alert attempt
  */
 function logViolationAlert(violationType, storeId, storeName, temp, threshold, date, time, driver, receivedBy, recipients, emailStatus, errorMessage) {
-  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const SPREADSHEET_ID = '1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let alertLogSheet = ss.getSheetByName('Alert Log');
 
@@ -420,7 +420,7 @@ View dashboard: https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dash
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function doGet(e) {
-  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID';
+  const SPREADSHEET_ID = '1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E';
 
   // Handle config read request
   if (e.parameter.action === 'getConfig') {
