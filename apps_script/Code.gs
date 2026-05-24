@@ -217,6 +217,52 @@ function initializeAlertLogSheet() {
 }
 
 /**
+ * Initialize Violations Tracker sheet if it doesn't exist.
+ * Tracks HACCP violations with status management (open → in_progress → resolved).
+ */
+function initializeViolationsTrackerSheet() {
+  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  let violationsSheet = ss.getSheetByName('Violations Tracker');
+  if (!violationsSheet) {
+    violationsSheet = ss.insertSheet('Violations Tracker');
+
+    // Set up headers
+    violationsSheet.appendRow([
+      'Violation ID',
+      'Timestamp',
+      'Store ID',
+      'Store Name',
+      'Violation Type',
+      'Value',
+      'Threshold',
+      'Alert Log Ref',
+      'Status',
+      'Notes',
+      'Resolved At',
+      'Resolved By'
+    ]);
+
+    // Format header row
+    const headerRange = violationsSheet.getRange('A1:L1');
+    headerRange.setFontWeight('bold');
+    headerRange.setBackground('#C0392B');
+    headerRange.setFontColor('#FFFFFF');
+
+    // Freeze header row
+    violationsSheet.setFrozenRows(1);
+
+    // Auto-resize columns
+    violationsSheet.autoResizeColumns(1, 12);
+
+    Logger.log('✅ Violations Tracker sheet created');
+  } else {
+    Logger.log('Violations Tracker sheet already exists');
+  }
+}
+
+/**
  * Get config value from Config sheet
  */
 function getConfig(key) {
@@ -320,6 +366,41 @@ function logViolationAlert(violationType, storeId, storeName, temp, threshold, d
 }
 
 /**
+ * Create a violation tracker entry
+ */
+function createViolationTrackerEntry(violationType, storeId, storeName, temp, threshold, alertLogTimestamp) {
+  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let violationsSheet = ss.getSheetByName('Violations Tracker');
+
+  if (!violationsSheet) {
+    initializeViolationsTrackerSheet();
+    violationsSheet = ss.getSheetByName('Violations Tracker');
+  }
+
+  const violationId = Utilities.getUuid();
+  const timestamp = new Date().toISOString();
+
+  violationsSheet.appendRow([
+    violationId,                    // Violation ID
+    timestamp,                      // Timestamp
+    storeId,                        // Store ID
+    storeName,                      // Store Name
+    violationType,                  // Violation Type
+    temp,                           // Value
+    threshold,                      // Threshold
+    alertLogTimestamp,              // Alert Log Ref
+    'open',                         // Status (open, in_progress, resolved)
+    '',                             // Notes
+    '',                             // Resolved At
+    ''                              // Resolved By
+  ]);
+
+  Logger.log(`✅ Violation tracker entry created: ${violationId}`);
+  return violationId;
+}
+
+/**
  * Check for HACCP violation and send alert if needed
  * Called automatically after delivery form submission
  */
@@ -403,6 +484,8 @@ View dashboard: https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dash
         body: body
       });
 
+      const alertTimestamp = new Date().toISOString();
+
       logViolationAlert(
         violation.type,
         deliveryData.store,
@@ -416,6 +499,16 @@ View dashboard: https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dash
         recipients.join(', '),
         'SUCCESS',
         null
+      );
+
+      // Create violation tracker entry
+      createViolationTrackerEntry(
+        violation.type,
+        deliveryData.store,
+        storeName,
+        violation.temp,
+        violation.threshold,
+        alertTimestamp
       );
 
       Logger.log(`✅ Violation alert sent to ${recipients.length} recipient(s)`);
@@ -669,7 +762,7 @@ function doGet(e) {
     }
   }
 
-  // Initialize Config and Alert Log sheets (requires admin token)
+  // Initialize Config, Alert Log, and Violations Tracker sheets (requires admin token)
   if (e.parameter.action === 'init') {
     if (!verifyAdminToken(e.parameter.token)) {
       return ContentService
@@ -680,12 +773,13 @@ function doGet(e) {
     try {
       initializeConfigSheet();
       initializeAlertLogSheet();
+      initializeViolationsTrackerSheet();
 
       return ContentService
         .createTextOutput(JSON.stringify({
           status: 'ok',
           message: 'Initialization complete',
-          sheets_created: ['Config', 'Alert Log']
+          sheets_created: ['Config', 'Alert Log', 'Violations Tracker']
         }))
         .setMimeType(ContentService.MimeType.JSON);
     } catch (error) {
@@ -810,11 +904,187 @@ function doGet(e) {
     }
   }
 
+  // ────────────────────────────────────────────────────────────────────────────────
+  // Violations Tracker Endpoints
+  // ────────────────────────────────────────────────────────────────────────────────
+
+  // Get violations with optional status filter
+  if (e.parameter.action === 'getViolations') {
+    try {
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const violationsSheet = ss.getSheetByName('Violations Tracker');
+
+      if (!violationsSheet) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'ok', violations: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const data = violationsSheet.getDataRange().getValues();
+      const headers = data[0];
+      const statusFilter = e.parameter.status; // optional: 'open', 'in_progress', 'resolved'
+
+      const violations = [];
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const violation = {
+          violationId: row[0],
+          timestamp: row[1],
+          storeId: row[2],
+          storeName: row[3],
+          violationType: row[4],
+          value: row[5],
+          threshold: row[6],
+          alertLogRef: row[7],
+          status: row[8],
+          notes: row[9],
+          resolvedAt: row[10],
+          resolvedBy: row[11]
+        };
+
+        // Apply status filter if provided
+        if (!statusFilter || violation.status === statusFilter) {
+          violations.push(violation);
+        }
+      }
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok', violations: violations }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Update violation status
+  if (e.parameter.action === 'updateViolationStatus') {
+    try {
+      const violationId = e.parameter.violationId;
+      const newStatus = e.parameter.status; // 'open', 'in_progress', 'resolved'
+      const resolvedBy = e.parameter.resolvedBy || 'System';
+
+      if (!violationId || !newStatus) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'error', message: 'Missing violationId or status parameter' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      if (!['open', 'in_progress', 'resolved'].includes(newStatus)) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'error', message: 'Invalid status. Must be: open, in_progress, or resolved' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const violationsSheet = ss.getSheetByName('Violations Tracker');
+
+      if (!violationsSheet) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'error', message: 'Violations Tracker sheet not found' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const data = violationsSheet.getDataRange().getValues();
+      let found = false;
+
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] === violationId) {
+          // Update status (column I, index 8)
+          violationsSheet.getRange(i + 1, 9).setValue(newStatus);
+
+          // If resolving, set resolved timestamp and resolved by
+          if (newStatus === 'resolved') {
+            violationsSheet.getRange(i + 1, 11).setValue(new Date().toISOString()); // Resolved At
+            violationsSheet.getRange(i + 1, 12).setValue(resolvedBy); // Resolved By
+          } else {
+            // Clear resolved fields if changing back to open/in_progress
+            violationsSheet.getRange(i + 1, 11).setValue('');
+            violationsSheet.getRange(i + 1, 12).setValue('');
+          }
+
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'error', message: 'Violation not found' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok', message: 'Status updated', violationId: violationId, newStatus: newStatus }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Add note to violation
+  if (e.parameter.action === 'addViolationNote') {
+    try {
+      const violationId = e.parameter.violationId;
+      const note = e.parameter.note;
+      const author = e.parameter.author || 'User';
+
+      if (!violationId || !note) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'error', message: 'Missing violationId or note parameter' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const violationsSheet = ss.getSheetByName('Violations Tracker');
+
+      if (!violationsSheet) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'error', message: 'Violations Tracker sheet not found' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const data = violationsSheet.getDataRange().getValues();
+      let found = false;
+
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] === violationId) {
+          // Get existing notes (column J, index 9)
+          const existingNotes = data[i][9] || '';
+          const timestamp = new Date().toISOString();
+          const newNote = `[${timestamp}] ${author}: ${note}`;
+          const updatedNotes = existingNotes ? `${existingNotes}\n${newNote}` : newNote;
+
+          violationsSheet.getRange(i + 1, 10).setValue(updatedNotes);
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'error', message: 'Violation not found' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok', message: 'Note added', violationId: violationId }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // Default: Return error for unknown action
   return ContentService
     .createTextOutput(JSON.stringify({
       status: 'error',
-      message: 'Unknown action. Supported actions: getConfig, setConfig'
+      message: 'Unknown action. Supported actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
     }))
     .setMimeType(ContentService.MimeType.JSON);
 }
