@@ -1086,29 +1086,83 @@ function doGet(e) {
     try {
       const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
-      // Read delivery data
+      // Read delivery data - mapping based on doPost structure (lines 42-61)
       const deliverySheet = ss.getSheetByName('Delivery Log - Live');
       const deliveryData = deliverySheet ? deliverySheet.getDataRange().getValues() : [];
-      const deliveryHeaders = deliveryData[0] || [];
-      const deliveries = deliveryData.slice(1).map(row => {
-        const obj = {};
-        deliveryHeaders.forEach((header, i) => {
-          obj[header] = row[i];
-        });
-        return obj;
-      });
 
-      // Read production data
+      // Filter out title and header rows
+      const deliveries = deliveryData
+        .filter(row => {
+          if (!row[0]) return false;
+          const firstCol = row[0].toString().toUpperCase();
+          // Skip title rows, header rows, and empty rows
+          return !firstCol.includes('TAIPEI') &&
+                 !firstCol.includes('TIMESTAMP') &&
+                 !firstCol.includes('SUBMITTED') &&
+                 !firstCol.includes('CLIENT') &&
+                 firstCol.length > 0;
+        })
+        .map(row => ({
+          submittedAt: row[0],        // Col A  – Client Timestamp
+          date: row[1],               // Col B  – Date (old format: no serverTimestamp)
+          driver: row[2],             // Col C  – Driver
+          store: row[3],              // Col D  – Store (old format: no vehicle column)
+          arrive: row[4],             // Col E  – Arrival Time
+          arrivalProductTemp: row[5], // Col F  – Arrival Product Temp
+          coolerTemp: row[6],         // Col G  – Cooler Temp °F
+          coolerCond: row[7],         // Col H  – Cooler Condition
+          dish: row[8],               // Col I  – Dish
+          added: row[9],              // Col J  – Qty Added
+          before: row[10],            // Col K  – On Shelf Before
+          removed: row[11],           // Col L  – Qty Removed (Expired)
+          reason: row[12],            // Col M  – Expire Reason
+          after: row[13],             // Col N  – Shelf Total After
+          notes: row[14],             // Col O  – Store Notes
+          receivedBy: row[15]         // Col P  – Received By
+        }));
+
+      // Read production data - mapping based on doPost structure (lines 88-113)
       const productionSheet = ss.getSheetByName('Production Log - Live');
       const productionData = productionSheet ? productionSheet.getDataRange().getValues() : [];
-      const productionHeaders = productionData[0] || [];
-      const production = productionData.slice(1).map(row => {
-        const obj = {};
-        productionHeaders.forEach((header, i) => {
-          obj[header] = row[i];
-        });
-        return obj;
-      });
+
+      // Filter out title and header rows
+      const production = productionData
+        .filter(row => {
+          if (!row[0]) return false;
+          const firstCol = row[0].toString().toUpperCase();
+          // Skip title rows, header rows, and empty rows
+          return !firstCol.includes('TAIPEI') &&
+                 !firstCol.includes('PRODUCTION') &&
+                 !firstCol.includes('TIMESTAMP') &&
+                 !firstCol.includes('SUBMITTED') &&
+                 !firstCol.includes('CLIENT') &&
+                 firstCol.length > 0;
+        })
+        .map(row => ({
+          submittedAt: row[0],        // Col A  – Client Timestamp
+          date: row[2],               // Col C  – Date (skip serverTimestamp at Col B)
+          shift: row[3],              // Col D  – Shift
+          kitchen: row[4],            // Col E  – Kitchen
+          supervisor: row[5],         // Col F  – Supervisor
+          dish: row[6],               // Col G  – Dish
+          batch: row[7],              // Col H  – Batch #
+          cookTemp: row[8],           // Col I  – Cook Temp °F
+          cookStart: row[9],          // Col J  – Cook Start
+          cookEnd: row[10],           // Col K  – Cook End
+          cookTime: row[11],          // Col L  – Cook Time (min)
+          qtyProduced: row[12],       // Col M  – Qty Produced
+          qtyDiscarded: row[13],      // Col N  – Qty Discarded
+          discardReason: row[14],     // Col O  – Discard Reason
+          coolStart: row[15],         // Col P  – Cool Start
+          coolEnd: row[16],           // Col Q  – Cool End
+          coolTime: row[17],          // Col R  – Cool Time (min)
+          finalTemp: row[18],         // Col S  – Final Temp °F
+          qa: row[19],                // Col T  – QA Result
+          qaNotes: row[20],           // Col U  – QA Notes
+          initials: row[21],          // Col V  – Initials
+          generalNotes: row[22],      // Col W  – General Notes
+          batchQANotes: row[23]       // Col X  – Batch QA Notes
+        }));
 
       // Calculate waste from deliveries (items with qtyRemoved > 0)
       const waste = deliveries.filter(d => (parseInt(d.removed) || 0) > 0);
