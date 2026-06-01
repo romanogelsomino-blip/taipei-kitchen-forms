@@ -196,6 +196,11 @@ if (e.parameter.action === 'myAction') {
 - ✅ **RESPONSIVE**: Verify layout works at 320px, 768px, 1024px, 1920px widths
 - ✅ **DARK MODE**: Check all new UI in both light and dark themes
 - ✅ **BROKEN STATES**: Test with empty data, missing fields, API errors
+- ✅ **FRESH PAGE LOAD**: Always test production with full browser refresh (Cmd+Shift+R / Ctrl+F5)
+  - Verify console is clean (no errors, no undefined warnings)
+  - Check status indicator shows "Live" not "Fetch failed"
+  - Confirm all panels render correctly (Overview, Deliveries, Production, Food Safety, Waste)
+  - Passing curl tests is NOT sufficient - dashboard rendering must be verified
 
 ### Pre-Deployment Checklist
 ```bash
@@ -229,6 +234,12 @@ curl -I https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
 - ✅ **ASYNC**: Use `async/await`, not `.then()` chains
 - ✅ **ERRORS**: Always catch and log errors (don't fail silently)
 - ✅ **COMMENTS**: Explain WHY, not WHAT (code should be self-documenting)
+- ✅ **ERROR ISOLATION**: Each data source must handle its own errors independently
+  - fetchData() merges properties instead of replacing DATA object
+  - Individual endpoint failures (e.g., fetchViolations) must NOT crash sibling data sources
+  - Use defensive coding: check arrays exist before .map(), .filter(), .sort()
+  - Status indicator shows "error" only when ALL critical sources fail
+  - Log errors with full context: error message, stack trace, request URL, response body
 
 ### CSS
 - ✅ **VARIABLES**: Use CSS custom properties (`--red`, `--cream`) from `:root`
