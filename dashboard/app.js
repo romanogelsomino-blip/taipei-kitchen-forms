@@ -275,13 +275,20 @@ async function fetchData() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const data = await response.json();
-    DATA = data;
+
+    // Merge properties instead of replacing to preserve violations array
+    DATA.deliveries = data.deliveries || [];
+    DATA.production = data.production || [];
+    DATA.waste = data.waste || [];
+    DATA.stores = data.stores || [];
+    DATA.lastUpdated = data.lastUpdated || null;
+
     console.log('[Data] Fetched:', DATA);
 
-    updateStatus('connected', `Updated ${new Date(DATA.lastUpdated).toLocaleTimeString()}`);
+    // Fetch violations tracker data (await to prevent race condition)
+    await fetchViolations();
 
-    // Fetch violations tracker data
-    fetchViolations();
+    updateStatus('connected', `Updated ${new Date(DATA.lastUpdated).toLocaleTimeString()}`);
 
     renderOverview();
     renderDeliveries();
@@ -315,11 +322,15 @@ async function fetchViolations() {
       DATA.violations = data.violations || [];
       console.log('[Violations] Fetched:', DATA.violations.length);
     } else {
-      console.warn('[Violations] API error:', data.message);
+      console.warn('[Violations] API returned non-ok status:', {
+        status: data.status,
+        message: data.message || 'No message',
+        response: data
+      });
       DATA.violations = [];
     }
   } catch (e) {
-    console.error('[Violations] Fetch failed:', e);
+    console.warn('[Violations] Endpoint not available or fetch failed (this is okay if endpoint not deployed):', e.message);
     DATA.violations = [];
   }
 }
@@ -1961,6 +1972,12 @@ let violationStatusFilter = 'all'; // all, open, in_progress, resolved
 function refreshViolationsQueue() {
   const container = document.getElementById('violations-queue');
   if (!container) return;
+
+  // Defensive: ensure violations array exists
+  if (!DATA.violations || !Array.isArray(DATA.violations)) {
+    console.warn('[Violations] DATA.violations is not an array, initializing to empty array');
+    DATA.violations = [];
+  }
 
   // Apply status filter
   let filteredViolations = DATA.violations;
