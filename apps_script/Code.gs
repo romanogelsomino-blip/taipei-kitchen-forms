@@ -1080,7 +1080,67 @@ function doGet(e) {
     }
   }
 
-  // Default: Return error for unknown action
+  // Default: Return dashboard data (no action parameter)
+  // This is the main endpoint the dashboard calls to get deliveries, production, waste, and stores
+  if (!e.parameter.action) {
+    try {
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+      // Read delivery data
+      const deliverySheet = ss.getSheetByName('Delivery Log - Live');
+      const deliveryData = deliverySheet ? deliverySheet.getDataRange().getValues() : [];
+      const deliveryHeaders = deliveryData[0] || [];
+      const deliveries = deliveryData.slice(1).map(row => {
+        const obj = {};
+        deliveryHeaders.forEach((header, i) => {
+          obj[header] = row[i];
+        });
+        return obj;
+      });
+
+      // Read production data
+      const productionSheet = ss.getSheetByName('Production Log - Live');
+      const productionData = productionSheet ? productionSheet.getDataRange().getValues() : [];
+      const productionHeaders = productionData[0] || [];
+      const production = productionData.slice(1).map(row => {
+        const obj = {};
+        productionHeaders.forEach((header, i) => {
+          obj[header] = row[i];
+        });
+        return obj;
+      });
+
+      // Calculate waste from deliveries (items with qtyRemoved > 0)
+      const waste = deliveries.filter(d => (parseInt(d.removed) || 0) > 0);
+
+      // Read stores from data/stores.json format (hardcoded for now)
+      const stores = [
+        { id: '6006', name: 'Store 6006', location: 'Kline Village, Harrisburg, PA' },
+        { id: '6061', name: 'Store 6061', location: 'Shippensburg, PA' },
+        { id: '6253', name: 'Store 6253', location: 'New Cumberland, PA' },
+        { id: '6331', name: 'Store 6331', location: 'Mechanicsburg, PA' },
+        { id: '6443', name: 'Store 6443', location: 'Chambersburg, PA' },
+        { id: '6542', name: 'Store 6542', location: 'Carlisle, PA' },
+        { id: '6564', name: 'Store 6564', location: 'Catonsville' }
+      ];
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          deliveries: deliveries,
+          production: production,
+          waste: waste,
+          stores: stores,
+          lastUpdated: new Date().toISOString()
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Unknown action: Return error
   return ContentService
     .createTextOutput(JSON.stringify({
       status: 'error',
