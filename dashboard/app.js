@@ -275,20 +275,13 @@ async function fetchData() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const data = await response.json();
-
-    // Merge data instead of replacing to preserve violations array
-    DATA.deliveries = data.deliveries || [];
-    DATA.production = data.production || [];
-    DATA.waste = data.waste || [];
-    DATA.stores = data.stores || [];
-    DATA.lastUpdated = data.lastUpdated || null;
-
+    DATA = data;
     console.log('[Data] Fetched:', DATA);
 
-    // Fetch violations tracker data (await to ensure it completes before rendering)
-    await fetchViolations();
-
     updateStatus('connected', `Updated ${new Date(DATA.lastUpdated).toLocaleTimeString()}`);
+
+    // Fetch violations tracker data
+    fetchViolations();
 
     renderOverview();
     renderDeliveries();
@@ -296,7 +289,7 @@ async function fetchData() {
     renderFoodSafety();
     renderWaste();
   } catch (e) {
-    console.error('[Data] Fetch failed:', e, '\nResponse:', e.response);
+    console.error('[Data] Fetch failed:', e);
     updateStatus('error', 'Fetch failed');
   }
 }
@@ -322,19 +315,11 @@ async function fetchViolations() {
       DATA.violations = data.violations || [];
       console.log('[Violations] Fetched:', DATA.violations.length);
     } else {
-      console.warn('[Violations] API error:', {
-        message: data.message || 'Unknown error',
-        status: data.status,
-        fullResponse: data
-      });
+      console.warn('[Violations] API error:', data.message);
       DATA.violations = [];
     }
   } catch (e) {
-    console.error('[Violations] Fetch failed:', {
-      error: e.message,
-      stack: e.stack,
-      url: `${CONFIG.webAppUrl}?action=getViolations`
-    });
+    console.error('[Violations] Fetch failed:', e);
     DATA.violations = [];
   }
 }
@@ -496,12 +481,9 @@ function renderTopStores() {
 }
 
 function renderRecentFeed() {
-  const deliveries = DATA.deliveries || [];
-  const production = DATA.production || [];
-
   const combined = [
-    ...deliveries.map(d => ({ ...d, type: 'delivery', time: d.submittedAt })),
-    ...production.map(p => ({ ...p, type: 'production', time: p.submittedAt }))
+    ...DATA.deliveries.map(d => ({ ...d, type: 'delivery', time: d.submittedAt })),
+    ...DATA.production.map(p => ({ ...p, type: 'production', time: p.submittedAt }))
   ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 10);
 
   const container = document.getElementById('recent-feed');
@@ -1980,25 +1962,14 @@ function refreshViolationsQueue() {
   const container = document.getElementById('violations-queue');
   if (!container) return;
 
-  // Defensive: ensure violations array exists
-  if (!DATA.violations || !Array.isArray(DATA.violations)) {
-    console.warn('[Violations] DATA.violations is not an array:', DATA.violations);
-    DATA.violations = [];
-  }
-
   // Apply status filter
   let filteredViolations = DATA.violations;
   if (violationStatusFilter !== 'all') {
     filteredViolations = DATA.violations.filter(v => v.status === violationStatusFilter);
   }
 
-  // Sort newest first (defensive: check array exists)
-  if (filteredViolations && Array.isArray(filteredViolations)) {
-    filteredViolations = filteredViolations.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  } else {
-    console.warn('[Violations] filteredViolations is not an array, resetting to empty');
-    filteredViolations = [];
-  }
+  // Sort newest first
+  filteredViolations = filteredViolations.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   if (filteredViolations.length === 0) {
     const message = violationStatusFilter === 'all'
@@ -2492,12 +2463,6 @@ function renderShrinkCharts(deliveries, shrinkByStore) {
 }
 
 function renderShrinkTable(deliveries) {
-  // Defensive: ensure deliveries is an array
-  if (!deliveries || !Array.isArray(deliveries)) {
-    console.warn('[Shrink] deliveries is not an array:', deliveries);
-    deliveries = [];
-  }
-
   // Prepare table data
   shrinkTableData = deliveries
     .filter(d => parseInt(d.added) > 0 || parseInt(d.removed) > 0)
@@ -2632,17 +2597,14 @@ function filterShrinkTable() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function populateShrinkFilters() {
-  // Defensive: ensure deliveries array exists
-  const deliveries = DATA.deliveries || [];
-
   // Populate Store dropdown
-  const stores = [...new Set(deliveries.map(d => d.store))].filter(s => s).sort();
+  const stores = [...new Set(DATA.deliveries.map(d => d.store))].filter(s => s).sort();
   const storeSelect = document.getElementById('shrink-store-filter');
   storeSelect.innerHTML = '<option value="">All Stores</option>' +
     stores.map(store => `<option value="${store}">Store ${store}</option>`).join('');
 
   // Populate Item dropdown
-  const items = [...new Set(deliveries.map(d => d.dish))].filter(i => i).sort();
+  const items = [...new Set(DATA.deliveries.map(d => d.dish))].filter(i => i).sort();
   const itemSelect = document.getElementById('shrink-item-filter');
   itemSelect.innerHTML = '<option value="">All Items</option>' +
     items.map(item => `<option value="${item}">${item}</option>`).join('');
