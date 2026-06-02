@@ -19,6 +19,34 @@ const POLL_INTERVAL_MS = 30000; // Changed from 10s to 30s for better UX
 const DEMO_MODE = true; // Enable demo data for local development
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Date Normalization Utilities
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Normalize date to YYYY-MM-DD format in local timezone
+ * Handles various date formats and edge cases
+ * @param {string|Date|null} dateInput - Date to normalize
+ * @returns {string} YYYY-MM-DD string or empty string if invalid
+ */
+function normalizeDate(dateInput) {
+  if (!dateInput) return '';
+  try {
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    return date.toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Get today's date in YYYY-MM-DD format (local timezone)
+ * @returns {string} YYYY-MM-DD string
+ */
+function getTodayDate() {
+  return new Date().toLocaleDateString('en-CA');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Multi-Select Dropdown Component
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -424,13 +452,14 @@ function showPanel(panelName) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function renderOverview() {
-  const today = new Date().toISOString().slice(0, 10);
+  // FIX: Use local timezone instead of UTC to correctly identify "today"
+  const today = getTodayDate();
   const weekStart = getWeekStart(new Date());
 
   // Today's Metrics
-  const deliveriesToday = DATA.deliveries.filter(d => (d.date || '').slice(0, 10) === today).length;
-  const productionToday = DATA.production.filter(p => (p.date || '').slice(0, 10) === today).length;
-  const violationsToday = countViolations(DATA.deliveries.filter(d => (d.date || '').slice(0, 10) === today));
+  const deliveriesToday = DATA.deliveries.filter(d => normalizeDate(d.date) === today).length;
+  const productionToday = DATA.production.filter(p => normalizeDate(p.date) === today).length;
+  const violationsToday = countViolations(DATA.deliveries.filter(d => normalizeDate(d.date) === today));
   const wasteThisWeek = DATA.waste
     .filter(w => new Date(w.date) >= weekStart)
     .reduce((sum, w) => sum + (parseInt(w.qtyRemoved) || 0), 0);
@@ -547,8 +576,8 @@ function countViolations(deliveries) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function renderCriticalAlerts() {
-  const today = new Date().toISOString().slice(0, 10);
-  const todayDeliveries = DATA.deliveries.filter(d => (d.date || '').slice(0, 10) === today);
+  const today = getTodayDate();
+  const todayDeliveries = DATA.deliveries.filter(d => normalizeDate(d.date) === today);
 
   const alerts = [];
 
@@ -903,9 +932,10 @@ function checkForViolations() {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  const recentViolations = DATA.deliveries.filter(d => {
-    const date = new Date(d.date);
-    return date >= sevenDaysAgo && (parseFloat(d.coolerTemp) > 41 || parseFloat(d.arrivalTemp) > 41);
+  // FIX: Use DATA.violations tracker instead of scanning deliveries for temp violations
+  const recentViolations = (DATA.violations || []).filter(v => {
+    const date = new Date(v.timestamp);
+    return date >= sevenDaysAgo && (v.status || 'open') !== 'resolved';
   });
 
   if (recentViolations.length > 0) {
@@ -983,13 +1013,13 @@ function setDeliveryQuickRange(range) {
   let filtered = [...DATA.deliveries];
 
   if (range === 'today') {
-    const todayStr = today.toISOString().split('T')[0];
-    filtered = filtered.filter(d => (d.date || '').slice(0, 10) === todayStr);
+    const todayStr = getTodayDate();
+    filtered = filtered.filter(d => normalizeDate(d.date) === todayStr);
   } else if (range !== 'all') {
     const startDate = new Date(today);
     startDate.setDate(today.getDate() - range);
-    const startStr = startDate.toISOString().split('T')[0];
-    filtered = filtered.filter(d => (d.date || '').slice(0, 10) >= startStr);
+    const startStr = normalizeDate(startDate);
+    filtered = filtered.filter(d => normalizeDate(d.date) >= startStr);
   }
 
   DELIVERY_STATE.filtered = filtered;
@@ -1428,13 +1458,13 @@ function setProductionQuickRange(range) {
   let filtered = [...DATA.production];
 
   if (range === 'today') {
-    const todayStr = today.toISOString().split('T')[0];
-    filtered = filtered.filter(p => (p.date || '').slice(0, 10) === todayStr);
+    const todayStr = getTodayDate();
+    filtered = filtered.filter(p => normalizeDate(p.date) === todayStr);
   } else if (range !== 'all') {
     const startDate = new Date(today);
     startDate.setDate(today.getDate() - range);
-    const startStr = startDate.toISOString().split('T')[0];
-    filtered = filtered.filter(p => (p.date || '').slice(0, 10) >= startStr);
+    const startStr = normalizeDate(startDate);
+    filtered = filtered.filter(p => normalizeDate(p.date) >= startStr);
   }
 
   PRODUCTION_STATE.filtered = filtered;
@@ -1982,7 +2012,8 @@ function refreshViolationsQueue() {
   // Apply status filter
   let filteredViolations = DATA.violations;
   if (violationStatusFilter !== 'all') {
-    filteredViolations = DATA.violations.filter(v => v.status === violationStatusFilter);
+    // FIX: Default to 'open' status if violation doesn't have status field
+    filteredViolations = DATA.violations.filter(v => (v.status || 'open') === violationStatusFilter);
   }
 
   // Sort newest first
@@ -2354,11 +2385,13 @@ function renderShrinkCharts(deliveries, shrinkByStore) {
   // Chart 2: Shrink Trend Over Time (Line)
   const shrinkByDate = {};
   deliveries.forEach(d => {
-    const dateStr = (d.date || '').slice(0, 10);
+    const dateStr = normalizeDate(d.date);
+    if (!dateStr) return; // Skip invalid dates
     if (!shrinkByDate[dateStr]) {
       shrinkByDate[dateStr] = { loaded: 0, shrink: 0 };
     }
-    shrinkByDate[dateStr].loaded += parseInt(d.qtyAdded) || 0;
+    // FIX: Use 'added' field (production format) with fallback to 'qtyAdded' (demo format)
+    shrinkByDate[dateStr].loaded += parseInt(d.added || d.qtyAdded) || 0;
     shrinkByDate[dateStr].shrink += parseInt(d.removed) || 0;
   });
 
@@ -2482,16 +2515,20 @@ function renderShrinkCharts(deliveries, shrinkByStore) {
 function renderShrinkTable(deliveries) {
   // Prepare table data
   shrinkTableData = deliveries
-    .filter(d => parseInt(d.added) > 0 || parseInt(d.removed) > 0)
-    .map(d => ({
-      date: (d.date || '').slice(0, 10),
-      store: d.store || 'Unknown',
-      item: d.dish || 'Unknown',
-      loaded: parseInt(d.added) || 0,
-      shrink: parseInt(d.removed) || 0,
-      rate: (parseInt(d.added) > 0 ? ((parseInt(d.removed) / parseInt(d.added)) * 100).toFixed(2) : 0),
-      reason: d.reason || 'N/A'
-    }))
+    .filter(d => parseInt(d.added || d.qtyAdded) > 0 || parseInt(d.removed) > 0)
+    .map(d => {
+      const loaded = parseInt(d.added || d.qtyAdded) || 0;
+      const shrink = parseInt(d.removed) || 0;
+      return {
+        date: normalizeDate(d.date),
+        store: d.store || 'Unknown',
+        item: d.dish || 'Unknown',
+        loaded: loaded,
+        shrink: shrink,
+        rate: (loaded > 0 ? ((shrink / loaded) * 100).toFixed(2) : 0),
+        reason: d.reason || 'N/A'
+      };
+    })
     .sort((a, b) => b.date.localeCompare(a.date));
 
   // Render table (show first 50 rows)
@@ -2730,7 +2767,7 @@ function exportShrinkToCSV() {
   const url = URL.createObjectURL(blob);
 
   // Generate filename with timestamp
-  const timestamp = new Date().toISOString().slice(0, 10);
+  const timestamp = getTodayDate();
   link.setAttribute('href', url);
   link.setAttribute('download', `shrink-report-${timestamp}.csv`);
   link.style.visibility = 'hidden';
@@ -2897,7 +2934,7 @@ function exportAllDataToJSON() {
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
 
-  const timestamp = new Date().toISOString().slice(0, 10);
+  const timestamp = getTodayDate();
   link.setAttribute('href', url);
   link.setAttribute('download', `taipei-kitchen-data-${timestamp}.json`);
   link.style.visibility = 'hidden';
