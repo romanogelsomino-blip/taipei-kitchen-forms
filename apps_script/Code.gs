@@ -1093,14 +1093,30 @@ function doGet(e) {
       // Filter out title and header rows
       const deliveries = deliveryData
         .filter(row => {
-          if (!row[0]) return false;
-          const firstCol = row[0].toString().toUpperCase();
-          // Skip title rows, header rows, and empty rows
-          return !firstCol.includes('TAIPEI') &&
-                 !firstCol.includes('TIMESTAMP') &&
-                 !firstCol.includes('SUBMITTED') &&
-                 !firstCol.includes('CLIENT') &&
-                 firstCol.length > 0;
+          // FIX: Check Column B (date) instead of Column A since some rows have blank clientTimestamp
+          // This handles rows 3071-4656 which have data but no Column A timestamp
+          if (!row[1] && !row[0]) return false; // Skip if both date AND timestamp are empty
+
+          // If Column A exists, check if it's a header
+          if (row[0]) {
+            const firstCol = row[0].toString().toUpperCase();
+            if (firstCol.includes('TAIPEI') ||
+                firstCol.includes('TIMESTAMP') ||
+                firstCol.includes('SUBMITTED') ||
+                firstCol.includes('CLIENT')) {
+              return false; // Skip header rows
+            }
+          }
+
+          // If Column B (date) exists, check if it's a header
+          if (row[1]) {
+            const secondCol = row[1].toString().toUpperCase();
+            if (secondCol.includes('DATE') || secondCol.includes('DRIVER')) {
+              return false; // Skip header rows
+            }
+          }
+
+          return true; // Include row if it has date or timestamp data
         })
         .map(row => ({
           submittedAt: row[0],        // Col A  – Client Timestamp
