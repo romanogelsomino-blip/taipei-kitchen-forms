@@ -587,7 +587,7 @@ function renderCriticalAlerts() {
     alerts.push({
       level: 'critical',
       message: `${violations.length} temperature violation${violations.length > 1 ? 's' : ''} today`,
-      details: violations.map(v => `Store ${v.store}: ${v.coolerTemp}°F`).slice(0, 3).join(', ')
+      details: violations.map(v => `${v.store}: ${v.coolerTemp}°F`).slice(0, 3).join(', ')
     });
   }
 
@@ -604,7 +604,7 @@ function renderCriticalAlerts() {
     if (rate > 15) {
       alerts.push({
         level: 'warning',
-        message: `Store ${store}: ${rate.toFixed(1)}% shrink rate`,
+        message: `${store}: ${rate.toFixed(1)}% shrink rate`,
         details: `${data.removed} units shrink out of ${data.added} loaded`
       });
     }
@@ -664,7 +664,7 @@ function renderStorePerformance() {
     <div style="padding:10px;margin-bottom:8px;background:var(--green-lt);border-radius:6px;border:1px solid var(--green);">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div>
-          <span style="font-weight:600;color:var(--dark);">Store ${s.store}</span>
+          <span style="font-weight:600;color:var(--dark);">${s.store}</span>
           <div style="font-size:0.8rem;color:var(--mid);margin-top:2px;">${s.deliveries} deliveries</div>
         </div>
         <div style="text-align:right;">
@@ -681,7 +681,7 @@ function renderStorePerformance() {
     <div style="padding:10px;margin-bottom:8px;background:var(--red-lt);border-radius:6px;border:1px solid var(--red);">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div>
-          <span style="font-weight:600;color:var(--dark);">Store ${s.store}</span>
+          <span style="font-weight:600;color:var(--dark);">${s.store}</span>
           <div style="font-size:0.8rem;color:var(--mid);margin-top:2px;">${s.violations} violations</div>
         </div>
         <div style="text-align:right;">
