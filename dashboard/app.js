@@ -563,8 +563,8 @@ function hasViolation(delivery) {
 
 function hasHACCPViolation(delivery) {
   const coolerTemp = parseFloat(delivery.coolerTemp);
-  const arrivalTemp = parseFloat(delivery.arrivalTemp);
-  return coolerTemp > 41 || arrivalTemp > 41;
+  // Note: arrivalTemp field removed from data structure (no longer stored)
+  return coolerTemp > 41;
 }
 
 function countViolations(deliveries) {
@@ -805,8 +805,10 @@ function loadFoodSafety() {
     if (!storeViolations[d.store]) {
       storeViolations[d.store] = { coolerViolations: 0, deliveryTempViolations: 0 };
     }
-    if (parseFloat(d.coolerTemp) > 41) storeViolations[d.store].coolerViolations++;
-    if (parseFloat(d.arrivalTemp) > 41) storeViolations[d.store].deliveryTempViolations++;
+    if (parseFloat(d.coolerTemp) > 41) {
+      storeViolations[d.store].coolerViolations++;
+      // Note: deliveryTempViolations deprecated (arrivalTemp no longer tracked)
+    }
   });
 
   const container = document.getElementById('safety-summary');
@@ -857,17 +859,13 @@ function openViolationModal(storeId, violationType, weekStartISO, weekEndISO) {
     return d.store === storeId && date >= weekStart && date <= weekEnd;
   });
 
-  // Filter for specific violation type
+  // Filter for cooler temp violations (arrivalTemp no longer tracked)
   const violations = storeDeliveries.filter(d => {
-    if (violationType === 'cooler') {
-      return parseFloat(d.coolerTemp) > 41;
-    } else {
-      return parseFloat(d.arrivalTemp) > 41;
-    }
+    return parseFloat(d.coolerTemp) > 41;
   });
 
-  const violationTypeLabel = violationType === 'cooler' ? 'Cooler Temp' : 'Delivery Temp';
-  const tempField = violationType === 'cooler' ? 'coolerTemp' : 'arrivalTemp';
+  const violationTypeLabel = 'Cooler Temp';
+  const tempField = 'coolerTemp';
   const threshold = '41°F';
 
   // Build modal content

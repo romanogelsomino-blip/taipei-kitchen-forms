@@ -454,9 +454,13 @@ function onViolationDetected(deliveryData, storeName) {
     try {
       const subject = `⚠️ HACCP Violation Alert: ${violation.type} - ${storeName}`;
       const body = `
-HACCP VIOLATION DETECTED
+═══════════════════════════════════════════════════
+   TAIPEI KITCHEN · HACCP VIOLATION ALERT
+═══════════════════════════════════════════════════
 
-Store: ${storeName} (${deliveryData.store})
+⚠️ VIOLATION DETECTED
+
+Location: ${storeName} (${deliveryData.store})
 Date: ${deliveryData.date}
 Time: ${deliveryData.arrive || 'N/A'}
 
@@ -467,15 +471,21 @@ Threshold: ${violation.threshold}°F
 Driver: ${deliveryData.driver}
 Received By: ${deliveryData.receivedBy || 'N/A'}
 
-Dish: ${deliveryData.dish}
-Quantity Added: ${deliveryData.added || 0}
+Product Details:
+  Dish: ${deliveryData.dish}
+  Quantity Added: ${deliveryData.added || 0}
+  Notes: ${deliveryData.notes || 'None'}
 
-Notes: ${deliveryData.notes || 'None'}
+─────────────────────────────────────────────────
+ACTION REQUIRED: Please take corrective action and
+document the response in the dashboard.
 
-This is an automated alert from the Taipei Kitchen Bento Operations System.
-Please take corrective action and document the response.
+View Dashboard:
+https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
 
-View dashboard: https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
+─────────────────────────────────────────────────
+Automated alert from Taipei Kitchen Operations System
+Generated: ${new Date().toLocaleString('en-US', {timeZone: 'America/New_York'})}
       `.trim();
 
       MailApp.sendEmail({
@@ -1120,21 +1130,23 @@ function doGet(e) {
         })
         .map(row => ({
           submittedAt: row[0],        // Col A  – Client Timestamp
-          date: row[1],               // Col B  – Date (old format: no serverTimestamp)
-          driver: row[2],             // Col C  – Driver
-          store: row[3],              // Col D  – Store (old format: no vehicle column)
-          arrive: row[4],             // Col E  – Arrival Time
-          arrivalProductTemp: row[5], // Col F  – Arrival Product Temp
-          coolerTemp: row[6],         // Col G  – Cooler Temp °F
-          coolerCond: row[7],         // Col H  – Cooler Condition
-          dish: row[8],               // Col I  – Dish
-          added: row[9],              // Col J  – Qty Added
-          before: row[10],            // Col K  – On Shelf Before
-          removed: row[11],           // Col L  – Qty Removed (Expired)
-          reason: row[12],            // Col M  – Expire Reason
-          after: row[13],             // Col N  – Shelf Total After
-          notes: row[14],             // Col O  – Store Notes
-          receivedBy: row[15]         // Col P  – Received By
+          serverTimestamp: row[1],    // Col B  – Server Timestamp
+          date: row[2],               // Col C  – Date
+          driver: row[3],             // Col D  – Driver
+          vehicle: row[4],            // Col E  – Vehicle #
+          store: row[5],              // Col F  – Store
+          arrive: row[6],             // Col G  – Arrival Time
+          coolerTemp: row[7],         // Col H  – Cooler Temp °F
+          coolerCond: row[8],         // Col I  – Cooler Condition
+          casePrefillPercent: row[9], // Col J  – Case Pre-Fill %
+          dish: row[10],              // Col K  – Dish
+          added: row[11],             // Col L  – Qty Added
+          before: row[12],            // Col M  – On Shelf Before
+          removed: row[13],           // Col N  – Qty Removed (Expired)
+          reason: row[14],            // Col O  – Expire Reason
+          after: row[15],             // Col P  – Shelf Total After
+          notes: row[16],             // Col Q  – Store Notes
+          receivedBy: row[17]         // Col R  – Received By
         }));
 
       // Read production data - mapping based on doPost structure (lines 88-113)
