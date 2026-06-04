@@ -23,7 +23,7 @@
   --panel-bg: #FFFFFF;
   --light: #F8F9FA;
   /* Header colors (don't swap in dark mode) */
-  --header-bg: #1C1C1C;
+  --header-bg: #323031;  /* Match logo background color */
   --header-text: #FFFFFF;
 }
 
