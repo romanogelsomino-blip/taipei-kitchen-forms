@@ -1,7 +1,13 @@
 /* Taipei Kitchen Dashboard Styles */
 
 :root {
-  --red: #C0392B;
+  /* Brand colors extracted from Taipei Kitchen logo */
+  --brand-red: #d35042;      /* Primary red from logo vertical bar */
+  --brand-white: #fefefe;    /* White text from logo */
+  --brand-dark: #414041;     /* Dark background from logo */
+
+  /* Semantic color palette */
+  --red: #d35042;            /* Updated to match brand red */
   --red-dk: #922B21;
   --red-lt: #FADBD8;
   --cream: #FDF5E6;
@@ -57,7 +63,7 @@ body {
 /* Top Header */
 .top-header {
   background: var(--header-bg);
-  height: 60px;
+  height: 70px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -69,24 +75,40 @@ body {
 }
 
 .brand {
-  font-family: 'Syne', sans-serif;
-  font-weight: 800;
-  color: var(--header-text);
-  font-size: 1.1rem;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
+.brand-logo {
+  height: 56px;
+  width: auto;
+  object-fit: contain;
+}
+
+/* Show widescreen logo on desktop, stacked on mobile */
+.brand-logo-wide {
+  display: block;
+}
+
+.brand-logo-stacked {
+  display: none;
+}
+
+/* Deprecated - old horizontal PNG logo */
+.brand-logo-horizontal {
+  display: none;
+}
+
+/* Deprecated - kept for backward compatibility */
 .brand-icon {
-  color: var(--red);
-  font-size: 1.3rem;
+  display: none;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
 }
 
 .status-dot {
@@ -825,6 +847,22 @@ body {
 }
 
 /* Mobile Responsive Styles */
+/* Tablet - Medium screens */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .top-header {
+    height: 64px;
+    padding: 0 20px;
+  }
+
+  .brand-logo {
+    height: 48px;
+  }
+
+  .header-right {
+    gap: 16px;
+  }
+}
+
 @media (max-width: 768px) {
   body {
     font-size: 14px;
@@ -832,20 +870,37 @@ body {
 
   /* Top Header - Mobile */
   .top-header {
-    height: 50px;
-    padding: 0 12px;
+    height: 54px;
+    padding: 0 16px;
   }
 
   .brand {
     font-size: 0.9rem;
   }
 
+  /* Switch to stacked logo on mobile */
+  .brand-logo {
+    height: 40px;
+  }
+
+  .brand-logo-wide {
+    display: none;
+  }
+
+  .brand-logo-stacked {
+    display: block;
+  }
+
+  .brand-logo-horizontal {
+    display: none;
+  }
+
   .brand-icon {
-    font-size: 1.1rem;
+    display: none;
   }
 
   .header-right {
-    gap: 8px;
+    gap: 12px;
   }
 
   #current-date {

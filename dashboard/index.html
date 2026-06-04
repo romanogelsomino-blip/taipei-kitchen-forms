@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Taipei Kitchen · Live Dashboard</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <!-- Chart.js via CDN -->
@@ -16,7 +18,17 @@
 
 <!-- Top Header -->
 <header class="top-header">
-  <div class="brand"><span class="brand-icon">▲</span> Taipei Kitchen</div>
+  <div class="brand">
+    <img src="assets/branding/taipei-logo-wide.svg"
+         alt="Taipei Kitchen"
+         class="brand-logo brand-logo-wide">
+    <img src="assets/branding/taipei-logo-stacked-1x.png"
+         srcset="assets/branding/taipei-logo-stacked-1x.png 1x,
+                 assets/branding/taipei-logo-stacked-2x.png 2x,
+                 assets/branding/taipei-logo-stacked-3x.png 3x"
+         alt="Taipei Kitchen"
+         class="brand-logo brand-logo-stacked">
+  </div>
   <div class="header-right">
     <span id="current-date" style="font-family:'DM Mono',monospace;font-size:0.85rem;color:var(--soft);margin-right:16px;"></span>
     <span class="status-dot" id="status-dot"></span>
@@ -1063,7 +1075,7 @@ ${lastError ? `
 
 <!-- Dashboard Tour Script -->
 <script>
-const TOUR_VERSION = '2.1';
+const TOUR_VERSION = '2.2';
 
 function startDashboardTour() {
   const driver = window.driver.js.driver;
@@ -1074,8 +1086,8 @@ function startDashboardTour() {
       {
         element: '.brand',
         popover: {
-          title: 'Welcome to Taipei Kitchen Dashboard v2.1',
-          description: 'This interactive tour will guide you through all features, including new additions in v2.1: multi-select filters, case fullness analytics, HACCP drill-down, and violation alerts. Click "Next" to continue or "Close" to exit anytime.',
+          title: 'Welcome to Taipei Kitchen Dashboard v2.2',
+          description: 'This interactive tour will guide you through all features. <strong>NEW in v2.2:</strong> Complete visual rebrand with official Taipei Kitchen logo, updated color palette, and enhanced email templates. Previous features include: multi-select filters, case fullness analytics, HACCP drill-down, and violation alerts. Click "Next" to continue or "Close" to exit anytime.',
           side: "bottom",
           align: 'start'
         }

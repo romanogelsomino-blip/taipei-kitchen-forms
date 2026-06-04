@@ -4,10 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Taipei Kitchen · Production Log</title>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/branding/favicon-32x32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/branding/apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
-  --red:#C0392B; --red-dk:#922B21; --red-lt:#FADBD8;
+  --brand-red:#d35042; --red:#d35042; --red-dk:#922B21; --red-lt:#FADBD8;
   --cream:#FDF5E6; --dark:#1C1C1C; --mid:#4A4A4A;
   --soft:#9B9B9B; --border:#DEDBD6; --yellow:#F5C518;
   --green:#27AE60; --orange:#E67E22; --surface:#FFFFFF;
@@ -18,12 +20,17 @@ body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--dark);mi
 
 /* ── TOPBAR ── */
 .topbar{
-  background:var(--dark);padding:0 20px;height:54px;
+  background:var(--dark);padding:0 20px;height:60px;
   display:flex;align-items:center;justify-content:space-between;
   border-bottom:3px solid var(--red);position:sticky;top:0;z-index:50;
 }
-.brand{font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:1rem;display:flex;align-items:center;gap:8px;}
-.brand span{color:var(--red);}
+.brand{font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:1rem;display:flex;align-items:center;gap:12px;}
+.brand-logo{height:48px;width:auto;object-fit:contain;}
+.brand-logo-wide{display:block;}
+.brand-logo-stacked{display:none;}
+.brand-logo-horizontal{display:none;}
+@media(max-width:480px){.topbar{height:54px;padding:0 16px;}.brand-logo{height:40px;}.brand-logo-wide{display:none;}.brand-logo-stacked{display:block;}}
+.brand span{display:none;}
 .topbar-right{font-family:'DM Mono',monospace;font-size:.72rem;color:#888;}
 
 /* ── PAGE ── */
@@ -261,7 +268,17 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
 <body>
 
 <div class="topbar">
-  <div class="brand"><span>▲</span> Taipei Kitchen</div>
+  <div class="brand">
+    <img src="assets/branding/taipei-logo-wide.svg"
+         alt="Taipei Kitchen"
+         class="brand-logo brand-logo-wide">
+    <img src="assets/branding/taipei-logo-stacked-1x.png"
+         srcset="assets/branding/taipei-logo-stacked-1x.png 1x,
+                 assets/branding/taipei-logo-stacked-2x.png 2x,
+                 assets/branding/taipei-logo-stacked-3x.png 3x"
+         alt="Taipei Kitchen"
+         class="brand-logo brand-logo-stacked">
+  </div>
   <span class="topbar-right">Production Log</span>
 </div>
 
