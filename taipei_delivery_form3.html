@@ -776,6 +776,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 function buildDishTable() {
   const tbody = document.getElementById('dish-tbody');
+  tbody.innerHTML = ''; // Clear existing rows to prevent duplication
   DISHES.forEach((dish) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
