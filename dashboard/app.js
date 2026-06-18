@@ -1914,7 +1914,10 @@ function updateWasteCharts() {
         legend: { display: false }
       },
       scales: {
-        y: { beginAtZero: true }
+        y: {
+          beginAtZero: true,
+          ticks: { maxTicksLimit: 10 }
+        }
       }
     }
   });
@@ -1946,15 +1949,29 @@ function updateWasteCharts() {
         legend: { display: false }
       },
       scales: {
-        x: { beginAtZero: true }
+        x: {
+          beginAtZero: true,
+          ticks: { maxTicksLimit: 10 }
+        }
       }
     }
   });
 
   // Chart 3: Waste by Reason (Doughnut Chart)
   const reasonEntries = Object.entries(wasteByReason).sort((a, b) => b[1] - a[1]);
-  const reasonLabels = reasonEntries.map(([reason]) => reason);
-  const reasonData = reasonEntries.map(([, qty]) => qty);
+
+  // Limit to top 5 reasons + aggregate rest as "Other"
+  const top5Reasons = reasonEntries.slice(0, 5);
+  const otherReasons = reasonEntries.slice(5);
+  const otherSum = otherReasons.reduce((sum, [, qty]) => sum + qty, 0);
+
+  const reasonLabels = top5Reasons.map(([reason]) => reason);
+  const reasonData = top5Reasons.map(([, qty]) => qty);
+
+  if (otherSum > 0) {
+    reasonLabels.push('Other');
+    reasonData.push(otherSum);
+  }
 
   if (WASTE_STATE.charts.byReason) WASTE_STATE.charts.byReason.destroy();
   const ctx3 = document.getElementById('chart-waste-by-reason').getContext('2d');
@@ -2019,7 +2036,10 @@ function updateWasteCharts() {
         legend: { display: false }
       },
       scales: {
-        y: { beginAtZero: true }
+        y: {
+          beginAtZero: true,
+          ticks: { maxTicksLimit: 10 }
+        }
       }
     }
   });

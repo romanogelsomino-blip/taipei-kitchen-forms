@@ -1708,13 +1708,13 @@ function doGet(e) {
 
       // Read stores from data/stores.json format (hardcoded for now)
       const stores = [
-        { id: '6006', name: 'Store 6006', location: 'Kline Village, Harrisburg, PA' },
-        { id: '6061', name: 'Store 6061', location: 'Shippensburg, PA' },
-        { id: '6253', name: 'Store 6253', location: 'New Cumberland, PA' },
-        { id: '6331', name: 'Store 6331', location: 'Mechanicsburg, PA' },
-        { id: '6443', name: 'Store 6443', location: 'Chambersburg, PA' },
-        { id: '6542', name: 'Store 6542', location: 'Carlisle, PA' },
-        { id: '6564', name: 'Store 6564', location: 'Catonsville' }
+        { id: '6006', name: 'Giant Hampden', location: 'Kline Village, Harrisburg, PA' },
+        { id: '6061', name: 'Giant Columbia Gateway', location: 'Shippensburg, PA' },
+        { id: '6253', name: 'Giant Columbia', location: 'New Cumberland, PA' },
+        { id: '6331', name: 'Giant Clarksville', location: 'Mechanicsburg, PA' },
+        { id: '6443', name: 'Giant Elkridge', location: 'Chambersburg, PA' },
+        { id: '6542', name: 'Giant Laurel', location: 'Carlisle, PA' },
+        { id: '6564', name: 'Giant Catonsville', location: 'Catonsville' }
       ];
 
       return ContentService
