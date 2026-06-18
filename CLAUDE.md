@@ -4,6 +4,32 @@ This file documents standards for all Claude Code sessions working on this proje
 
 ---
 
+## Automation-First Principle
+
+When verifying or operating a feature, every step that CAN be automated via clasp, curl, or npm scripts MUST be automated. Manual user steps are only acceptable when they require genuine human-in-browser interaction (UI rendering verification, OAuth consent screens, form submissions with hardware like camera/photo capture). "Just do it manually this one time" is the failure mode that creates permanent toil. Build the automation, then verify with it.
+
+### Examples of What MUST Be Automated
+- ✅ Triggering Apps Script functions → `npm run email:summary:staging`
+- ✅ Reading execution logs → `npm run test:log:staging`
+- ✅ Listing triggers → `npm run test:triggers:staging`
+- ✅ Creating triggers → `npm run trigger:create:staging`
+- ✅ Testing error handling → `npm run test:malformed:staging`
+- ✅ Health checks → `npm run ping:staging`
+
+### Examples of What Requires Manual User Action
+- ❌ Triggering JavaScript errors in browser console (requires DevTools)
+- ❌ Submitting forms with photo capture (requires camera hardware)
+- ❌ Verifying UI rendering (requires visual inspection)
+- ❌ OAuth consent flows (requires user interaction)
+
+### When Building New Features
+1. Write the feature
+2. Write npm scripts to verify the feature
+3. Document the verification commands in README or /docs
+4. Never ask user to "just run this function manually in Apps Script editor"
+
+---
+
 ## Observability Principle (READ THIS FIRST)
 
 **Observability is not optional.** Every production feature must have logging that proves it executed correctly AFTER the user closes their browser.

@@ -1154,6 +1154,185 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // Send daily summary email on demand (requires admin token)
+  if (e.parameter.action === 'sendDailySummary') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized: Invalid or missing admin token' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      sendDailySummary();
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          message: 'Daily summary email sent successfully'
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'error',
+          message: error.toString()
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Get execution log entries (requires admin token)
+  if (e.parameter.action === 'getExecutionLog') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized: Invalid or missing admin token' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const logSheet = ss.getSheetByName('Execution Log');
+
+      if (!logSheet) {
+        return ContentService
+          .createTextOutput(JSON.stringify({
+            status: 'ok',
+            logs: [],
+            message: 'Execution Log sheet does not exist yet'
+          }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const limit = parseInt(e.parameter.limit) || 10;
+      const data = logSheet.getDataRange().getValues();
+      const headers = data[0];
+      const rows = data.slice(1); // Skip header
+
+      // Get last N entries
+      const recentRows = rows.slice(-limit);
+      const logs = recentRows.map(row => ({
+        timestamp: row[0],
+        formType: row[1],
+        rowCount: row[2],
+        photoSizeKB: row[3],
+        status: row[4],
+        errorMessage: row[5],
+        durationMs: row[6]
+      }));
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          logs: logs,
+          totalEntries: rows.length
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'error',
+          message: error.toString()
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // List all project triggers (requires admin token)
+  if (e.parameter.action === 'listTriggers') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized: Invalid or missing admin token' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const triggers = ScriptApp.getProjectTriggers();
+      const triggerList = triggers.map(trigger => ({
+        triggerId: trigger.getUniqueId(),
+        handlerFunction: trigger.getHandlerFunction(),
+        eventType: trigger.getEventType().toString(),
+        source: trigger.getTriggerSource().toString()
+      }));
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          triggers: triggerList,
+          count: triggerList.length
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'error',
+          message: error.toString()
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Create daily summary trigger (requires admin token)
+  if (e.parameter.action === 'createTrigger') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized: Invalid or missing admin token' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      createDailySummaryTrigger();
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          message: 'Daily summary trigger created successfully (9am daily)'
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'error',
+          message: error.toString()
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Delete trigger by function name (requires admin token)
+  if (e.parameter.action === 'deleteTrigger') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized: Invalid or missing admin token' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const functionName = e.parameter.function || 'sendDailySummary';
+      const triggers = ScriptApp.getProjectTriggers();
+      let deleted = 0;
+
+      triggers.forEach(trigger => {
+        if (trigger.getHandlerFunction() === functionName) {
+          ScriptApp.deleteTrigger(trigger);
+          deleted++;
+        }
+      });
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          message: `Deleted ${deleted} trigger(s) for function: ${functionName}`,
+          deleted: deleted
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'error',
+          message: error.toString()
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // ────────────────────────────────────────────────────────────────────────────────
   // Public Actions (No Auth Required)
   // ────────────────────────────────────────────────────────────────────────────────

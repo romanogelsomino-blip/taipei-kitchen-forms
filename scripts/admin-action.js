@@ -11,10 +11,12 @@ const http = require('http');
 const url = require('url');
 
 // Parse command line args
-const [,, environment, action] = process.argv;
+const [,, environment, action, ...additionalParams] = process.argv;
 
 if (!environment || !action) {
-  console.error('Usage: node scripts/admin-action.js <staging|production> <init|test|ping>');
+  console.error('Usage: node scripts/admin-action.js <staging|production> <action> [params...]');
+  console.error('Actions: init, test, ping, sendDailySummary, getExecutionLog, listTriggers, createTrigger, deleteTrigger');
+  console.error('Example: node scripts/admin-action.js staging deleteTrigger sendDailySummary');
   process.exit(1);
 }
 
@@ -48,8 +50,17 @@ if (env.ADMIN_TOKEN === 'NEEDS_REGENERATION') {
   process.exit(1);
 }
 
-// Build request URL
-const requestUrl = `${env.WEB_APP_URL}?action=${action}&token=${encodeURIComponent(env.ADMIN_TOKEN)}`;
+// Build request URL with optional parameters
+let requestUrl = `${env.WEB_APP_URL}?action=${action}&token=${encodeURIComponent(env.ADMIN_TOKEN)}`;
+
+// Handle special cases that need extra parameters
+if (action === 'deleteTrigger' && additionalParams.length > 0) {
+  requestUrl += `&function=${encodeURIComponent(additionalParams[0])}`;
+}
+
+if (action === 'getExecutionLog' && additionalParams.length > 0) {
+  requestUrl += `&limit=${encodeURIComponent(additionalParams[0])}`;
+}
 
 console.log(`🔧 Calling ${action} on ${environment}...`);
 
