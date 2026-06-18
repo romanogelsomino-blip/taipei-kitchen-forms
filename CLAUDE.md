@@ -4,6 +4,35 @@ This file documents standards for all Claude Code sessions working on this proje
 
 ---
 
+## Observability Principle (READ THIS FIRST)
+
+**Observability is not optional.** Every production feature must have logging that proves it executed correctly AFTER the user closes their browser.
+
+### Standards
+- ✅ **Dashboard**: JavaScript errors tracked in Sentry (not just console.log)
+- ✅ **Apps Script**: Every doPost() execution logged to "Execution Log" sheet with timestamp, formType, rowCount, photoSize, status, error, duration
+- ✅ **Testing**: "Curl returned 200" is NOT observability. Logs are observability.
+- ✅ **Verification**: New features ship with a log entry that proves they ran
+- ✅ **Alerting**: Daily summary email with error counts (not just success metrics)
+- ✅ **Error Tracking**: Sentry captures JavaScript errors in production dashboard
+- ✅ **Execution Audit**: Apps Script logs survive browser closure and provide forensic trail
+
+### When a Bug is Reported
+Before fixing, check:
+1. **Sentry dashboard** for related JavaScript errors (https://sentry.io)
+2. **Execution Log sheet** for related doPost() failures
+3. **Apps Script execution logs** for quota/timeout issues (View → Executions in Apps Script editor)
+4. **Daily summary emails** for patterns over time
+5. If logs show no issues = user error or environmental issue, not code bug
+
+### Observability Tools in This Project
+- **Sentry**: Error tracking for dashboard (DSN in dashboard/app.js)
+- **Execution Log**: Sheet tab with every doPost() call (auto-created on first submission)
+- **Daily Summary Email**: Sent at 9am to support@universoleappstudios.com
+- **Apps Script Logger**: Console logs in Apps Script editor (View → Logs)
+
+---
+
 ## Decision-Making & Self-Sufficiency
 
 - **Investigate before asking**. Make reasonable defaults and report what you did. Only ask when there's genuinely no way to determine the answer from the repo, available tools, git history, or conversation context.

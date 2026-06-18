@@ -2,6 +2,25 @@
 // T-048: Dashboard shell + T-051-T-055: Panel implementations
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Sentry Error Tracking
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Initialize Sentry for production error tracking
+if (typeof Sentry !== 'undefined') {
+  Sentry.init({
+    dsn: "https://202dfc787394cb46ffd74f9e621d4085@o4511007217549312.ingest.us.sentry.io/4511583808585728",
+    environment: "production",
+    release: "taipei-kitchen-dashboard@2.0.0",
+    tracesSampleRate: 0.1, // 10% performance monitoring
+    beforeSend(event) {
+      // Filter out non-critical errors if needed
+      return event;
+    }
+  });
+  console.log('[Sentry] Error tracking initialized');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Configuration & State
 // ═══════════════════════════════════════════════════════════════════════════
 

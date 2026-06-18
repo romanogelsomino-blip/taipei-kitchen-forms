@@ -10,18 +10,31 @@
 
 function doPost(e) {
   const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI'; // ← Replace this
-  const BUG_REPORT_EMAIL = 'leandertoney@gmail.com'; // ← Replace with your email for bug reports
+  const BUG_REPORT_EMAIL = 'support@universoleappstudios.com'; // Email for bug reports
+
+  const startTime = new Date();
+  let logEntry = {
+    timestamp: startTime.toISOString(),
+    formType: 'unknown',
+    rowCount: 0,
+    photoSizeKB: 0,
+    status: 'STARTED',
+    errorMessage: '',
+    durationMs: 0
+  };
 
   try {
     const payload  = JSON.parse(e.postData.contents);
 
     // Handle bug reports
     if (payload.type === 'bugReport') {
+      logEntry.formType = 'bugReport';
       MailApp.sendEmail({
         to: BUG_REPORT_EMAIL,
         subject: payload.subject,
         body: payload.body
       });
+      logEntry.status = 'SUCCESS';
       return ContentService
         .createTextOutput(JSON.stringify({ status: 'ok', message: 'Bug report sent' }))
         .setMimeType(ContentService.MimeType.JSON);
@@ -31,6 +44,22 @@ function doPost(e) {
     const rows     = payload.rows;
     const formType = payload.formType;
     const ss       = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+    // Update log entry with form details
+    logEntry.formType = formType || 'unknown';
+    logEntry.rowCount = rows ? rows.length : 0;
+
+    // Calculate photo payload size if present
+    if (payload.photos) {
+      let photoSize = 0;
+      if (payload.photos.before && payload.photos.before.data) {
+        photoSize += payload.photos.before.data.length * 0.75 / 1024; // base64 to KB
+      }
+      if (payload.photos.after && payload.photos.after.data) {
+        photoSize += payload.photos.after.data.length * 0.75 / 1024;
+      }
+      logEntry.photoSizeKB = Math.round(photoSize);
+    }
 
     // T-027: Capture server timestamp when data is received
     const serverTimestamp = new Date().toISOString();
@@ -114,14 +143,26 @@ function doPost(e) {
       });
     }
 
+    logEntry.status = 'SUCCESS';
     return ContentService
       .createTextOutput(JSON.stringify({ status: 'ok' }))
       .setMimeType(ContentService.MimeType.JSON);
 
   } catch(err) {
+    logEntry.status = 'ERROR';
+    logEntry.errorMessage = err.toString();
     return ContentService
       .createTextOutput(JSON.stringify({ status: 'error', message: err.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    // Always write execution log, even if logging itself fails
+    try {
+      logEntry.durationMs = new Date() - startTime;
+      writeExecutionLog(logEntry);
+    } catch (logError) {
+      Logger.log('[Execution Log] Failed to write log: ' + logError);
+      // Don't throw - logging failure should not break submissions
+    }
   }
 }
 
@@ -131,6 +172,253 @@ function testConnection() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   Logger.log('Connected to: ' + ss.getName());
   Logger.log('Sheets found: ' + ss.getSheets().map(s => s.getName()).join(', '));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PHASE 1: Execution Logging
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Write execution log entry to "Execution Log" sheet
+ * @param {Object} logEntry - Log entry with timestamp, formType, rowCount, etc.
+ */
+function writeExecutionLog(logEntry) {
+  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  let logSheet = ss.getSheetByName('Execution Log');
+  if (!logSheet) {
+    // Auto-create on first write
+    logSheet = ss.insertSheet('Execution Log');
+    logSheet.appendRow([
+      'Timestamp',
+      'Form Type',
+      'Row Count',
+      'Photo Size (KB)',
+      'Status',
+      'Error Message',
+      'Duration (ms)'
+    ]);
+    // Format header row
+    const headerRange = logSheet.getRange(1, 1, 1, 7);
+    headerRange.setFontWeight('bold');
+    headerRange.setBackground('#323031');
+    headerRange.setFontColor('#FFFFFF');
+  }
+
+  logSheet.appendRow([
+    logEntry.timestamp,
+    logEntry.formType,
+    logEntry.rowCount,
+    logEntry.photoSizeKB,
+    logEntry.status,
+    logEntry.errorMessage,
+    logEntry.durationMs
+  ]);
+}
+
+/**
+ * Initialize Execution Log sheet
+ * Run this manually or via init endpoint
+ */
+function initializeExecutionLog() {
+  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  let logSheet = ss.getSheetByName('Execution Log');
+  if (logSheet) {
+    Logger.log('Execution Log sheet already exists');
+    return;
+  }
+
+  logSheet = ss.insertSheet('Execution Log');
+  logSheet.appendRow([
+    'Timestamp',
+    'Form Type',
+    'Row Count',
+    'Photo Size (KB)',
+    'Status',
+    'Error Message',
+    'Duration (ms)'
+  ]);
+
+  // Format header
+  const headerRange = logSheet.getRange(1, 1, 1, 7);
+  headerRange.setFontWeight('bold');
+  headerRange.setBackground('#323031');
+  headerRange.setFontColor('#FFFFFF');
+
+  Logger.log('Execution Log sheet created successfully');
+}
+
+/**
+ * Send daily summary email with yesterday's submission stats
+ * Scheduled to run at 9am daily via time-driven trigger
+ */
+function sendDailySummary() {
+  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SUMMARY_EMAIL = 'support@universoleappstudios.com';
+
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const logSheet = ss.getSheetByName('Execution Log');
+
+    if (!logSheet) {
+      Logger.log('[Daily Summary] Execution Log sheet not found');
+      return;
+    }
+
+    // Get yesterday's date range
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0, 0, 0, 0);
+    const yesterdayEnd = new Date(yesterday);
+    yesterdayEnd.setHours(23, 59, 59, 999);
+
+    // Read all log entries
+    const data = logSheet.getDataRange().getValues();
+    const headers = data[0];
+    const rows = data.slice(1); // Skip header
+
+    // Filter for yesterday's entries
+    const yesterdayEntries = rows.filter(row => {
+      const timestamp = new Date(row[0]); // Column A: Timestamp
+      return timestamp >= yesterday && timestamp <= yesterdayEnd;
+    });
+
+    if (yesterdayEntries.length === 0) {
+      // No submissions yesterday - send notification
+      MailApp.sendEmail({
+        to: SUMMARY_EMAIL,
+        subject: `Taipei Kitchen Daily Summary - ${formatDate(yesterday)} - NO ACTIVITY`,
+        body: `No form submissions were recorded on ${formatDate(yesterday)}.\n\nThis could indicate:\n- No operations on that day\n- Form submission failures\n- Network connectivity issues\n\nPlease verify with operations team.`
+      });
+      return;
+    }
+
+    // Aggregate statistics
+    let deliveryCount = 0;
+    let productionCount = 0;
+    let bugReportCount = 0;
+    let errorCount = 0;
+    let photoUploads = 0;
+    let totalDuration = 0;
+    let maxDuration = 0;
+    const errors = [];
+
+    yesterdayEntries.forEach(row => {
+      const formType = row[1];
+      const rowCount = row[2];
+      const photoSize = row[3];
+      const status = row[4];
+      const errorMsg = row[5];
+      const duration = row[6];
+
+      if (formType === 'delivery') deliveryCount++;
+      else if (formType === 'production') productionCount++;
+      else if (formType === 'bugReport') bugReportCount++;
+
+      if (status === 'ERROR') {
+        errorCount++;
+        errors.push(`${row[0]}: ${errorMsg}`);
+      }
+
+      if (photoSize > 0) photoUploads++;
+
+      totalDuration += duration;
+      if (duration > maxDuration) maxDuration = duration;
+    });
+
+    const avgDuration = yesterdayEntries.length > 0 ? Math.round(totalDuration / yesterdayEntries.length) : 0;
+
+    // Build email body
+    const emailBody = `
+Daily Operations Summary for ${formatDate(yesterday)}
+
+═══════════════════════════════════════
+SUBMISSIONS
+═══════════════════════════════════════
+• Delivery Forms: ${deliveryCount} submissions
+• Production Forms: ${productionCount} submissions
+• Bug Reports: ${bugReportCount}
+• Total: ${yesterdayEntries.length} requests
+
+═══════════════════════════════════════
+ERRORS
+═══════════════════════════════════════
+${errorCount === 0 ? '✅ No errors reported' : `❌ ${errorCount} error(s) occurred:\n\n${errors.join('\n\n')}`}
+
+═══════════════════════════════════════
+PHOTOS
+═══════════════════════════════════════
+• Submissions with photos: ${photoUploads}
+
+═══════════════════════════════════════
+PERFORMANCE
+═══════════════════════════════════════
+• Average response time: ${avgDuration}ms
+• Slowest submission: ${maxDuration}ms
+
+View full execution log:
+https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=${logSheet.getSheetId()}
+
+---
+🤖 Automated daily summary from Taipei Kitchen Operations System
+    `.trim();
+
+    MailApp.sendEmail({
+      to: SUMMARY_EMAIL,
+      subject: `Taipei Kitchen Daily Summary - ${formatDate(yesterday)}${errorCount > 0 ? ' ⚠️ ERRORS' : ''}`,
+      body: emailBody
+    });
+
+    Logger.log('[Daily Summary] Email sent successfully');
+
+  } catch (error) {
+    Logger.log('[Daily Summary] Failed: ' + error);
+    // Try to send error notification
+    try {
+      MailApp.sendEmail({
+        to: SUMMARY_EMAIL,
+        subject: 'Taipei Kitchen Daily Summary - FAILED',
+        body: 'Failed to generate daily summary:\n\n' + error.toString()
+      });
+    } catch (e) {
+      Logger.log('[Daily Summary] Could not send error notification: ' + e);
+    }
+  }
+}
+
+/**
+ * Format date for email display
+ */
+function formatDate(date) {
+  const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+  return date.toLocaleDateString('en-US', options);
+}
+
+/**
+ * Create time-driven trigger for daily summary at 9am
+ * Run this once manually after deployment
+ */
+function createDailySummaryTrigger() {
+  // Delete existing trigger if any
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(trigger => {
+    if (trigger.getHandlerFunction() === 'sendDailySummary') {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+
+  // Create new trigger for 9am daily
+  ScriptApp.newTrigger('sendDailySummary')
+    .timeBased()
+    .atHour(9)
+    .everyDays(1)
+    .create();
+
+  Logger.log('Daily summary trigger created - will run at 9am every day');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
