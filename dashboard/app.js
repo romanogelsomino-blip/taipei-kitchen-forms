@@ -1122,9 +1122,8 @@ function applyDeliveryAdvancedFilters() {
   // Day of week filter
   if (daysOfWeek.length > 0) {
     filtered = filtered.filter(d => {
-      const normalizedDate = normalizeDate(d.date);
-      if (!normalizedDate) return false;
-      const dayOfWeek = new Date(normalizedDate).getDay();
+      if (!d.date) return false;
+      const dayOfWeek = new Date(d.date).getDay();
       return daysOfWeek.includes(dayOfWeek);
     });
   }
@@ -1856,6 +1855,16 @@ function updateWasteMetrics() {
 
 function updateWasteCharts() {
   const filtered = WASTE_STATE.filtered;
+
+  // Check if canvas elements exist before rendering
+  const canvas1 = document.getElementById('chart-waste-by-store');
+  const canvas2 = document.getElementById('chart-waste-by-dish');
+  const canvas3 = document.getElementById('chart-waste-by-reason');
+  const canvas4 = document.getElementById('chart-waste-trend');
+
+  if (!canvas1 || !canvas2 || !canvas3 || !canvas4) {
+    return; // Skip rendering if canvas elements not available
+  }
 
   // Aggregate data
   const wasteByStore = {};
