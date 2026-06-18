@@ -143,6 +143,50 @@ function doPost(e) {
       });
     }
 
+    // Handle photo uploads
+    if (formType === 'photos_only') {
+      logEntry.formType = 'photos_only';
+      const photos = payload.photos;
+      const folderName = 'Taipei Kitchen Photos';
+
+      // Get or create photos folder
+      let folder;
+      const folders = DriveApp.getFoldersByName(folderName);
+      if (folders.hasNext()) {
+        folder = folders.next();
+      } else {
+        folder = DriveApp.createFolder(folderName);
+      }
+
+      // Save photos to Drive
+      let savedCount = 0;
+      if (photos.before && photos.before.data) {
+        const blob = Utilities.newBlob(
+          Utilities.base64Decode(photos.before.data.split(',')[1]),
+          photos.before.type,
+          `${photos.storeId}_${photos.date}_before.jpg`
+        );
+        folder.createFile(blob);
+        savedCount++;
+      }
+
+      if (photos.after && photos.after.data) {
+        const blob = Utilities.newBlob(
+          Utilities.base64Decode(photos.after.data.split(',')[1]),
+          photos.after.type,
+          `${photos.storeId}_${photos.date}_after.jpg`
+        );
+        folder.createFile(blob);
+        savedCount++;
+      }
+
+      logEntry.rowCount = savedCount;
+      logEntry.status = 'SUCCESS';
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok', savedPhotos: savedCount }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     logEntry.status = 'SUCCESS';
     return ContentService
       .createTextOutput(JSON.stringify({ status: 'ok' }))
