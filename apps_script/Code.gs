@@ -1693,7 +1693,7 @@ function doGet(e) {
   return ContentService
     .createTextOutput(JSON.stringify({
       status: 'error',
-      message: 'Unknown action. Supported actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
+      message: 'Unknown action. Supported admin actions (require token): init, test, ping, sendDailySummary, getExecutionLog, listTriggers, createTrigger, deleteTrigger. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
     }))
     .setMimeType(ContentService.MimeType.JSON);
 }
