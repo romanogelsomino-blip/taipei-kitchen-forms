@@ -1822,7 +1822,7 @@ function setWasteQuickRange(range) {
 
 function updateWasteMetrics() {
   const filtered = WASTE_STATE.filtered;
-  const totalWaste = filtered.reduce((sum, w) => sum + (parseInt(w.qtyRemoved) || 0), 0);
+  const totalWaste = filtered.reduce((sum, w) => sum + (parseInt(w.removed) || 0), 0);
   const wasteEvents = filtered.length;
   const avgPerEvent = wasteEvents > 0 ? Math.round(totalWaste / wasteEvents) : 0;
 
@@ -1830,7 +1830,7 @@ function updateWasteMetrics() {
   const wasteByReason = {};
   filtered.forEach(w => {
     const reason = w.reason || 'Unknown';
-    wasteByReason[reason] = (wasteByReason[reason] || 0) + (parseInt(w.qtyRemoved) || 0);
+    wasteByReason[reason] = (wasteByReason[reason] || 0) + (parseInt(w.removed) || 0);
   });
   const topReason = Object.entries(wasteByReason).sort((a, b) => b[1] - a[1])[0];
 
@@ -1873,11 +1873,16 @@ function updateWasteCharts() {
   const wasteByDate = {};
 
   filtered.forEach(w => {
-    const qty = parseInt(w.qtyRemoved) || 0;
+    const qty = parseInt(w.removed) || 0;
     wasteByStore[w.store] = (wasteByStore[w.store] || 0) + qty;
     wasteByDish[w.dish] = (wasteByDish[w.dish] || 0) + qty;
     wasteByReason[w.reason || 'Unknown'] = (wasteByReason[w.reason || 'Unknown'] || 0) + qty;
-    wasteByDate[w.date] = (wasteByDate[w.date] || 0) + qty;
+
+    // Normalize date before using as key to prevent "Invalid Date" labels
+    const normalizedDate = normalizeDate(w.date);
+    if (normalizedDate) {
+      wasteByDate[normalizedDate] = (wasteByDate[normalizedDate] || 0) + qty;
+    }
   });
 
   // Chart 1: Waste by Store (Bar Chart)
@@ -1960,12 +1965,13 @@ function updateWasteCharts() {
       datasets: [{
         data: reasonData,
         backgroundColor: [
-          '#C0392B',
-          '#E74C3C',
-          '#EC7063',
-          '#F1948A',
-          '#F5B7B1',
-          '#FADBD8'
+          '#C0392B',  // Red - Spoilage
+          '#E67E22',  // Orange - Over-production
+          '#F39C12',  // Yellow-orange - Quality issues
+          '#27AE60',  // Green - Contamination
+          '#3498DB',  // Blue - Packaging damage
+          '#9B59B6',  // Purple - Other
+          '#95A5A6'   // Gray - Unknown
         ],
         borderWidth: 2,
         borderColor: '#fff'
@@ -1976,7 +1982,7 @@ function updateWasteCharts() {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          position: 'right',
+          position: 'bottom',
           labels: {
             font: { size: 11 },
             padding: 10
