@@ -1601,6 +1601,44 @@ function doGet(e) {
     }
   }
 
+  // Debug action: Show raw data for first 20 rows to diagnose column mapping
+  if (e.parameter.action === 'debug') {
+    try {
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const deliverySheet = ss.getSheetByName('Delivery Log - Live');
+      const deliveryData = deliverySheet ? deliverySheet.getDataRange().getValues() : [];
+
+      const debugRows = deliveryData.slice(0, 30).map((row, index) => {
+        const col0Str = row[0] ? row[0].toString() : '';
+        const col1Str = row[1] ? row[1].toString() : '';
+        const col2Str = row[2] ? row[2].toString() : '';
+        const col3Str = row[3] ? row[3].toString() : '';
+        const hasServerTimestamp = /\d{4}-\d{2}-\d{2}T\d{2}:/.test(col1Str);
+        const offset = hasServerTimestamp ? 0 : -1;
+
+        return {
+          index,
+          col0: col0Str.substring(0, 50),
+          col1: col1Str.substring(0, 50),
+          col2: col2Str.substring(0, 50),
+          col3: col3Str.substring(0, 50),
+          hasServerTimestamp,
+          offset,
+          detectedDate: row[2 + offset] ? row[2 + offset].toString().substring(0, 50) : '',
+          detectedDriver: row[3 + offset] ? row[3 + offset].toString().substring(0, 50) : ''
+        };
+      });
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ debugRows }, null, 2))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // Default: Return dashboard data (no action parameter)
   // This is the main endpoint the dashboard calls to get deliveries, production, waste, and stores
   if (!e.parameter.action) {
@@ -1645,9 +1683,11 @@ function doGet(e) {
           // New format: Col A = clientTimestamp, Col B = serverTimestamp, Col C = date, Col D = driver, ...
           const col1Str = row[1] ? row[1].toString() : '';
 
-          // New format: row[1] contains ISO timestamp with 'T' (YYYY-MM-DDTHH:MM:SS.SSSZ)
-          // Old format: row[1] contains date without 'T' (YYYY-MM-DD, M/D/YYYY, or Date object toString)
-          const hasServerTimestamp = col1Str.includes('T');
+          // New format: row[1] contains ISO timestamp (YYYY-MM-DDTHH:MM:SS.SSSZ)
+          // Old format: row[1] contains date (Date object → "Wed Apr 15 2026..." or YYYY-MM-DD)
+          // NOTE: Can't just check includes('T') because "GMT" in date strings contains 'T'!
+          // Check for ISO format pattern: digit followed by 'T' followed by digit
+          const hasServerTimestamp = /\d{4}-\d{2}-\d{2}T\d{2}:/.test(col1Str);
           const offset = hasServerTimestamp ? 0 : -1; // Shift indices back by 1 for old format
 
           return {
