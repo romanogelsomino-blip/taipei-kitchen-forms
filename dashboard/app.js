@@ -480,7 +480,11 @@ function renderOverview() {
   const productionToday = DATA.production.filter(p => normalizeDate(p.date) === today).length;
   const violationsToday = countViolations(DATA.deliveries.filter(d => normalizeDate(d.date) === today));
   const wasteThisWeek = DATA.waste
-    .filter(w => new Date(w.date) >= weekStart)
+    .filter(w => {
+      const wDate = normalizeDate(w.date);
+      if (!wDate) return false;
+      return new Date(wDate) >= weekStart;
+    })
     .reduce((sum, w) => sum + (parseInt(w.qtyRemoved) || 0), 0);
 
   document.getElementById('metric-deliveries').textContent = deliveriesToday;
@@ -1118,8 +1122,9 @@ function applyDeliveryAdvancedFilters() {
   // Day of week filter
   if (daysOfWeek.length > 0) {
     filtered = filtered.filter(d => {
-      if (!d.date) return false;
-      const dayOfWeek = new Date(d.date).getDay();
+      const normalizedDate = normalizeDate(d.date);
+      if (!normalizedDate) return false;
+      const dayOfWeek = new Date(normalizedDate).getDay();
       return daysOfWeek.includes(dayOfWeek);
     });
   }
@@ -1805,7 +1810,10 @@ function setWasteQuickRange(range) {
     const startDate = new Date(today);
     startDate.setDate(today.getDate() - range);
     const startStr = startDate.toISOString().split('T')[0];
-    filtered = filtered.filter(w => w.date >= startStr);
+    filtered = filtered.filter(w => {
+      const normalizedDate = normalizeDate(w.date);
+      return normalizedDate && normalizedDate >= startStr;
+    });
   }
 
   WASTE_STATE.filtered = filtered;
@@ -2099,10 +2107,15 @@ function setViolationFilter(status) {
   violationStatusFilter = status;
 
   // Update filter button states
-  document.querySelectorAll('.violation-filter-btn').forEach(btn => {
+  const buttons = document.querySelectorAll('.violation-filter-btn');
+  buttons.forEach((btn, index) => {
     btn.classList.remove('active');
+    // Match button to status by order: all, open, in_progress, resolved
+    const statuses = ['all', 'open', 'in_progress', 'resolved'];
+    if (statuses[index] === status) {
+      btn.classList.add('active');
+    }
   });
-  event.target.classList.add('active');
 
   refreshViolationsQueue();
 }
@@ -2271,10 +2284,15 @@ function applyShrinkFilter(range) {
   shrinkTimeRange = range;
 
   // Update button states
-  document.querySelectorAll('#panel-shrink .filter-btn').forEach(btn => {
+  const buttons = document.querySelectorAll('#panel-shrink .filter-btn');
+  buttons.forEach((btn, index) => {
     btn.classList.remove('active');
+    // Match button to range by order: today, 7days, 30days, all
+    const ranges = ['today', '7days', '30days', 'all'];
+    if (ranges[index] === range) {
+      btn.classList.add('active');
+    }
   });
-  event.target.classList.add('active');
 
   // Refresh shrink data
   renderShrinkDashboard();
