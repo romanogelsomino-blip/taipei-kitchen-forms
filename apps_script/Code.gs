@@ -1632,33 +1632,45 @@ function doGet(e) {
           // If Column B (date) exists, check if it's a header
           if (row[1]) {
             const secondCol = row[1].toString().toUpperCase();
-            if (secondCol.includes('DATE') || secondCol.includes('DRIVER')) {
+            if (secondCol.includes('DATE') || secondCol.includes('DRIVER') || secondCol.includes('SERVER')) {
               return false; // Skip header rows
             }
           }
 
           return true; // Include row if it has date or timestamp data
         })
-        .map(row => ({
-          submittedAt: row[0],        // Col A  – Client Timestamp
-          serverTimestamp: row[1],    // Col B  – Server Timestamp
-          date: row[2],               // Col C  – Date
-          driver: row[3],             // Col D  – Driver
-          vehicle: row[4],            // Col E  – Vehicle #
-          store: row[5],              // Col F  – Store
-          arrive: row[6],             // Col G  – Arrival Time
-          coolerTemp: row[7],         // Col H  – Cooler Temp °F
-          coolerCond: row[8],         // Col I  – Cooler Condition
-          casePrefillPercent: row[9], // Col J  – Case Pre-Fill %
-          dish: row[10],              // Col K  – Dish
-          added: row[11],             // Col L  – Qty Added
-          before: row[12],            // Col M  – On Shelf Before
-          removed: row[13],           // Col N  – Qty Removed (Expired)
-          reason: row[14],            // Col O  – Expire Reason
-          after: row[15],             // Col P  – Shelf Total After
-          notes: row[16],             // Col Q  – Store Notes
-          receivedBy: row[17]         // Col R  – Received By
-        }));
+        .map(row => {
+          // FIX: Detect if row uses old format (no serverTimestamp) or new format (with serverTimestamp)
+          // Old format: Col A = clientTimestamp, Col B = date, Col C = driver, ...
+          // New format: Col A = clientTimestamp, Col B = serverTimestamp, Col C = date, Col D = driver, ...
+          const col1Str = row[1] ? row[1].toString() : '';
+
+          // New format: row[1] contains ISO timestamp with 'T' (YYYY-MM-DDTHH:MM:SS.SSSZ)
+          // Old format: row[1] contains date without 'T' (YYYY-MM-DD, M/D/YYYY, or Date object toString)
+          const hasServerTimestamp = col1Str.includes('T');
+          const offset = hasServerTimestamp ? 0 : -1; // Shift indices back by 1 for old format
+
+          return {
+            submittedAt: row[0],                      // Col A  – Client Timestamp
+            serverTimestamp: row[1 + offset] || '',   // Col B  – Server Timestamp (new format only)
+            date: row[2 + offset],                    // Col C/B – Date
+            driver: row[3 + offset],                  // Col D/C – Driver
+            vehicle: row[4 + offset],                 // Col E/D – Vehicle #
+            store: row[5 + offset],                   // Col F/E – Store
+            arrive: row[6 + offset],                  // Col G/F – Arrival Time
+            coolerTemp: row[7 + offset],              // Col H/G – Cooler Temp °F
+            coolerCond: row[8 + offset],              // Col I/H – Cooler Condition
+            casePrefillPercent: row[9 + offset],      // Col J/I – Case Pre-Fill %
+            dish: row[10 + offset],                   // Col K/J – Dish
+            added: row[11 + offset],                  // Col L/K – Qty Added
+            before: row[12 + offset],                 // Col M/L – On Shelf Before
+            removed: row[13 + offset],                // Col N/M – Qty Removed (Expired)
+            reason: row[14 + offset],                 // Col O/N – Expire Reason
+            after: row[15 + offset],                  // Col P/O – Shelf Total After
+            notes: row[16 + offset],                  // Col Q/P – Store Notes
+            receivedBy: row[17 + offset]              // Col R/Q – Received By
+          };
+        });
 
       // Read production data - mapping based on doPost structure (lines 88-113)
       const productionSheet = ss.getSheetByName('Production Log - Live');
