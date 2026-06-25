@@ -137,7 +137,8 @@ Giant Food Stores corporate requires periodic access to delivery photos (quality
    - Select rows → right-click → **Copy**
    - Paste into new Google Sheet
    - Share that sheet with Giant corporate (Viewer access)
-   - Photo links are in columns Q (Before Photo) and R (After Photo)
+   - Photo links are in columns S (Before Photo URL) and T (After Photo URL)
+   - Note: Columns Q and R contain Store Notes and Received By (not photos)
 
 3. **Bulk Download (If Corporate Needs Files)**
    - Go to Google Drive: `Taipei Kitchen Photos`
@@ -270,16 +271,21 @@ Giant Food Stores corporate requires periodic access to delivery photos (quality
 
 ### Photos Not Appearing in Google Drive
 
-**Symptoms:** Delivery form submitted successfully, but Photo Link columns (Q and R) in sheet are blank.
+**Symptoms:** Delivery form submitted successfully, but Photo Link columns (S and T) in sheet are blank.
 
-**Current Status:** This is a **known issue** tracked in FRICTION_AUDIT.md F-13. Photo upload is not yet implemented in the live forms.
+**Current Status (RESOLVED as of June 25, 2026):** Photo upload pipeline is now fully implemented with automatic URL write-back to columns S (Before Photo URL) and T (After Photo URL).
 
-**Workaround (Manual):**
+**Verification Steps:**
+1. Check columns S and T in Delivery Log - Live (NOT columns Q/R which contain Notes and Received By)
+2. Check Apps Script execution logs for `[PHOTO UPLOAD] SUCCESS` or `[PHOTO UPLOAD] ORPHAN` entries
+3. Verify Drive folder "Taipei Kitchen Photos" contains photos with correct naming: `{storeId}_{date}_before.jpg`
+4. If URLs missing: photos may be orphaned (no matching delivery row) - check execution logs for details
+
+**Workaround (If Needed):**
 1. Ask driver to text/email photos separately
 2. Upload manually to Drive folder
-3. Paste Drive link into columns Q (Before Photo) and R (After Photo)
-
-**Fix Coming:** T-044 (F-13) will add photo upload with retry queue and Drive link write-back. Targeted for v1 release.
+3. Paste Drive link into columns S (Before Photo) and T (After Photo)
+   - Note: Columns Q and R are reserved for Store Notes and Received By
 
 ### Duplicate Rows in Production Log
 
