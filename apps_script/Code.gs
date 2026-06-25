@@ -158,15 +158,19 @@ function doPost(e) {
         folder = DriveApp.createFolder(folderName);
       }
 
-      // Save photos to Drive
+      // Save photos to Drive and get URLs
+      let beforeUrl = null;
+      let afterUrl = null;
       let savedCount = 0;
+
       if (photos.before && photos.before.data) {
         const blob = Utilities.newBlob(
           Utilities.base64Decode(photos.before.data.split(',')[1]),
           photos.before.type,
           `${photos.storeId}_${photos.date}_before.jpg`
         );
-        folder.createFile(blob);
+        const beforeFile = folder.createFile(blob);
+        beforeUrl = beforeFile.getUrl();
         savedCount++;
       }
 
@@ -176,8 +180,69 @@ function doPost(e) {
           photos.after.type,
           `${photos.storeId}_${photos.date}_after.jpg`
         );
-        folder.createFile(blob);
+        const afterFile = folder.createFile(blob);
+        afterUrl = afterFile.getUrl();
         savedCount++;
+      }
+
+      // Write URLs back to Delivery Log sheet
+      try {
+        const sheet = ss.getSheetByName('Delivery Log - Live');
+        if (!sheet) {
+          Logger.log(`[PHOTO UPLOAD] WARNING: Sheet not found. Photos saved to Drive but URLs not written. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}`);
+        } else {
+          const data = sheet.getDataRange().getValues();
+          const matchingRows = [];
+
+          // Search for matching delivery rows (skip header row at index 0)
+          for (let i = 1; i < data.length; i++) {
+            const row = data[i];
+            const rowStoreId = String(row[5]).trim();  // Col F (index 5) – Store ID
+            const rowDate = row[2];                     // Col C (index 2) – Date
+            const rowDriver = String(row[3]).trim();    // Col D (index 3) – Driver
+
+            // Normalize date comparison
+            let rowDateStr = '';
+            if (rowDate instanceof Date) {
+              rowDateStr = Utilities.formatDate(rowDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            } else {
+              rowDateStr = String(rowDate);
+            }
+
+            // Match by storeId + date + driver (exact match)
+            if (rowStoreId === String(photos.storeId) &&
+                rowDateStr === photos.date &&
+                rowDriver === photos.driver) {
+              matchingRows.push(i + 1); // +1 because sheet rows are 1-indexed
+            }
+          }
+
+          // Handle different match scenarios
+          if (matchingRows.length === 0) {
+            // No matching row found - log orphan (photos saved to Drive anyway)
+            Logger.log(`[PHOTO UPLOAD] ORPHAN: No matching delivery row found. Photos saved to Drive but not linked. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${beforeUrl}, afterUrl=${afterUrl}`);
+            logEntry.notes = 'ORPHAN: No matching delivery row';
+          } else if (matchingRows.length === 1) {
+            // Single match - write URLs to columns S (19) and T (20)
+            const targetRow = matchingRows[0];
+            if (beforeUrl) sheet.getRange(targetRow, 19).setValue(beforeUrl);  // Col S
+            if (afterUrl) sheet.getRange(targetRow, 20).setValue(afterUrl);    // Col T
+            Logger.log(`[PHOTO UPLOAD] SUCCESS: Linked photos to row ${targetRow}. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${beforeUrl}, afterUrl=${afterUrl}`);
+            logEntry.notes = `Linked to row ${targetRow}`;
+          } else {
+            // Multiple matches - write to most recent (last match), log warning
+            const targetRow = matchingRows[matchingRows.length - 1];
+            if (beforeUrl) sheet.getRange(targetRow, 19).setValue(beforeUrl);  // Col S
+            if (afterUrl) sheet.getRange(targetRow, 20).setValue(afterUrl);    // Col T
+            Logger.log(`[PHOTO UPLOAD] WARNING: Multiple matches found (${matchingRows.length}), wrote to most recent row ${targetRow}. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, allMatches=[${matchingRows.join(', ')}], beforeUrl=${beforeUrl}, afterUrl=${afterUrl}`);
+            logEntry.notes = `Multiple matches, linked to row ${targetRow}`;
+          }
+        }
+      } catch (sheetError) {
+        // Drive write succeeded but sheet update failed - log discrepancy, don't fail submission
+        Logger.log(`[PHOTO UPLOAD] ERROR: Photos saved to Drive but sheet update failed. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${beforeUrl}, afterUrl=${afterUrl}, error=${sheetError.toString()}`);
+        logEntry.notes = `Drive OK, sheet update failed: ${sheetError.toString()}`;
+        // Still return success - photos are saved to Drive
       }
 
       logEntry.rowCount = savedCount;
@@ -431,6 +496,161 @@ https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=${logSheet.get
     } catch (e) {
       Logger.log('[Daily Summary] Could not send error notification: ' + e);
     }
+  }
+}
+
+/**
+ * Check for photo/URL drift - runs nightly to verify Drive photos match sheet URLs
+ * Sends email alert if discrepancy > 5% over last 7 days
+ */
+function checkPhotoDrift() {
+  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const ALERT_EMAIL = 'support@universoleappstudios.com';
+  const DRIFT_THRESHOLD = 0.05; // 5%
+  const DAYS_TO_CHECK = 7;
+
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('Delivery Log - Live');
+
+    if (!sheet) {
+      Logger.log('[Photo Drift Check] Delivery Log sheet not found');
+      return;
+    }
+
+    // Calculate date range (last 7 days)
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - DAYS_TO_CHECK);
+    startDate.setHours(0, 0, 0, 0);
+
+    // Count Drive photos by date
+    const folderName = 'Taipei Kitchen Photos';
+    const folders = DriveApp.getFoldersByName(folderName);
+    let drivePhotoCounts = {};
+
+    if (folders.hasNext()) {
+      const folder = folders.next();
+      const files = folder.getFiles();
+
+      while (files.hasNext()) {
+        const file = files.next();
+        const fileName = file.getName();
+        // Parse date from filename: {storeId}_{date}_before.jpg or {storeId}_{date}_after.jpg
+        const match = fileName.match(/\d+_(\d{4}-\d{2}-\d{2})_(before|after)\.jpg/);
+        if (match) {
+          const fileDate = match[1];
+          const fileDateObj = new Date(fileDate);
+          if (fileDateObj >= startDate && fileDateObj <= now) {
+            drivePhotoCounts[fileDate] = (drivePhotoCounts[fileDate] || 0) + 1;
+          }
+        }
+      }
+    }
+
+    // Count non-empty photo URL cells by date in sheet
+    const data = sheet.getDataRange().getValues();
+    let sheetUrlCounts = {};
+
+    for (let i = 1; i < data.length; i++) { // Skip header row
+      const row = data[i];
+      const rowDate = row[2]; // Col C – Date
+      const beforePhotoUrl = row[18]; // Col S (index 18) – Before Photo URL
+      const afterPhotoUrl = row[19];  // Col T (index 19) – After Photo URL
+
+      // Normalize date
+      let rowDateStr = '';
+      if (rowDate instanceof Date) {
+        rowDateStr = Utilities.formatDate(rowDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else {
+        rowDateStr = String(rowDate);
+      }
+
+      const rowDateObj = new Date(rowDateStr);
+      if (rowDateObj >= startDate && rowDateObj <= now) {
+        // Count non-empty photo URLs
+        let urlCount = 0;
+        if (beforePhotoUrl && String(beforePhotoUrl).trim() !== '') urlCount++;
+        if (afterPhotoUrl && String(afterPhotoUrl).trim() !== '') urlCount++;
+
+        if (urlCount > 0) {
+          sheetUrlCounts[rowDateStr] = (sheetUrlCounts[rowDateStr] || 0) + urlCount;
+        }
+      }
+    }
+
+    // Compare counts and detect drift
+    let totalDrivePhotos = Object.values(drivePhotoCounts).reduce((sum, count) => sum + count, 0);
+    let totalSheetUrls = Object.values(sheetUrlCounts).reduce((sum, count) => sum + count, 0);
+    let driftDetails = [];
+    let hasDrift = false;
+
+    // Check each date
+    const allDates = new Set([...Object.keys(drivePhotoCounts), ...Object.keys(sheetUrlCounts)]);
+    allDates.forEach(date => {
+      const driveCount = drivePhotoCounts[date] || 0;
+      const sheetCount = sheetUrlCounts[date] || 0;
+      if (driveCount !== sheetCount) {
+        const diff = Math.abs(driveCount - sheetCount);
+        const driftPercent = driveCount > 0 ? (diff / driveCount) * 100 : 100;
+        driftDetails.push(`  ${date}: ${driveCount} photos in Drive, ${sheetCount} URLs in sheet (${driftPercent.toFixed(1)}% drift)`);
+      }
+    });
+
+    // Calculate overall drift
+    const overallDrift = totalDrivePhotos > 0 ? Math.abs(totalDrivePhotos - totalSheetUrls) / totalDrivePhotos : 0;
+    hasDrift = overallDrift > DRIFT_THRESHOLD;
+
+    if (hasDrift || driftDetails.length > 0) {
+      // Send alert email
+      const subject = `⚠️ Taipei Kitchen Photo/URL Drift Detected (${(overallDrift * 100).toFixed(1)}%)`;
+      const body = `Photo upload monitoring has detected a discrepancy between Drive photos and sheet URLs.
+
+SUMMARY (Last ${DAYS_TO_CHECK} Days):
+- Total photos in Drive: ${totalDrivePhotos}
+- Total URLs in sheet: ${totalSheetUrls}
+- Difference: ${Math.abs(totalDrivePhotos - totalSheetUrls)}
+- Drift percentage: ${(overallDrift * 100).toFixed(1)}%
+- Threshold: ${(DRIFT_THRESHOLD * 100).toFixed(0)}%
+
+DAILY BREAKDOWN:
+${driftDetails.length > 0 ? driftDetails.join('\n') : '  (All dates match)'}
+
+POSSIBLE CAUSES:
+- Sheet update failures (check Apps Script execution logs for errors)
+- Orphaned photos (no matching delivery row)
+- Multiple deliveries to same store/driver/date
+- Photo submissions before delivery submissions
+
+ACTION REQUIRED:
+1. Check Apps Script execution logs for [PHOTO UPLOAD] warnings/errors
+2. Review Delivery Log columns S/T for missing URLs
+3. Check Drive folder for orphaned photos
+
+Spreadsheet: https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}
+Drive Folder: Search for "Taipei Kitchen Photos" in Google Drive
+
+This check ran at ${now.toISOString()}`;
+
+      MailApp.sendEmail({
+        to: ALERT_EMAIL,
+        subject: subject,
+        body: body
+      });
+
+      Logger.log(`[Photo Drift Check] Alert sent: ${(overallDrift * 100).toFixed(1)}% drift detected`);
+    } else {
+      Logger.log(`[Photo Drift Check] No drift detected. ${totalDrivePhotos} photos match ${totalSheetUrls} URLs`);
+    }
+
+  } catch (error) {
+    Logger.log(`[Photo Drift Check] ERROR: ${error.toString()}`);
+    // Send error notification
+    MailApp.sendEmail({
+      to: ALERT_EMAIL,
+      subject: 'Taipei Kitchen Photo Drift Check Failed',
+      body: `The nightly photo drift check encountered an error:\n\n${error.toString()}\n\nPlease investigate.`
+    });
   }
 }
 
