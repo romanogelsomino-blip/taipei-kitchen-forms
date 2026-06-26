@@ -8,6 +8,21 @@
 // 5. Copy the Web app URL and paste it into both HTML form files
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Authorization helper - Run this once to authorize Drive scope
+ * This ensures the Web App can access Drive for photo uploads
+ */
+function authorizeDriveAccess() {
+  const folderName = 'Taipei Kitchen Photos';
+  const folders = DriveApp.getFoldersByName(folderName);
+  if (folders.hasNext()) {
+    Logger.log('Found existing photos folder');
+  } else {
+    Logger.log('Photos folder not found - will be created on first upload');
+  }
+  Logger.log('Drive access authorized successfully');
+}
+
 function doPost(e) {
   // Get spreadsheet ID from Script Properties (set per environment) or fallback to production
   const scriptProperties = PropertiesService.getScriptProperties();
