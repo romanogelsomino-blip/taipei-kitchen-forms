@@ -9,7 +9,9 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function doPost(e) {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI'; // ← Replace this
+  // Get spreadsheet ID from Script Properties (set per environment) or fallback to production
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const BUG_REPORT_EMAIL = 'support@universoleappstudios.com'; // Email for bug reports
 
   const startTime = new Date();
@@ -192,14 +194,56 @@ function doPost(e) {
           Logger.log(`[PHOTO UPLOAD] WARNING: Sheet not found. Photos saved to Drive but URLs not written. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}`);
         } else {
           const data = sheet.getDataRange().getValues();
+
+          // Auto-detect column indices from header row (handles staging/production schema differences)
+          // Header row might be at index 0 or 1 (if row 1 is a banner)
+          const headerRow = data[0];
+          const headerRow2 = data[1] || [];
+
+          // Find column indices by header name (case-insensitive, handles variations)
+          const findColumnIndex = (headerNames) => {
+            for (let colIdx = 0; colIdx < headerRow.length; colIdx++) {
+              const header = String(headerRow[colIdx]).toLowerCase().trim();
+              const header2 = String(headerRow2[colIdx]).toLowerCase().trim();
+              if (headerNames.some(name => header.includes(name) || header2.includes(name))) {
+                return colIdx;
+              }
+            }
+            return -1;
+          };
+
+          const storeIdCol = findColumnIndex(['store', 'strore']);  // handles misspelling
+          const dateCol = findColumnIndex(['date']);
+          const driverCol = findColumnIndex(['driver']);
+
+          // Fallback to observed staging indices if headers not found
+          const storeIdx = storeIdCol >= 0 ? storeIdCol : 3;  // Col D in staging
+          const dateIdx = dateCol >= 0 ? dateCol : 1;         // Col B in staging
+          const driverIdx = driverCol >= 0 ? driverCol : 2;   // Col C in staging
+
+          // Find photo URL columns (or use next available columns if not found)
+          const beforePhotoCol = findColumnIndex(['before photo', 'before link', 'photo before']);
+          const afterPhotoCol = findColumnIndex(['after photo', 'after link', 'photo after']);
+
+          // If not found, find first empty column after known data columns
+          const lastDataCol = Math.max(storeIdx, dateIdx, driverIdx, 16);  // Assume data ends around col P (16)
+          const beforePhotoIdx = beforePhotoCol >= 0 ? beforePhotoCol : lastDataCol + 1;
+          const afterPhotoIdx = afterPhotoCol >= 0 ? afterPhotoCol : lastDataCol + 2;
+
+          // Convert to 1-indexed for sheet.getRange() (columns are 1-indexed, rows are 1-indexed)
+          const beforePhotoSheetCol = beforePhotoIdx + 1;
+          const afterPhotoSheetCol = afterPhotoIdx + 1;
+
+          Logger.log(`[PHOTO UPLOAD] Column detection: storeIdx=${storeIdx}, dateIdx=${dateIdx}, driverIdx=${driverIdx}, beforePhotoCol=${beforePhotoSheetCol}, afterPhotoCol=${afterPhotoSheetCol}`);
+
           const matchingRows = [];
 
-          // Search for matching delivery rows (skip header row at index 0)
-          for (let i = 1; i < data.length; i++) {
+          // Search for matching delivery rows (skip header rows - start at index 2 to be safe)
+          for (let i = 2; i < data.length; i++) {
             const row = data[i];
-            const rowStoreId = String(row[5]).trim();  // Col F (index 5) – Store ID
-            const rowDate = row[2];                     // Col C (index 2) – Date
-            const rowDriver = String(row[3]).trim();    // Col D (index 3) – Driver
+            const rowStoreId = String(row[storeIdx]).trim();
+            const rowDate = row[dateIdx];
+            const rowDriver = String(row[driverIdx]).trim();
 
             // Normalize date comparison
             let rowDateStr = '';
@@ -223,18 +267,18 @@ function doPost(e) {
             Logger.log(`[PHOTO UPLOAD] ORPHAN: No matching delivery row found. Photos saved to Drive but not linked. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${beforeUrl}, afterUrl=${afterUrl}`);
             logEntry.notes = 'ORPHAN: No matching delivery row';
           } else if (matchingRows.length === 1) {
-            // Single match - write URLs to columns S (19) and T (20)
+            // Single match - write URLs to detected photo columns
             const targetRow = matchingRows[0];
-            if (beforeUrl) sheet.getRange(targetRow, 19).setValue(beforeUrl);  // Col S
-            if (afterUrl) sheet.getRange(targetRow, 20).setValue(afterUrl);    // Col T
-            Logger.log(`[PHOTO UPLOAD] SUCCESS: Linked photos to row ${targetRow}. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${beforeUrl}, afterUrl=${afterUrl}`);
+            if (beforeUrl) sheet.getRange(targetRow, beforePhotoSheetCol).setValue(beforeUrl);
+            if (afterUrl) sheet.getRange(targetRow, afterPhotoSheetCol).setValue(afterUrl);
+            Logger.log(`[PHOTO UPLOAD] SUCCESS: Linked photos to row ${targetRow} cols ${beforePhotoSheetCol}/${afterPhotoSheetCol}. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${beforeUrl}, afterUrl=${afterUrl}`);
             logEntry.notes = `Linked to row ${targetRow}`;
           } else {
             // Multiple matches - write to most recent (last match), log warning
             const targetRow = matchingRows[matchingRows.length - 1];
-            if (beforeUrl) sheet.getRange(targetRow, 19).setValue(beforeUrl);  // Col S
-            if (afterUrl) sheet.getRange(targetRow, 20).setValue(afterUrl);    // Col T
-            Logger.log(`[PHOTO UPLOAD] WARNING: Multiple matches found (${matchingRows.length}), wrote to most recent row ${targetRow}. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, allMatches=[${matchingRows.join(', ')}], beforeUrl=${beforeUrl}, afterUrl=${afterUrl}`);
+            if (beforeUrl) sheet.getRange(targetRow, beforePhotoSheetCol).setValue(beforeUrl);
+            if (afterUrl) sheet.getRange(targetRow, afterPhotoSheetCol).setValue(afterUrl);
+            Logger.log(`[PHOTO UPLOAD] WARNING: Multiple matches found (${matchingRows.length}), wrote to most recent row ${targetRow} cols ${beforePhotoSheetCol}/${afterPhotoSheetCol}. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, allMatches=[${matchingRows.join(', ')}], beforeUrl=${beforeUrl}, afterUrl=${afterUrl}`);
             logEntry.notes = `Multiple matches, linked to row ${targetRow}`;
           }
         }
@@ -277,7 +321,8 @@ function doPost(e) {
 
 // Test function — run this manually in the editor to verify your Sheet ID is correct
 function testConnection() {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   Logger.log('Connected to: ' + ss.getName());
   Logger.log('Sheets found: ' + ss.getSheets().map(s => s.getName()).join(', '));
@@ -292,7 +337,8 @@ function testConnection() {
  * @param {Object} logEntry - Log entry with timestamp, formType, rowCount, etc.
  */
 function writeExecutionLog(logEntry) {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
   let logSheet = ss.getSheetByName('Execution Log');
@@ -331,7 +377,8 @@ function writeExecutionLog(logEntry) {
  * Run this manually or via init endpoint
  */
 function initializeExecutionLog() {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
   let logSheet = ss.getSheetByName('Execution Log');
@@ -365,7 +412,8 @@ function initializeExecutionLog() {
  * Scheduled to run at 9am daily via time-driven trigger
  */
 function sendDailySummary() {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const SUMMARY_EMAIL = 'support@universoleappstudios.com';
 
   try {
@@ -504,7 +552,8 @@ https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=${logSheet.get
  * Sends email alert if discrepancy > 5% over last 7 days
  */
 function checkPhotoDrift() {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const ALERT_EMAIL = 'support@universoleappstudios.com';
   const DRIFT_THRESHOLD = 0.05; // 5%
   const DAYS_TO_CHECK = 7;
@@ -694,7 +743,8 @@ function createDailySummaryTrigger() {
  * Run this once manually after deploying to create the Config tab
  */
 function initializeConfigSheet() {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
   let configSheet = ss.getSheetByName('Config');
@@ -726,7 +776,8 @@ function initializeConfigSheet() {
  * Initialize Alert Log sheet if it doesn't exist
  */
 function initializeAlertLogSheet() {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
   let alertLogSheet = ss.getSheetByName('Alert Log');
@@ -773,7 +824,8 @@ function initializeAlertLogSheet() {
  * Tracks HACCP violations with status management (open → in_progress → resolved).
  */
 function initializeViolationsTrackerSheet() {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
   let violationsSheet = ss.getSheetByName('Violations Tracker');
@@ -818,7 +870,8 @@ function initializeViolationsTrackerSheet() {
  * Get config value from Config sheet
  */
 function getConfig(key) {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const configSheet = ss.getSheetByName('Config');
 
@@ -851,7 +904,8 @@ function getConfig(key) {
  * Set config value in Config sheet
  */
 function setConfig(key, value) {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let configSheet = ss.getSheetByName('Config');
 
@@ -891,7 +945,8 @@ function setConfig(key, value) {
  * Log violation alert attempt
  */
 function logViolationAlert(violationType, storeId, storeName, temp, threshold, date, time, driver, receivedBy, recipients, emailStatus, errorMessage) {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let alertLogSheet = ss.getSheetByName('Alert Log');
 
@@ -921,7 +976,8 @@ function logViolationAlert(violationType, storeId, storeName, temp, threshold, d
  * Create a violation tracker entry
  */
 function createViolationTrackerEntry(violationType, storeId, storeName, temp, threshold, alertLogTimestamp) {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let violationsSheet = ss.getSheetByName('Violations Tracker');
 
@@ -1237,7 +1293,8 @@ function verifyAdminToken(providedToken) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function doGet(e) {
-  const SPREADSHEET_ID = '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
 
   // ────────────────────────────────────────────────────────────────────────────────
   // Admin Actions (Protected by Token)

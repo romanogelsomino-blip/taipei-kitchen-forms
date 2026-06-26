@@ -16,6 +16,8 @@
     "test:triggers:production": "node scripts/admin-action.js production listTriggers",
     "test:malformed:staging": "node scripts/test-malformed-post.js staging",
     "test:malformed:production": "node scripts/test-malformed-post.js production",
+    "test:photo:staging": "node scripts/test-photo-upload.js staging",
+    "test:photo:production": "node scripts/test-photo-upload.js production",
     "email:summary:staging": "node scripts/admin-action.js staging sendDailySummary",
     "email:summary:production": "node scripts/admin-action.js production sendDailySummary",
     "trigger:create:staging": "node scripts/admin-action.js staging createTrigger",
