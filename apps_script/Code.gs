@@ -29,6 +29,8 @@ function doPost(e) {
   const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
   const BUG_REPORT_EMAIL = 'support@universoleappstudios.com'; // Email for bug reports
 
+  Logger.log(`[INIT] Using SPREADSHEET_ID: ${SPREADSHEET_ID}`);
+
   const startTime = new Date();
   let logEntry = {
     timestamp: startTime.toISOString(),
@@ -86,24 +88,24 @@ function doPost(e) {
       if (!sheet) throw new Error('Sheet "Delivery Log - Live" not found. Upload the provided Google Sheet file first.');
       rows.forEach(row => {
         sheet.appendRow([
-          row.clientTimestamp,    // Col A  – Client Timestamp (when user submitted)
-          serverTimestamp,        // Col B  – Server Timestamp (when server received)
-          row.date,               // Col C  – Date
-          row.driver,             // Col D  – Driver
-          row.vehicle,            // Col E  – Vehicle #
-          row.store,              // Col F  – Store  ← IMPORTANT: must match store ID e.g. '6542'
-          row.arrive,             // Col G  – Arrival Time
-          row.coolerTemp,         // Col H  – Cooler Temp °F
-          row.coolerCond,         // Col I  – Cooler Condition
-          row.casePrefillPercent, // Col J  – Case Pre-Fill % (NEW: T-047)
-          row.dish,               // Col K  – Dish
-          row.added,              // Col L  – Qty Added (qtyAdded)
-          row.before,             // Col M  – On Shelf Before
-          row.removed,            // Col N  – Qty Removed (Expired)
-          row.reason,             // Col O  – Expire Reason
-          row.after,              // Col P  – Shelf Total After
-          row.notes,              // Col Q  – Store Notes
-          row.receivedBy          // Col R  – Received By
+          row.clientTimestamp,    // Col A  – Submitted At (when user submitted)
+          row.date,               // Col B  – Date
+          row.driver,             // Col C  – Driver
+          row.store,              // Col D  – Store # (misspelled "Strore #" in sheet)
+          row.arrive,             // Col E  – Arrival Time
+          row.coolerTemp,         // Col F  – Cooler Temp °F
+          row.coolerCond,         // Col G  – Cooler Condition
+          row.dish,               // Col H  – Dish
+          row.casePrefillPercent, // Col I  – Case Pre-Fill %
+          row.added,              // Col J  – Qty Added
+          row.before,             // Col K  – On Shelf Before
+          row.removed,            // Col L  – Qty Removed (Expired)
+          row.reason,             // Col M  – Expire Reason
+          row.after,              // Col N  – Shelf Total After
+          row.notes,              // Col O  – Store Notes
+          row.receivedBy,         // Col P  – Received By
+          '',                     // Col Q  – Before Photo Link (filled by photo handler)
+          ''                      // Col R  – After Photo Link (filled by photo handler)
         ]);
 
         // P2.4: Check for HACCP violations and send alerts
@@ -237,8 +239,9 @@ function doPost(e) {
           const driverIdx = driverCol >= 0 ? driverCol : 2;   // Col C in staging
 
           // Find photo URL columns (or use next available columns if not found)
-          const beforePhotoCol = findColumnIndex(['before photo', 'before link', 'photo before']);
-          const afterPhotoCol = findColumnIndex(['after photo', 'after link', 'photo after']);
+          // Use exact match for 'photo link' to avoid false matches with other 'photo' columns
+          const beforePhotoCol = findColumnIndex(['before photo link', 'photo before', 'before link']);
+          const afterPhotoCol = findColumnIndex(['after photo link', 'photo after', 'after link']);
 
           // If not found, find first empty column after known data columns
           const lastDataCol = Math.max(storeIdx, dateIdx, driverIdx, 16);  // Assume data ends around col P (16)
@@ -249,7 +252,7 @@ function doPost(e) {
           const beforePhotoSheetCol = beforePhotoIdx + 1;
           const afterPhotoSheetCol = afterPhotoIdx + 1;
 
-          Logger.log(`[PHOTO UPLOAD] Column detection: storeIdx=${storeIdx}, dateIdx=${dateIdx}, driverIdx=${driverIdx}, beforePhotoCol=${beforePhotoSheetCol}, afterPhotoCol=${afterPhotoSheetCol}`);
+          Logger.log(`[PHOTO UPLOAD] Column detection: storeIdx=${storeIdx}, dateIdx=${dateIdx}, driverIdx=${driverIdx}, beforePhotoCol=${beforePhotoSheetCol} (found=${beforePhotoCol>=0}), afterPhotoCol=${afterPhotoSheetCol} (found=${afterPhotoCol>=0})`);
 
           const matchingRows = [];
 
