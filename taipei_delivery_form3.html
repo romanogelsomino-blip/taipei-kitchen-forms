@@ -1381,6 +1381,7 @@ async function submitForm() {
 
   // ── Step 2: Send photos separately if present ────────────
   const hasPhotos = photoData.before || photoData.after;
+  console.log('[Photo Debug] hasPhotos:', hasPhotos, 'photoData:', photoData);
   if (hasPhotos) {
     // T-044: Show detailed photo upload status
     const photoCount = (photoData.before ? 1 : 0) + (photoData.after ? 1 : 0);
@@ -1394,6 +1395,13 @@ async function submitForm() {
       formType: 'photos_only',
       photos:   payload.photos
     };
+    console.log('[Photo Debug] Sending photo payload:', JSON.stringify({
+      formType: photoPayload.formType,
+      hasBeforeData: !!photoPayload.photos?.before?.data,
+      hasAfterData: !!photoPayload.photos?.after?.data,
+      storeId: photoPayload.photos?.storeId,
+      driver: photoPayload.photos?.driver
+    }));
     try {
       await fetch(GOOGLE_SCRIPT_URL, {
         method:  'POST',
