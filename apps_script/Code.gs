@@ -45,6 +45,9 @@ function doPost(e) {
   try {
     const payload  = JSON.parse(e.postData.contents);
 
+    // DEBUG: Log what we received
+    Logger.log(`[DEBUG] Received payload - formType: ${payload.formType}, type: ${payload.type}, has photos: ${!!payload.photos}, has rows: ${!!payload.rows}`);
+
     // Handle bug reports
     if (payload.type === 'bugReport') {
       logEntry.formType = 'bugReport';
@@ -164,6 +167,7 @@ function doPost(e) {
 
     // Handle photo uploads
     if (formType === 'photos_only') {
+      Logger.log('[PHOTO UPLOAD] ENTERED BRANCH - Starting photo upload handler');
       logEntry.formType = 'photos_only';
       const photos = payload.photos;
       const folderName = 'Taipei Kitchen Photos';
