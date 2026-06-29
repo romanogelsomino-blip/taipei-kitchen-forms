@@ -188,8 +188,8 @@ function doPost(e) {
 
       if (photos.before && photos.before.data) {
         const blob = Utilities.newBlob(
-          Utilities.base64Decode(photos.before.data.split(',')[1]),
-          photos.before.type,
+          Utilities.base64Decode(photos.before.data),
+          photos.before.mimeType,
           `${photos.storeId}_${photos.date}_before.jpg`
         );
         const beforeFile = folder.createFile(blob);
@@ -199,8 +199,8 @@ function doPost(e) {
 
       if (photos.after && photos.after.data) {
         const blob = Utilities.newBlob(
-          Utilities.base64Decode(photos.after.data.split(',')[1]),
-          photos.after.type,
+          Utilities.base64Decode(photos.after.data),
+          photos.after.mimeType,
           `${photos.storeId}_${photos.date}_after.jpg`
         );
         const afterFile = folder.createFile(blob);
