@@ -2084,11 +2084,94 @@ function doGet(e) {
     }
   }
 
+  // Query deliveries (requires admin token) - for debugging and investigation
+  if (e.parameter.action === 'queryDeliveries') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized: Invalid or missing admin token' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const sheet = ss.getSheetByName('Delivery Log - Live');
+
+      if (!sheet) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'error', message: 'Delivery Log - Live sheet not found' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      const rows = data.slice(1);
+
+      // Get filter parameters
+      const dateFilter = e.parameter.date; // Format: YYYY-MM-DD or YYYY-MM-DD:YYYY-MM-DD for range
+      const storeFilter = e.parameter.store;
+      const driverFilter = e.parameter.driver;
+      const limit = parseInt(e.parameter.limit) || 100;
+
+      // Find column indices
+      const dateCol = headers.indexOf('Date');
+      const storeCol = headers.findIndex(h => h === 'Store #' || h === 'Strore #');
+      const driverCol = headers.indexOf('Driver');
+
+      // Filter and map rows
+      let filtered = rows.filter((row, idx) => {
+        // Skip completely empty rows
+        const isEmpty = row.every(cell => cell === '' || cell === null || cell === undefined);
+        if (isEmpty) return false;
+
+        // Apply filters only if they are provided
+        if (dateFilter) {
+          if (!row[dateCol]) return false; // Skip if no date
+          const rowDate = typeof row[dateCol] === 'string' ? row[dateCol] : new Date(row[dateCol]).toISOString().split('T')[0];
+          if (dateFilter.includes(':')) {
+            const [startDate, endDate] = dateFilter.split(':');
+            if (rowDate < startDate || rowDate > endDate) return false;
+          } else {
+            if (rowDate !== dateFilter && !rowDate.startsWith(dateFilter)) return false;
+          }
+        }
+        if (storeFilter && String(row[storeCol]) !== String(storeFilter)) return false;
+        if (driverFilter && String(row[driverCol]).toLowerCase().indexOf(driverFilter.toLowerCase()) === -1) return false;
+
+        return true;
+      }).slice(0, limit);
+
+      const results = filtered.map((row, idx) => ({
+        rowNumber: rows.indexOf(row) + 2, // +2 for header and 1-based indexing
+        date: row[dateCol],
+        store: row[storeCol],
+        driver: row[driverCol],
+        submittedAt: row[headers.indexOf('Submitted At')],
+        dish: row[headers.indexOf('Dish')],
+        beforePhotoLink: row[headers.indexOf('Before Photo Link')],
+        afterPhotoLink: row[headers.indexOf('After Photo Link')]
+      }));
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          count: results.length,
+          totalRows: rows.length,
+          deliveries: results
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // Unknown action: Return error
   return ContentService
     .createTextOutput(JSON.stringify({
       status: 'error',
-      message: 'Unknown action. Supported admin actions (require token): init, test, ping, sendDailySummary, getExecutionLog, listTriggers, createTrigger, deleteTrigger. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
+      message: 'Unknown action. Supported admin actions (require token): init, test, ping, sendDailySummary, getExecutionLog, queryDeliveries, listTriggers, createTrigger, deleteTrigger. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
     }))
     .setMimeType(ContentService.MimeType.JSON);
 }

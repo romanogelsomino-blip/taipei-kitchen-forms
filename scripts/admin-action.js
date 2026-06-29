@@ -62,6 +62,16 @@ if (action === 'getExecutionLog' && additionalParams.length > 0) {
   requestUrl += `&limit=${encodeURIComponent(additionalParams[0])}`;
 }
 
+if (action === 'queryDeliveries') {
+  // Parse additional params as key=value pairs
+  additionalParams.forEach(param => {
+    const [key, value] = param.split('=');
+    if (key && value) {
+      requestUrl += `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+    }
+  });
+}
+
 console.log(`🔧 Calling ${action} on ${environment}...`);
 
 // Make HTTP request (follow redirects manually)
