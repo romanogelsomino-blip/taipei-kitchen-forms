@@ -65,9 +65,14 @@ if (action === 'getExecutionLog' && additionalParams.length > 0) {
 if (action === 'queryDeliveries') {
   // Parse additional params as key=value pairs
   additionalParams.forEach(param => {
-    const [key, value] = param.split('=');
-    if (key && value) {
-      requestUrl += `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+    if (param.includes('=')) {
+      const [key, value] = param.split('=');
+      if (key && value !== undefined) {
+        requestUrl += `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+      }
+    } else {
+      // Handle flag parameters like "debug"
+      requestUrl += `&${encodeURIComponent(param)}=true`;
     }
   });
 }

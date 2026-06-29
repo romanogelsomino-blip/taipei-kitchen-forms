@@ -2103,66 +2103,133 @@ function doGet(e) {
       }
 
       const data = sheet.getDataRange().getValues();
-      const headers = data[0];
-      const rows = data.slice(1);
+
+      // Handle sheets with title row: skip first row if it doesn't have "Date" column
+      let headerRowIndex = 0;
+      if (data[0].indexOf('Date') === -1 && data.length > 1 && data[1].indexOf('Date') >= 0) {
+        headerRowIndex = 1; // Second row is the actual header
+      }
+
+      const headers = data[headerRowIndex];
+      const rows = data.slice(headerRowIndex + 1);
 
       // Get filter parameters
       const dateFilter = e.parameter.date; // Format: YYYY-MM-DD or YYYY-MM-DD:YYYY-MM-DD for range
       const storeFilter = e.parameter.store;
       const driverFilter = e.parameter.driver;
       const limit = parseInt(e.parameter.limit) || 100;
+      const debug = e.parameter.debug === 'true';
 
       // Find column indices
       const dateCol = headers.indexOf('Date');
       const storeCol = headers.findIndex(h => h === 'Store #' || h === 'Strore #');
       const driverCol = headers.indexOf('Driver');
+      const submittedAtCol = headers.indexOf('Submitted At');
+      const dishCol = headers.indexOf('Dish');
+      const beforePhotoCol = headers.indexOf('Before Photo Link');
+      const afterPhotoCol = headers.indexOf('After Photo Link');
 
-      // Filter and map rows
-      let filtered = rows.filter((row, idx) => {
+      // Debug mode: return diagnostic info
+      if (debug) {
+        return ContentService
+          .createTextOutput(JSON.stringify({
+            status: 'ok',
+            debug: true,
+            sheetInfo: {
+              totalRows: rows.length,
+              totalColumns: headers.length,
+              headers: headers,
+              columnIndices: {
+                date: dateCol,
+                store: storeCol,
+                driver: driverCol,
+                submittedAt: submittedAtCol,
+                dish: dishCol,
+                beforePhoto: beforePhotoCol,
+                afterPhoto: afterPhotoCol
+              },
+              sampleRow: rows.length > 0 ? rows[0] : null,
+              lastRow: rows.length > 0 ? rows[rows.length - 1] : null
+            }
+          }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      // Filter rows
+      let filtered = [];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+
         // Skip completely empty rows
-        const isEmpty = row.every(cell => cell === '' || cell === null || cell === undefined);
-        if (isEmpty) return false;
+        if (!row[dateCol] && !row[storeCol] && !row[driverCol]) continue;
 
-        // Apply filters only if they are provided
-        if (dateFilter) {
-          if (!row[dateCol]) return false; // Skip if no date
-          const rowDate = typeof row[dateCol] === 'string' ? row[dateCol] : new Date(row[dateCol]).toISOString().split('T')[0];
+        // Apply date filter
+        if (dateFilter && row[dateCol]) {
+          let rowDate;
+          if (row[dateCol] instanceof Date) {
+            rowDate = row[dateCol].toISOString().split('T')[0];
+          } else if (typeof row[dateCol] === 'string') {
+            // Try to parse various date formats
+            const dateStr = row[dateCol];
+            if (dateStr.match(/^\d{4}-\d{2}-\d{2}T/)) {
+              // ISO timestamp format: 2026-04-15T07:00:00.000Z
+              rowDate = dateStr.split('T')[0];
+            } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+              rowDate = dateStr; // Already YYYY-MM-DD
+            } else if (dateStr.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) {
+              // M/D/YY or MM/DD/YYYY format
+              const parts = dateStr.split('/');
+              let year = parts[2];
+              if (year.length === 2) year = '20' + year;
+              rowDate = `${year}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+            } else {
+              continue; // Skip rows with unparseable dates
+            }
+          } else {
+            continue; // Skip if date is neither Date object nor string
+          }
+
           if (dateFilter.includes(':')) {
             const [startDate, endDate] = dateFilter.split(':');
-            if (rowDate < startDate || rowDate > endDate) return false;
+            if (rowDate < startDate || rowDate > endDate) continue;
           } else {
-            if (rowDate !== dateFilter && !rowDate.startsWith(dateFilter)) return false;
+            if (rowDate !== dateFilter) continue;
           }
         }
-        if (storeFilter && String(row[storeCol]) !== String(storeFilter)) return false;
-        if (driverFilter && String(row[driverCol]).toLowerCase().indexOf(driverFilter.toLowerCase()) === -1) return false;
 
-        return true;
-      }).slice(0, limit);
+        // Apply store filter
+        if (storeFilter && String(row[storeCol]) !== String(storeFilter)) continue;
 
-      const results = filtered.map((row, idx) => ({
-        rowNumber: rows.indexOf(row) + 2, // +2 for header and 1-based indexing
-        date: row[dateCol],
-        store: row[storeCol],
-        driver: row[driverCol],
-        submittedAt: row[headers.indexOf('Submitted At')],
-        dish: row[headers.indexOf('Dish')],
-        beforePhotoLink: row[headers.indexOf('Before Photo Link')],
-        afterPhotoLink: row[headers.indexOf('After Photo Link')]
-      }));
+        // Apply driver filter
+        if (driverFilter && String(row[driverCol]).toLowerCase().indexOf(driverFilter.toLowerCase()) === -1) continue;
+
+        // Row passed all filters
+        filtered.push({
+          rowNumber: i + 2, // +2 for header row and 1-based indexing
+          date: row[dateCol],
+          store: row[storeCol],
+          driver: row[driverCol],
+          submittedAt: row[submittedAtCol],
+          dish: row[dishCol],
+          beforePhotoLink: row[beforePhotoCol],
+          afterPhotoLink: row[afterPhotoCol]
+        });
+
+        if (filtered.length >= limit) break;
+      }
 
       return ContentService
         .createTextOutput(JSON.stringify({
           status: 'ok',
-          count: results.length,
+          count: filtered.length,
           totalRows: rows.length,
-          deliveries: results
+          deliveries: filtered
         }))
         .setMimeType(ContentService.MimeType.JSON);
 
     } catch (error) {
       return ContentService
-        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString(), stack: error.stack }))
         .setMimeType(ContentService.MimeType.JSON);
     }
   }
