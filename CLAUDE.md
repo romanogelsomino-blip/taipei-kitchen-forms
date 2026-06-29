@@ -57,6 +57,33 @@ Before fixing, check:
 - **Daily Summary Email**: Sent at 9am to support@universoleappstudios.com
 - **Apps Script Logger**: Console logs in Apps Script editor (View → Logs)
 
+### Case Study: The Observability Gap (June 1-26, 2026)
+
+**Context**: Photo upload pipeline stopped working on June 1, 2026 due to deployment drift. Debugging was difficult because execution logging wasn't deployed to production until June 26.
+
+**The Gap**:
+- June 1: `clasp push` introduced to production (first programmatic deployment)
+- June 1-17: Execution logging existed in git but not deployed to production
+- June 18: Execution logging deployed to production Apps Script
+- June 18-26: Logging active but not visible (deployment didn't update Web App URL)
+- June 26: Execution logging finally visible in production
+
+**Impact**:
+- 25 days of silent failures with no server-side visibility
+- Debugging relied on:
+  - Manual form submissions with browser console inspection
+  - Spreadsheet inspection for ORPHAN photos (Drive uploads without sheet URLs)
+  - Git history analysis to find when code diverged
+- Could not answer: "Did submissions reach the server?" for June 1-26
+
+**Lesson**: Observability infrastructure must be deployed BEFORE features that depend on it. The photo pipeline should not have been re-implemented (June 18) without first confirming that execution logging was active and visible in production.
+
+**Prevention**:
+1. ✅ Verify observability tools are working in production before building new features
+2. ✅ Test that logs are accessible via npm scripts (not just present in code)
+3. ✅ If re-implementing a feature that previously worked, prioritize logging over functionality
+4. ✅ Execution logging should be among the FIRST features deployed, not an afterthought
+
 ---
 
 ## Decision-Making & Self-Sufficiency
@@ -305,6 +332,11 @@ open http://localhost:8000  # or preview in IDE
 # 4. Test new feature end-to-end
 # Example: Add filter → Apply → Clear → Verify data resets
 
+# 4a. Test photo upload pipeline (REQUIRED if touching form handlers)
+npm run test:photo:production
+# Verify: Photos upload to Drive AND link to sheet rows
+# This prevents photo pipeline regressions like Issue G
+
 # 5. Commit & push to BOTH branches
 git push origin main
 git checkout gh-pages && git merge main --no-edit && git push origin gh-pages
@@ -339,6 +371,58 @@ curl -I https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
 - ✅ **LOGGING**: Use `Logger.log()` for debugging, not `console.log()`
 - ✅ **ERROR HANDLING**: Wrap MailApp/Sheet calls in try/catch
 - ✅ **SHEETS**: Always check if sheet exists before reading/writing
+
+### Payload Verification Principle
+
+When re-implementing existing functionality, **read the sender's actual payload format before writing the receiver**. Do not guess at data structure. The cost of 30 seconds of verification beats 11 days of silent production failure.
+
+**Case Study (Issue G - Photo Pipeline Bug, June 18-29, 2026)**:
+
+Claude Code re-implemented the photo handler on June 18 after it was lost to deployment drift. The implementation made incorrect assumptions about the payload structure:
+
+**Assumptions Made** (WRONG):
+- Form sends: `{ data: "data:image/jpeg;base64,ABC123...", type: "image/jpeg" }`
+- Code should: `data.split(',')[1]` to extract base64, reference `photo.type`
+
+**Actual Payload** (CORRECT):
+- Form sends: `{ data: "ABC123...", mimeType: "image/jpeg" }`
+- Data already stripped of prefix, property named `mimeType` not `type`
+
+**Result**:
+- Bug: `photo.data.split(',')[1]` returned `undefined` (no comma in already-stripped data)
+- Bug: `photo.type` was `undefined` (property doesn't exist)
+- Impact: 90% photo upload failure rate (27 of 30 attempts) for 11 days
+- Failure was invisible due to `mode: 'no-cors'` in form fetch requests
+
+**Prevention Checklist**:
+- [ ] Read sender code (form HTML) to see exact JSON structure sent
+- [ ] Add debug logging to show first payload received (log first 50 chars of data)
+- [ ] Verify property names match exactly (`mimeType` vs `type`, `data` format)
+- [ ] Test with real data before deploying (don't rely on assumptions)
+- [ ] If guessing, add a comment explaining the assumption and verify it immediately
+
+**Correct Approach**:
+```javascript
+// ✅ CORRECT: Read form code first
+// Form sends: photoData[which] = { data: compressed.dataUrl.split(',')[1], mimeType: 'image/jpeg' }
+// Data is already pure base64 string, no prefix
+
+const blob = Utilities.newBlob(
+  Utilities.base64Decode(photos.before.data),  // No split needed
+  photos.before.mimeType,                       // Not photos.before.type
+  `${photos.storeId}_${photos.date}_before.jpg`
+);
+```
+
+**Wrong Approach**:
+```javascript
+// ❌ WRONG: Assumed standard data URL format without checking
+const blob = Utilities.newBlob(
+  Utilities.base64Decode(photos.before.data.split(',')[1]),  // Splits already-split data
+  photos.before.type,                                          // Property doesn't exist
+  `${photos.storeId}_${photos.date}_before.jpg`
+);
+```
 
 ---
 
