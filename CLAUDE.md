@@ -111,6 +111,64 @@ Before fixing, check:
 
 ---
 
+## Photo Storage Infrastructure
+
+**CANONICAL DRIVE FOLDER** (READ THIS FIRST):
+
+```
+Name:  Taipei Kitchen Photos
+ID:    1gCVZ767RjlSDqgzWkPQKntjmyHbfBO_g
+Owner: Romano Gelsomino (romanogelsomino@gmail.com)
+URL:   https://drive.google.com/drive/folders/1gCVZ767RjlSDqgzWkPQKntjmyHbfBO_g
+```
+
+**Critical Rules**:
+1. ✅ **NEVER hardcode folder IDs** - Always use `DriveApp.getFoldersByName('Taipei Kitchen Photos')`
+2. ✅ **Single source of truth** - All photo operations (upload, search, backfill) use the SAME folder lookup
+3. ✅ **Folder created automatically** - Code creates folder if it doesn't exist (first photo upload)
+4. ✅ **Owned by Romano** - The Apps Script runs under Romano's Google account, so he owns the folder
+
+**Folder References in Code.gs**:
+- Line ~17: `authorizeDriveAccess()` - Drive authorization helper
+- Line ~173: Photo upload handler (doPost)
+- Line ~606: Daily summary email (photo count)
+- Line ~2264: `findPhotos` endpoint (diagnostic)
+- Line ~2400: `backfillPhotoLinks` endpoint (recovery)
+
+**Common Mistake to Avoid**:
+- ❌ Do NOT create separate folders for "staging" vs "production" photos
+- ❌ Do NOT use hardcoded folder IDs like `getFolderById('...')`
+- ❌ Do NOT reference any folder other than "Taipei Kitchen Photos"
+
+**Photo Naming Convention**:
+```
+{storeId}_{date}_before.jpg
+{storeId}_{date}_after.jpg
+
+Examples:
+6253_2026-06-30_before.jpg
+6253_2026-06-30_after.jpg
+```
+
+**Historical Context** (June 2026 Photo Recovery):
+- **Issue**: Photos from 6/30/26 were uploaded but URLs not written to sheet
+- **Root Cause #1**: Store ID format mismatch ("Store 6253 - ..." vs "6253")
+- **Root Cause #2**: Backfill endpoint initially searched wrong folder (hardcoded "Bento Photos" ID)
+- **Resolution**: Fixed both bugs, unified all code to use `getFoldersByName('Taipei Kitchen Photos')`
+- **Lesson**: Hardcoded folder IDs are dangerous - always use name-based lookup
+
+**Verification Commands**:
+```bash
+# Search for photos on a specific date
+source .env.production
+curl -sL "${WEB_APP_URL}?action=findPhotos&token=${ADMIN_TOKEN}&date=2026-06-30"
+
+# Backfill photo links for orphaned photos
+curl -sL "${WEB_APP_URL}?action=backfillPhotoLinks&token=${ADMIN_TOKEN}&date=2026-06-30"
+```
+
+---
+
 ## Decision-Making & Self-Sufficiency
 
 - **Investigate before asking**. Make reasonable defaults and report what you did. Only ask when there's genuinely no way to determine the answer from the repo, available tools, git history, or conversation context.
