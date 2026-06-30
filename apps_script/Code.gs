@@ -260,10 +260,17 @@ function doPost(e) {
 
           const matchingRows = [];
 
+          // Helper: Extract numeric store ID from full store name (e.g., "Store 6253 – New Cumberland, PA" → "6253")
+          const extractStoreId = (fullStoreName) => {
+            const match = String(fullStoreName).match(/Store (\d+)/i);
+            return match ? match[1] : String(fullStoreName).trim();
+          };
+
           // Search for matching delivery rows (skip header rows - start at index 2 to be safe)
           for (let i = 2; i < data.length; i++) {
             const row = data[i];
-            const rowStoreId = String(row[storeIdx]).trim();
+            const rowStoreIdRaw = String(row[storeIdx]).trim();
+            const rowStoreId = extractStoreId(rowStoreIdRaw);  // Extract numeric ID
             const rowDate = row[dateIdx];
             const rowDriver = String(row[driverIdx]).trim();
 
