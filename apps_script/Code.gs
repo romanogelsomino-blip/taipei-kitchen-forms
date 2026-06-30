@@ -2548,11 +2548,88 @@ function doGet(e) {
     }
   }
 
+  // Clean up corrupted test photos (requires admin token)
+  if (e.parameter.action === 'cleanupCorruptedPhotos') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const dryRun = e.parameter.dryRun !== 'false'; // Default to dry run for safety
+      const maxSizeBytes = parseInt(e.parameter.maxSize) || 1000; // Default: files ≤1KB
+      const targetDates = (e.parameter.dates || '2026-06-26,2026-06-27,2026-06-29').split(',');
+
+      // Get Drive folder
+      const folderName = 'Taipei Kitchen Photos';
+      const folders = DriveApp.getFoldersByName(folderName);
+      if (!folders.hasNext()) {
+        throw new Error(`Folder "${folderName}" not found`);
+      }
+      const folder = folders.next();
+
+      // Find corrupted files
+      const corruptedFiles = [];
+      const files = folder.getFiles();
+
+      while (files.hasNext()) {
+        const file = files.next();
+        const size = file.getSize();
+        const created = file.getDateCreated();
+        const createdStr = Utilities.formatDate(created, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+        // Check if file is corrupted (small size) and from target dates
+        if (size <= maxSizeBytes && targetDates.includes(createdStr)) {
+          corruptedFiles.push({
+            id: file.getId(),
+            name: file.getName(),
+            size: size,
+            created: created.toISOString(),
+            url: file.getUrl()
+          });
+        }
+      }
+
+      // Delete files if not dry run
+      let deletedCount = 0;
+      if (!dryRun && corruptedFiles.length > 0) {
+        corruptedFiles.forEach(fileInfo => {
+          try {
+            const file = DriveApp.getFileById(fileInfo.id);
+            file.setTrashed(true); // Move to trash (not permanent delete)
+            deletedCount++;
+          } catch (e) {
+            Logger.log(`Failed to delete ${fileInfo.name}: ${e.toString()}`);
+          }
+        });
+      }
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          dryRun: dryRun,
+          foundFiles: corruptedFiles.length,
+          deletedFiles: deletedCount,
+          files: corruptedFiles,
+          message: dryRun ?
+            `Found ${corruptedFiles.length} corrupted files. Add &dryRun=false to actually delete them.` :
+            `Moved ${deletedCount} files to trash.`
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString(), stack: error.stack }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // Unknown action: Return error
   return ContentService
     .createTextOutput(JSON.stringify({
       status: 'error',
-      message: 'Unknown action. Supported admin actions (require token): init, test, ping, sendDailySummary, getExecutionLog, queryDeliveries, backfillPhotoLinks, listTriggers, createTrigger, deleteTrigger. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
+      message: 'Unknown action. Supported admin actions (require token): init, test, ping, sendDailySummary, getExecutionLog, queryDeliveries, backfillPhotoLinks, findPhotos, cleanupCorruptedPhotos, listTriggers, createTrigger, deleteTrigger. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
     }))
     .setMimeType(ContentService.MimeType.JSON);
 }
