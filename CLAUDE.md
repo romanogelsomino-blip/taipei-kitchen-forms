@@ -1,3 +1,28 @@
+# Active Retainer Client
+
+**Client:** Universo Le App Studios
+**Contact:** leandertoney@gmail.com
+**Status:** Active monthly retainer (started June 2026)
+
+This project is under active retainer contract. All work on this codebase is **billable consulting time**. When working on this project:
+
+1. **Document Everything** - Create comprehensive documentation for all architectural decisions and implementation details
+2. **Maintainability First** - Prioritize code that future developers (or future Claude Code sessions) can understand and modify
+3. **Handoff Ready** - Assume this project will be handed off; avoid shortcuts that create technical debt
+4. **Tech Stack Alignment** - Follow the client's preferred stack and conventions (Apps Script, Supabase, GitHub Pages)
+5. **Communication** - Be transparent about scope, timeline, risks, and blockers
+
+**Current retainer scope:**
+- Full backend migration from Google Sheets to Supabase (phased over 3-6 months)
+- New forms development (temperature check form, UX improvements)
+- Dashboard enhancements
+- Proactive monitoring and alerting
+- Ongoing support for production issues
+
+**Work philosophy:** Underpromise, overdeliver. Set conservative estimates. Flag risks early. Build maintainable systems that outlive the retainer contract.
+
+---
+
 # Claude Code Project Conventions
 
 This file documents standards for all Claude Code sessions working on this project. Read this FIRST before making changes.
