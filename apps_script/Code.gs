@@ -2241,11 +2241,318 @@ function doGet(e) {
     }
   }
 
+  // Search for photos across ALL Drive (requires admin token)
+  if (e.parameter.action === 'findPhotos') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const targetDate = e.parameter.date; // YYYY-MM-DD format
+      if (!targetDate) throw new Error('Missing date parameter');
+
+      const results = {
+        inTargetFolder: [],
+        inMyDrive: [],
+        everywhere: []
+      };
+
+      // Search 1: In target folder (same logic as photo upload)
+      try {
+        const folderName = 'Taipei Kitchen Photos';
+        const folders = DriveApp.getFoldersByName(folderName);
+        if (!folders.hasNext()) {
+          results.targetFolderError = `Folder "${folderName}" not found`;
+          throw new Error(`Folder "${folderName}" not found`);
+        }
+        const folder = folders.next();
+        const files = folder.getFiles();
+        while (files.hasNext()) {
+          const file = files.next();
+          const name = file.getName();
+          const created = file.getDateCreated();
+          const createdStr = Utilities.formatDate(created, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+          if (name.includes(targetDate) || createdStr === targetDate) {
+            results.inTargetFolder.push({
+              name: name,
+              url: file.getUrl(),
+              size: file.getSize(),
+              created: created.toISOString(),
+              mimeType: file.getMimeType()
+            });
+          }
+        }
+      } catch (e) {
+        results.targetFolderError = e.toString();
+      }
+
+      // Search 2: Check root Drive folder and common locations
+      try {
+        const targetDateStr = targetDate;
+        const checkFolders = [
+          { name: 'My Drive (root)', folder: DriveApp.getRootFolder() },
+          { name: 'My Drive (all files)', folder: null } // We'll handle this specially
+        ];
+
+        results.inMyDrive = [];
+
+        // Check root folder for images created today
+        const rootFiles = DriveApp.getRootFolder().getFiles();
+        let count = 0;
+        while (rootFiles.hasNext() && count < 200) {
+          const file = rootFiles.next();
+          const mimeType = file.getMimeType();
+          if (mimeType && mimeType.includes('image')) {
+            const created = file.getDateCreated();
+            const createdDateStr = Utilities.formatDate(created, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            if (createdDateStr === targetDateStr) {
+              results.inMyDrive.push({
+                name: file.getName(),
+                url: file.getUrl(),
+                size: file.getSize(),
+                created: created.toISOString(),
+                location: 'Root folder'
+              });
+            }
+          }
+          count++;
+        }
+      } catch (e) {
+        results.myDriveError = e.toString();
+      }
+
+      // Search 3: Check for any folders with "Bento" or "Photo" in name
+      try {
+        const bentoFolders = [];
+        const folders = DriveApp.getFolders();
+        let folderCount = 0;
+        while (folders.hasNext() && folderCount < 50) {
+          const folder = folders.next();
+          const name = folder.getName();
+          if (name.toLowerCase().includes('bento') || name.toLowerCase().includes('photo')) {
+            bentoFolders.push({
+              name: name,
+              id: folder.getId(),
+              url: folder.getUrl()
+            });
+
+            // Check files in this folder
+            const files = folder.getFiles();
+            let fileCount = 0;
+            while (files.hasNext() && fileCount < 100) {
+              const file = files.next();
+              const mimeType = file.getMimeType();
+              if (mimeType && mimeType.includes('image')) {
+                const created = file.getDateCreated();
+                const createdDateStr = Utilities.formatDate(created, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+                if (createdDateStr === targetDate) {
+                  results.everywhere.push({
+                    name: file.getName(),
+                    url: file.getUrl(),
+                    size: file.getSize(),
+                    created: created.toISOString(),
+                    foundIn: name
+                  });
+                }
+              }
+              fileCount++;
+            }
+          }
+          folderCount++;
+        }
+        results.foldersSearched = bentoFolders;
+      } catch (e) {
+        results.folderSearchError = e.toString();
+      }
+
+      return ContentService
+        .createTextOutput(JSON.stringify(results, null, 2))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString(), stack: error.stack }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Backfill photo links for a specific date (requires admin token)
+  if (e.parameter.action === 'backfillPhotoLinks') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const targetDate = e.parameter.date; // YYYY-MM-DD format
+      if (!targetDate || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+        throw new Error('Invalid or missing date parameter. Use format: YYYY-MM-DD');
+      }
+
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const sheet = ss.getSheetByName('Delivery Log - Live');
+      if (!sheet) throw new Error('Sheet "Delivery Log - Live" not found');
+
+      // Get Drive folder (same logic as photo upload)
+      const folderName = 'Taipei Kitchen Photos';
+      const folders = DriveApp.getFoldersByName(folderName);
+      if (!folders.hasNext()) {
+        throw new Error(`Folder "${folderName}" not found`);
+      }
+      const folder = folders.next();
+
+      // Find photos from target date
+      const photoFiles = [];
+      const allFilesOnDate = []; // For debugging
+      const files = folder.getFiles();
+      while (files.hasNext()) {
+        const file = files.next();
+        const filename = file.getName();
+        // Track all files from target date for debugging
+        if (filename.includes(targetDate)) {
+          allFilesOnDate.push(filename);
+        }
+        // Match pattern: storeId_date_before/after.jpg (e.g., "6253_2026-06-30_before.jpg")
+        if (filename.includes(targetDate)) {
+          const match = filename.match(/^(\d+)_(\d{4}-\d{2}-\d{2})_(before|after)\.jpg$/);
+          if (match) {
+            photoFiles.push({
+              storeId: match[1],
+              date: match[2],
+              type: match[3],
+              url: file.getUrl(),
+              filename: filename
+            });
+          }
+        }
+      }
+
+      if (photoFiles.length === 0) {
+        return ContentService
+          .createTextOutput(JSON.stringify({
+            status: 'ok',
+            message: 'No photos found for this date',
+            photosProcessed: 0,
+            rowsUpdated: 0,
+            debug: {
+              allFilesOnDate: allFilesOnDate,
+              targetDate: targetDate
+            }
+          }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      // Get sheet data and find photo columns
+      const data = sheet.getDataRange().getValues();
+      let headerRowIndex = 0;
+      if (data[0].indexOf('Date') === -1 && data.length > 1 && data[1].indexOf('Date') >= 0) {
+        headerRowIndex = 1;
+      }
+
+      const headers = data[headerRowIndex];
+      const findColumnIndex = (headerNames) => {
+        for (let colIdx = 0; colIdx < headers.length; colIdx++) {
+          const header = String(headers[colIdx]).toLowerCase().trim();
+          if (headerNames.some(name => header.includes(name))) {
+            return colIdx;
+          }
+        }
+        return -1;
+      };
+
+      const storeCol = findColumnIndex(['store', 'strore']);
+      const dateCol = findColumnIndex(['date']);
+      const beforePhotoCol = findColumnIndex(['before photo link', 'photo before', 'before link']);
+      const afterPhotoCol = findColumnIndex(['after photo link', 'photo after', 'after link']);
+
+      if (storeCol === -1 || dateCol === -1 || beforePhotoCol === -1 || afterPhotoCol === -1) {
+        throw new Error('Could not find required columns in sheet');
+      }
+
+      // Helper to extract store ID
+      const extractStoreId = (fullStoreName) => {
+        const match = String(fullStoreName).match(/Store (\d+)/i);
+        return match ? match[1] : String(fullStoreName).trim();
+      };
+
+      // Group photos by storeId
+      const photosByStore = {};
+      photoFiles.forEach(photo => {
+        if (!photosByStore[photo.storeId]) {
+          photosByStore[photo.storeId] = { before: null, after: null };
+        }
+        photosByStore[photo.storeId][photo.type] = photo.url;
+      });
+
+      // Update rows
+      let rowsUpdated = 0;
+      const details = [];
+
+      for (let i = headerRowIndex + 1; i < data.length; i++) {
+        const row = data[i];
+        const rowStoreIdRaw = String(row[storeCol]).trim();
+        const rowStoreId = extractStoreId(rowStoreIdRaw);
+        const rowDate = row[dateCol];
+
+        // Check if this row is from target date
+        let rowDateStr = '';
+        if (rowDate instanceof Date) {
+          rowDateStr = Utilities.formatDate(rowDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        } else if (typeof rowDate === 'string' && rowDate.includes('T')) {
+          rowDateStr = rowDate.split('T')[0];
+        }
+
+        if (rowDateStr !== targetDate) continue;
+
+        // Check if this store has photos
+        const photos = photosByStore[rowStoreId];
+        if (!photos) continue;
+
+        // Check if row already has photo links
+        const hasBeforeLink = row[beforePhotoCol] && String(row[beforePhotoCol]).trim().length > 0;
+        const hasAfterLink = row[afterPhotoCol] && String(row[afterPhotoCol]).trim().length > 0;
+
+        // Only update if links are missing
+        let updated = false;
+        if (!hasBeforeLink && photos.before) {
+          sheet.getRange(i + 1, beforePhotoCol + 1).setValue(photos.before);
+          updated = true;
+        }
+        if (!hasAfterLink && photos.after) {
+          sheet.getRange(i + 1, afterPhotoCol + 1).setValue(photos.after);
+          updated = true;
+        }
+
+        if (updated) {
+          rowsUpdated++;
+          details.push(`Row ${i + 1}: Store ${rowStoreId} - linked ${photos.before ? 'before' : ''}${photos.before && photos.after ? '+' : ''}${photos.after ? 'after' : ''}`);
+        }
+      }
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          photosProcessed: photoFiles.length,
+          rowsUpdated: rowsUpdated,
+          details: details
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString(), stack: error.stack }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // Unknown action: Return error
   return ContentService
     .createTextOutput(JSON.stringify({
       status: 'error',
-      message: 'Unknown action. Supported admin actions (require token): init, test, ping, sendDailySummary, getExecutionLog, queryDeliveries, listTriggers, createTrigger, deleteTrigger. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
+      message: 'Unknown action. Supported admin actions (require token): init, test, ping, sendDailySummary, getExecutionLog, queryDeliveries, backfillPhotoLinks, listTriggers, createTrigger, deleteTrigger. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
     }))
     .setMimeType(ContentService.MimeType.JSON);
 }
