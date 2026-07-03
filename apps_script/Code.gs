@@ -713,8 +713,8 @@ function checkPhotoDrift() {
     for (let i = 1; i < data.length; i++) { // Skip header row
       const row = data[i];
       const rowDate = row[2]; // Col C – Date
-      const beforePhotoUrl = row[18]; // Col S (index 18) – Before Photo URL
-      const afterPhotoUrl = row[19];  // Col T (index 19) – After Photo URL
+      const beforePhotoUrl = row[16]; // Col Q (index 16) – Before Photo Link (FIXED: was row[18])
+      const afterPhotoUrl = row[17];  // Col R (index 17) – After Photo Link (FIXED: was row[19])
 
       // Normalize date
       let rowDateStr = '';
@@ -2121,9 +2121,9 @@ function doGet(e) {
             reason: row[13 + offset],                 // Col N/M – Expire Reason (FIXED: was row[14+offset])
             after: row[14 + offset],                  // Col O/N – Shelf Total After (FIXED: was row[15+offset])
             notes: row[15 + offset],                  // Col P/O – Store Notes (FIXED: was row[16+offset])
-            receivedBy: row[16 + offset],             // Col Q/P – Received By (FIXED: was row[17+offset])
-            beforePhotoLink: row[17 + offset],        // Col R/Q – Before Photo Link (NEW: was missing!)
-            afterPhotoLink: row[18 + offset]          // Col S/R – After Photo Link (NEW: was missing!)
+            receivedBy: row[15 + offset],             // Col P/O – Received By (FIXED: was row[16+offset])
+            beforePhotoLink: row[16 + offset],        // Col Q/P – Before Photo Link (FIXED: was row[17+offset])
+            afterPhotoLink: row[17 + offset]          // Col R/Q – After Photo Link (FIXED: was row[18+offset])
           };
         });
 
