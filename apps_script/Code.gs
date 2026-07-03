@@ -172,13 +172,34 @@ function doPost(e) {
       const photos = payload.photos;
       const folderName = 'Taipei Kitchen Photos';
 
-      // Get or create photos folder
+      // Get or create photos folder (with caching for quota optimization)
       let folder;
-      const folders = DriveApp.getFoldersByName(folderName);
-      if (folders.hasNext()) {
-        folder = folders.next();
+      const cachedFolderId = PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER_ID');
+
+      if (cachedFolderId) {
+        try {
+          folder = DriveApp.getFolderById(cachedFolderId);
+        } catch (e) {
+          // Cached ID invalid, re-lookup and update cache
+          Logger.log(`[PHOTO UPLOAD] Cached folder ID invalid, re-looking up folder: ${e.toString()}`);
+          const folders = DriveApp.getFoldersByName(folderName);
+          if (folders.hasNext()) {
+            folder = folders.next();
+            PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', folder.getId());
+          } else {
+            folder = DriveApp.createFolder(folderName);
+            PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', folder.getId());
+          }
+        }
       } else {
-        folder = DriveApp.createFolder(folderName);
+        // No cached ID, do lookup and cache result
+        const folders = DriveApp.getFoldersByName(folderName);
+        if (folders.hasNext()) {
+          folder = folders.next();
+        } else {
+          folder = DriveApp.createFolder(folderName);
+        }
+        PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', folder.getId());
       }
 
       // Save photos to Drive and get URLs
@@ -2249,6 +2270,17 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // Feature flag: Disable diagnostic endpoints by default to preserve Drive API quota
+    const diagnosticsEnabled = PropertiesService.getScriptProperties().getProperty('DIAGNOSTICS_ENABLED') === 'true';
+    if (!diagnosticsEnabled) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'error',
+          message: 'Diagnostics disabled to preserve Drive API quota. Set DIAGNOSTICS_ENABLED=true in Script Properties to enable.'
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     try {
       const targetDate = e.parameter.date; // YYYY-MM-DD format
       if (!targetDate) throw new Error('Missing date parameter');
@@ -2383,6 +2415,17 @@ function doGet(e) {
     if (!verifyAdminToken(e.parameter.token)) {
       return ContentService
         .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Feature flag: Disable diagnostic endpoints by default to preserve Drive API quota
+    const diagnosticsEnabled = PropertiesService.getScriptProperties().getProperty('DIAGNOSTICS_ENABLED') === 'true';
+    if (!diagnosticsEnabled) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'error',
+          message: 'Diagnostics disabled to preserve Drive API quota. Set DIAGNOSTICS_ENABLED=true in Script Properties to enable.'
+        }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -2553,6 +2596,17 @@ function doGet(e) {
     if (!verifyAdminToken(e.parameter.token)) {
       return ContentService
         .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Feature flag: Disable diagnostic endpoints by default to preserve Drive API quota
+    const diagnosticsEnabled = PropertiesService.getScriptProperties().getProperty('DIAGNOSTICS_ENABLED') === 'true';
+    if (!diagnosticsEnabled) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'error',
+          message: 'Diagnostics disabled to preserve Drive API quota. Set DIAGNOSTICS_ENABLED=true in Script Properties to enable.'
+        }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
