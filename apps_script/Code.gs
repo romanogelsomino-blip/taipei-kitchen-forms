@@ -2022,20 +2022,21 @@ function doGet(e) {
             serverTimestamp: row[1 + offset] || '',   // Col B  – Server Timestamp (new format only)
             date: row[2 + offset],                    // Col C/B – Date
             driver: row[3 + offset],                  // Col D/C – Driver
-            vehicle: row[4 + offset],                 // Col E/D – Vehicle #
-            store: row[5 + offset],                   // Col F/E – Store
-            arrive: row[6 + offset],                  // Col G/F – Arrival Time
-            coolerTemp: row[7 + offset],              // Col H/G – Cooler Temp °F
-            coolerCond: row[8 + offset],              // Col I/H – Cooler Condition
-            casePrefillPercent: row[9 + offset],      // Col J/I – Case Pre-Fill %
-            dish: row[10 + offset],                   // Col K/J – Dish
-            added: row[11 + offset],                  // Col L/K – Qty Added
-            before: row[12 + offset],                 // Col M/L – On Shelf Before
-            removed: row[13 + offset],                // Col N/M – Qty Removed (Expired)
-            reason: row[14 + offset],                 // Col O/N – Expire Reason
-            after: row[15 + offset],                  // Col P/O – Shelf Total After
-            notes: row[16 + offset],                  // Col Q/P – Store Notes
-            receivedBy: row[17 + offset]              // Col R/Q – Received By
+            store: row[4 + offset],                   // Col E/D – Store (FIXED: was row[5+offset])
+            arrive: row[5 + offset],                  // Col F/E – Arrival Time (FIXED: was row[6+offset])
+            coolerTemp: row[6 + offset],              // Col G/F – Cooler Temp °F (FIXED: was row[7+offset])
+            coolerCond: row[7 + offset],              // Col H/G – Cooler Condition (FIXED: was row[8+offset])
+            dish: row[8 + offset],                    // Col I/H – Dish (FIXED: was row[10+offset])
+            casePrefillPercent: row[9 + offset],      // Col J/I – Case Pre-Fill % (FIXED: was row[9+offset] - already correct)
+            added: row[10 + offset],                  // Col K/J – Qty Added (FIXED: was row[11+offset])
+            before: row[11 + offset],                 // Col L/K – On Shelf Before (FIXED: was row[12+offset])
+            removed: row[12 + offset],                // Col M/L – Qty Removed (Expired) (FIXED: was row[13+offset])
+            reason: row[13 + offset],                 // Col N/M – Expire Reason (FIXED: was row[14+offset])
+            after: row[14 + offset],                  // Col O/N – Shelf Total After (FIXED: was row[15+offset])
+            notes: row[15 + offset],                  // Col P/O – Store Notes (FIXED: was row[16+offset])
+            receivedBy: row[16 + offset],             // Col Q/P – Received By (FIXED: was row[17+offset])
+            beforePhotoLink: row[17 + offset],        // Col R/Q – Before Photo Link (NEW: was missing!)
+            afterPhotoLink: row[18 + offset]          // Col S/R – After Photo Link (NEW: was missing!)
           };
         });
 
