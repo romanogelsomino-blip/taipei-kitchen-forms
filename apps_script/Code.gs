@@ -23,6 +23,45 @@ function authorizeDriveAccess() {
   Logger.log('Drive access authorized successfully');
 }
 
+/**
+ * Get or create date-based subfolder in Taipei Kitchen Photos
+ * Uses session cache to minimize Drive API quota usage
+ *
+ * @param {Folder} rootFolder - The Taipei Kitchen Photos root folder
+ * @param {string} date - Date in YYYY-MM-DD format
+ * @returns {Folder} The date subfolder
+ */
+function getOrCreateDateSubfolder(rootFolder, date) {
+  const cache = CacheService.getScriptCache();
+  const cacheKey = `SUBFOLDER_${date}`;
+  let dateFolderId = cache.get(cacheKey);
+
+  // Try cached folder ID first
+  if (dateFolderId) {
+    try {
+      return DriveApp.getFolderById(dateFolderId);
+    } catch (e) {
+      Logger.log(`[Photo Subfolder] Cache miss for ${date}: ${e.toString()}`);
+      cache.remove(cacheKey);
+    }
+  }
+
+  // Lookup or create folder
+  const existingFolders = rootFolder.getFoldersByName(date);
+  let dateFolder;
+  if (existingFolders.hasNext()) {
+    dateFolder = existingFolders.next();
+    Logger.log(`[Photo Subfolder] Found existing: ${date}`);
+  } else {
+    dateFolder = rootFolder.createFolder(date);
+    Logger.log(`[Photo Subfolder] Created new: ${date}`);
+  }
+
+  // Cache for 10 minutes
+  cache.put(cacheKey, dateFolder.getId(), 600);
+  return dateFolder;
+}
+
 function doPost(e) {
   // Get spreadsheet ID from Script Properties (set per environment) or fallback to production
   const scriptProperties = PropertiesService.getScriptProperties();
@@ -173,34 +212,37 @@ function doPost(e) {
       const folderName = 'Taipei Kitchen Photos';
 
       // Get or create photos folder (with caching for quota optimization)
-      let folder;
+      let rootFolder;
       const cachedFolderId = PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER_ID');
 
       if (cachedFolderId) {
         try {
-          folder = DriveApp.getFolderById(cachedFolderId);
+          rootFolder = DriveApp.getFolderById(cachedFolderId);
         } catch (e) {
           // Cached ID invalid, re-lookup and update cache
           Logger.log(`[PHOTO UPLOAD] Cached folder ID invalid, re-looking up folder: ${e.toString()}`);
           const folders = DriveApp.getFoldersByName(folderName);
           if (folders.hasNext()) {
-            folder = folders.next();
-            PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', folder.getId());
+            rootFolder = folders.next();
+            PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', rootFolder.getId());
           } else {
-            folder = DriveApp.createFolder(folderName);
-            PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', folder.getId());
+            rootFolder = DriveApp.createFolder(folderName);
+            PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', rootFolder.getId());
           }
         }
       } else {
         // No cached ID, do lookup and cache result
         const folders = DriveApp.getFoldersByName(folderName);
         if (folders.hasNext()) {
-          folder = folders.next();
+          rootFolder = folders.next();
         } else {
-          folder = DriveApp.createFolder(folderName);
+          rootFolder = DriveApp.createFolder(folderName);
         }
-        PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', folder.getId());
+        PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', rootFolder.getId());
       }
+
+      // Get or create date-based subfolder (YYYY-MM-DD)
+      const dateFolder = getOrCreateDateSubfolder(rootFolder, photos.date);
 
       // Save photos to Drive and get URLs
       let beforeUrl = null;
@@ -213,7 +255,7 @@ function doPost(e) {
           photos.before.mimeType,
           `${photos.storeId}_${photos.date}_before.jpg`
         );
-        const beforeFile = folder.createFile(blob);
+        const beforeFile = dateFolder.createFile(blob);
         beforeUrl = beforeFile.getUrl();
         savedCount++;
       }
@@ -224,7 +266,7 @@ function doPost(e) {
           photos.after.mimeType,
           `${photos.storeId}_${photos.date}_after.jpg`
         );
-        const afterFile = folder.createFile(blob);
+        const afterFile = dateFolder.createFile(blob);
         afterUrl = afterFile.getUrl();
         savedCount++;
       }
@@ -629,20 +671,37 @@ function checkPhotoDrift() {
     let drivePhotoCounts = {};
 
     if (folders.hasNext()) {
-      const folder = folders.next();
-      const files = folder.getFiles();
+      const rootFolder = folders.next();
 
-      while (files.hasNext()) {
-        const file = files.next();
-        const fileName = file.getName();
-        // Parse date from filename: {storeId}_{date}_before.jpg or {storeId}_{date}_after.jpg
-        const match = fileName.match(/\d+_(\d{4}-\d{2}-\d{2})_(before|after)\.jpg/);
-        if (match) {
-          const fileDate = match[1];
-          const fileDateObj = new Date(fileDate);
-          if (fileDateObj >= startDate && fileDateObj <= now) {
-            drivePhotoCounts[fileDate] = (drivePhotoCounts[fileDate] || 0) + 1;
+      // Helper: Count photos in a folder
+      const countPhotosInFolder = (folder) => {
+        const files = folder.getFiles();
+        while (files.hasNext()) {
+          const file = files.next();
+          const fileName = file.getName();
+          // Parse date from filename: {storeId}_{date}_before.jpg or {storeId}_{date}_after.jpg
+          const match = fileName.match(/\d+_(\d{4}-\d{2}-\d{2})_(before|after)\.jpg/);
+          if (match) {
+            const fileDate = match[1];
+            const fileDateObj = new Date(fileDate);
+            if (fileDateObj >= startDate && fileDateObj <= now) {
+              drivePhotoCounts[fileDate] = (drivePhotoCounts[fileDate] || 0) + 1;
+            }
           }
+        }
+      };
+
+      // Count photos in root folder (backwards compatibility)
+      countPhotosInFolder(rootFolder);
+
+      // Count photos in date subfolders (new organization)
+      const subfolders = rootFolder.getFolders();
+      while (subfolders.hasNext()) {
+        const subfolder = subfolders.next();
+        const subfolderName = subfolder.getName();
+        // Only process YYYY-MM-DD date subfolders
+        if (/^\d{4}-\d{2}-\d{2}$/.test(subfolderName)) {
+          countPhotosInFolder(subfolder);
         }
       }
     }
@@ -2328,21 +2387,40 @@ function doGet(e) {
           results.targetFolderError = `Folder "${folderName}" not found`;
           throw new Error(`Folder "${folderName}" not found`);
         }
-        const folder = folders.next();
-        const files = folder.getFiles();
-        while (files.hasNext()) {
-          const file = files.next();
-          const name = file.getName();
-          const created = file.getDateCreated();
-          const createdStr = Utilities.formatDate(created, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-          if (name.includes(targetDate) || createdStr === targetDate) {
-            results.inTargetFolder.push({
-              name: name,
-              url: file.getUrl(),
-              size: file.getSize(),
-              created: created.toISOString(),
-              mimeType: file.getMimeType()
-            });
+        const rootFolder = folders.next();
+
+        // Helper: Find photos in a folder
+        const findPhotosInFolder = (folder, location) => {
+          const files = folder.getFiles();
+          while (files.hasNext()) {
+            const file = files.next();
+            const name = file.getName();
+            const created = file.getDateCreated();
+            const createdStr = Utilities.formatDate(created, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+            if (name.includes(targetDate) || createdStr === targetDate) {
+              results.inTargetFolder.push({
+                name: name,
+                url: file.getUrl(),
+                size: file.getSize(),
+                created: created.toISOString(),
+                mimeType: file.getMimeType(),
+                location: location
+              });
+            }
+          }
+        };
+
+        // Search root folder (backwards compatibility)
+        findPhotosInFolder(rootFolder, 'root');
+
+        // Search date subfolders (new organization)
+        const subfolders = rootFolder.getFolders();
+        while (subfolders.hasNext()) {
+          const subfolder = subfolders.next();
+          const subfolderName = subfolder.getName();
+          // Only process YYYY-MM-DD date subfolders
+          if (/^\d{4}-\d{2}-\d{2}$/.test(subfolderName)) {
+            findPhotosInFolder(subfolder, `${subfolderName}/`);
           }
         }
       } catch (e) {
@@ -2474,32 +2552,63 @@ function doGet(e) {
       if (!folders.hasNext()) {
         throw new Error(`Folder "${folderName}" not found`);
       }
-      const folder = folders.next();
+      const rootFolder = folders.next();
+
+      // Check if move parameter is enabled (for backfilling photos into date subfolders)
+      const shouldMove = e.parameter.move === 'true';
+      let dateSubfolder = null;
+      if (shouldMove) {
+        dateSubfolder = getOrCreateDateSubfolder(rootFolder, targetDate);
+      }
+
+      // Helper: Find photos in a folder
+      const findPhotosInFolder = (folder, isRootFolder) => {
+        const results = [];
+        const files = folder.getFiles();
+        while (files.hasNext()) {
+          const file = files.next();
+          const filename = file.getName();
+          // Match pattern: storeId_date_before/after.jpg (e.g., "6253_2026-06-30_before.jpg")
+          if (filename.includes(targetDate)) {
+            const match = filename.match(/^(\d+)_(\d{4}-\d{2}-\d{2})_(before|after)\.jpg$/);
+            if (match) {
+              // If move mode enabled and file is in root, move it to date subfolder
+              // Note: moveTo() preserves file ID and URL, so no sheet updates needed
+              let fileUrl = file.getUrl();
+              if (shouldMove && isRootFolder && dateSubfolder) {
+                file.moveTo(dateSubfolder);
+                Logger.log(`[Backfill] Moved ${filename} to ${targetDate}/ subfolder`);
+              }
+              results.push({
+                storeId: match[1],
+                date: match[2],
+                type: match[3],
+                url: fileUrl,
+                filename: filename,
+                moved: shouldMove && isRootFolder
+              });
+            }
+          }
+        }
+        return results;
+      };
 
       // Find photos from target date
       const photoFiles = [];
       const allFilesOnDate = []; // For debugging
-      const files = folder.getFiles();
-      while (files.hasNext()) {
-        const file = files.next();
-        const filename = file.getName();
-        // Track all files from target date for debugging
-        if (filename.includes(targetDate)) {
-          allFilesOnDate.push(filename);
-        }
-        // Match pattern: storeId_date_before/after.jpg (e.g., "6253_2026-06-30_before.jpg")
-        if (filename.includes(targetDate)) {
-          const match = filename.match(/^(\d+)_(\d{4}-\d{2}-\d{2})_(before|after)\.jpg$/);
-          if (match) {
-            photoFiles.push({
-              storeId: match[1],
-              date: match[2],
-              type: match[3],
-              url: file.getUrl(),
-              filename: filename
-            });
-          }
-        }
+
+      // Search root folder (for existing photos or if move disabled)
+      const rootPhotos = findPhotosInFolder(rootFolder, true);
+      photoFiles.push(...rootPhotos);
+      rootPhotos.forEach(p => allFilesOnDate.push(p.filename + ' (root)'));
+
+      // Search date subfolder (if exists)
+      const dateSubfolders = rootFolder.getFoldersByName(targetDate);
+      if (dateSubfolders.hasNext()) {
+        const existingDateFolder = dateSubfolders.next();
+        const subfolderPhotos = findPhotosInFolder(existingDateFolder, false);
+        photoFiles.push(...subfolderPhotos);
+        subfolderPhotos.forEach(p => allFilesOnDate.push(p.filename + ` (${targetDate}/)`));
       }
 
       if (photoFiles.length === 0) {
@@ -2650,27 +2759,45 @@ function doGet(e) {
       if (!folders.hasNext()) {
         throw new Error(`Folder "${folderName}" not found`);
       }
-      const folder = folders.next();
+      const rootFolder = folders.next();
+
+      // Helper: Find corrupted files in a folder
+      const findCorruptedInFolder = (folder, location) => {
+        const files = folder.getFiles();
+        while (files.hasNext()) {
+          const file = files.next();
+          const size = file.getSize();
+          const created = file.getDateCreated();
+          const createdStr = Utilities.formatDate(created, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+          // Check if file is corrupted (small size) and from target dates
+          if (size <= maxSizeBytes && targetDates.includes(createdStr)) {
+            corruptedFiles.push({
+              id: file.getId(),
+              name: file.getName(),
+              size: size,
+              created: created.toISOString(),
+              url: file.getUrl(),
+              location: location
+            });
+          }
+        }
+      };
 
       // Find corrupted files
       const corruptedFiles = [];
-      const files = folder.getFiles();
 
-      while (files.hasNext()) {
-        const file = files.next();
-        const size = file.getSize();
-        const created = file.getDateCreated();
-        const createdStr = Utilities.formatDate(created, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      // Search root folder (backwards compatibility)
+      findCorruptedInFolder(rootFolder, 'root');
 
-        // Check if file is corrupted (small size) and from target dates
-        if (size <= maxSizeBytes && targetDates.includes(createdStr)) {
-          corruptedFiles.push({
-            id: file.getId(),
-            name: file.getName(),
-            size: size,
-            created: created.toISOString(),
-            url: file.getUrl()
-          });
+      // Search date subfolders (new organization)
+      const subfolders = rootFolder.getFolders();
+      while (subfolders.hasNext()) {
+        const subfolder = subfolders.next();
+        const subfolderName = subfolder.getName();
+        // Only process YYYY-MM-DD date subfolders
+        if (/^\d{4}-\d{2}-\d{2}$/.test(subfolderName)) {
+          findCorruptedInFolder(subfolder, `${subfolderName}/`);
         }
       }
 
@@ -2708,11 +2835,448 @@ function doGet(e) {
     }
   }
 
+  // Explore folder structure (read-only diagnostic - requires admin token)
+  if (e.parameter.action === 'exploreFolderStructure') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Feature flag: Disable diagnostic endpoints by default to preserve Drive API quota
+    const diagnosticsEnabled = PropertiesService.getScriptProperties().getProperty('DIAGNOSTICS_ENABLED') === 'true';
+    if (!diagnosticsEnabled) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'error',
+          message: 'Diagnostics disabled to preserve Drive API quota. Set DIAGNOSTICS_ENABLED=true in Script Properties to enable.'
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const folderId = e.parameter.folderId;
+      if (!folderId) {
+        throw new Error('Missing folderId parameter');
+      }
+
+      const folder = DriveApp.getFolderById(folderId);
+      const folderInfo = {
+        name: folder.getName(),
+        id: folder.getId(),
+        url: folder.getUrl(),
+        owner: folder.getOwner() ? folder.getOwner().getEmail() : 'Unknown',
+        created: folder.getDateCreated().toISOString(),
+        lastUpdated: folder.getLastUpdated().toISOString(),
+        access: {
+          canEdit: true, // If we can access it, we have edit rights
+          viewers: folder.getViewers().map(u => u.getEmail()),
+          editors: folder.getEditors().map(u => u.getEmail())
+        }
+      };
+
+      // Explore subfolders
+      const subfolders = [];
+      const subfolderIterator = folder.getFolders();
+      while (subfolderIterator.hasNext()) {
+        const subfolder = subfolderIterator.next();
+        subfolders.push({
+          name: subfolder.getName(),
+          id: subfolder.getId(),
+          url: subfolder.getUrl(),
+          created: subfolder.getDateCreated().toISOString()
+        });
+      }
+
+      // Sample files (first 20 and last 20 by creation date)
+      const allFiles = [];
+      const fileIterator = folder.getFiles();
+      while (fileIterator.hasNext()) {
+        const file = fileIterator.next();
+        allFiles.push({
+          name: file.getName(),
+          id: file.getId(),
+          size: file.getSize(),
+          mimeType: file.getMimeType(),
+          created: file.getDateCreated().toISOString(),
+          url: file.getUrl()
+        });
+      }
+
+      // Sort by creation date
+      allFiles.sort((a, b) => new Date(a.created) - new Date(b.created));
+
+      const oldestFiles = allFiles.slice(0, 10);
+      const newestFiles = allFiles.slice(-10).reverse();
+
+      // Date range
+      const dateRange = allFiles.length > 0 ? {
+        oldest: allFiles[0].created,
+        newest: allFiles[allFiles.length - 1].created
+      } : null;
+
+      // Extract dates from filenames (pattern: NNNN_YYYY-MM-DD_before/after.jpg)
+      const fileDates = [];
+      allFiles.forEach(file => {
+        const match = file.name.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+          fileDates.push(match[0]); // YYYY-MM-DD
+        }
+      });
+      const uniqueDates = [...new Set(fileDates)].sort();
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          folder: folderInfo,
+          structure: {
+            totalFiles: allFiles.length,
+            totalSubfolders: subfolders.length,
+            subfolders: subfolders,
+            hasSubfolders: subfolders.length > 0
+          },
+          files: {
+            total: allFiles.length,
+            oldestSample: oldestFiles,
+            newestSample: newestFiles,
+            dateRange: dateRange,
+            datesInFilenames: {
+              total: uniqueDates.length,
+              oldest: uniqueDates[0],
+              newest: uniqueDates[uniqueDates.length - 1],
+              sample: uniqueDates.slice(0, 20)
+            }
+          },
+          totalSize: allFiles.reduce((sum, f) => sum + f.size, 0)
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString(), stack: error.stack }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Deep scan folder recursively (read-only diagnostic - requires admin token)
+  if (e.parameter.action === 'deepScanFolder') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Feature flag: Disable diagnostic endpoints by default to preserve Drive API quota
+    const diagnosticsEnabled = PropertiesService.getScriptProperties().getProperty('DIAGNOSTICS_ENABLED') === 'true';
+    if (!diagnosticsEnabled) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'error',
+          message: 'Diagnostics disabled to preserve Drive API quota. Set DIAGNOSTICS_ENABLED=true in Script Properties to enable.'
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const folderId = e.parameter.folderId;
+      if (!folderId) {
+        throw new Error('Missing folderId parameter');
+      }
+
+      const maxDepth = parseInt(e.parameter.maxDepth) || 5;
+
+      function scanFolderRecursive(folder, depth, path) {
+        const result = {
+          path: path,
+          name: folder.getName(),
+          id: folder.getId(),
+          depth: depth,
+          files: [],
+          subfolders: [],
+          totalFiles: 0,
+          totalSize: 0
+        };
+
+        // Get files in current folder
+        const fileIterator = folder.getFiles();
+        while (fileIterator.hasNext()) {
+          const file = fileIterator.next();
+          result.files.push({
+            name: file.getName(),
+            size: file.getSize(),
+            created: file.getDateCreated().toISOString()
+          });
+          result.totalSize += file.getSize();
+          result.totalFiles++;
+        }
+
+        // Recursively scan subfolders if not at max depth
+        if (depth < maxDepth) {
+          const folderIterator = folder.getFolders();
+          while (folderIterator.hasNext()) {
+            const subfolder = folderIterator.next();
+            const subResult = scanFolderRecursive(subfolder, depth + 1, path + '/' + subfolder.getName());
+            result.subfolders.push(subResult);
+            result.totalFiles += subResult.totalFiles;
+            result.totalSize += subResult.totalSize;
+          }
+        }
+
+        return result;
+      }
+
+      const rootFolder = DriveApp.getFolderById(folderId);
+      const scanResult = scanFolderRecursive(rootFolder, 0, rootFolder.getName());
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          scan: scanResult,
+          summary: {
+            totalFiles: scanResult.totalFiles,
+            totalSize: scanResult.totalSize,
+            maxDepth: maxDepth
+          }
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString(), stack: error.stack }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Search trash for deleted files (read-only diagnostic - requires admin token)
+  if (e.parameter.action === 'searchTrash') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Feature flag: Disable diagnostic endpoints by default to preserve Drive API quota
+    const diagnosticsEnabled = PropertiesService.getScriptProperties().getProperty('DIAGNOSTICS_ENABLED') === 'true';
+    if (!diagnosticsEnabled) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'error',
+          message: 'Diagnostics disabled to preserve Drive API quota. Set DIAGNOSTICS_ENABLED=true in Script Properties to enable.'
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const searchPattern = e.parameter.pattern || ''; // Optional: filter by filename pattern
+      const folderId = e.parameter.folderId; // Optional: filter by parent folder
+
+      const trashedFiles = [];
+      const fileIterator = DriveApp.getTrashedFiles();
+
+      let count = 0;
+      const maxResults = 200; // Limit to avoid timeout
+
+      while (fileIterator.hasNext() && count < maxResults) {
+        const file = fileIterator.next();
+        count++;
+
+        // Apply filters
+        if (searchPattern && file.getName().indexOf(searchPattern) === -1) {
+          continue;
+        }
+
+        // Get file metadata
+        const fileData = {
+          name: file.getName(),
+          id: file.getId(),
+          size: file.getSize(),
+          mimeType: file.getMimeType(),
+          created: file.getDateCreated().toISOString(),
+          trashed: file.isTrashed(),
+          url: file.getUrl()
+        };
+
+        // Try to get parent folders (may fail if parent is also trashed)
+        try {
+          const parents = file.getParents();
+          const parentList = [];
+          while (parents.hasNext()) {
+            const parent = parents.next();
+            parentList.push({
+              name: parent.getName(),
+              id: parent.getId()
+            });
+          }
+          fileData.parents = parentList;
+        } catch (e) {
+          fileData.parents = [];
+          fileData.parentError = e.toString();
+        }
+
+        // Filter by folder if specified
+        if (folderId) {
+          const matchesFolder = fileData.parents.some(p => p.id === folderId);
+          if (matchesFolder) {
+            trashedFiles.push(fileData);
+          }
+        } else {
+          trashedFiles.push(fileData);
+        }
+      }
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          totalScanned: count,
+          totalMatching: trashedFiles.length,
+          limitReached: count >= maxResults,
+          files: trashedFiles,
+          filter: {
+            pattern: searchPattern || 'none',
+            folderId: folderId || 'none'
+          }
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString(), stack: error.stack }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Compare two folders (read-only diagnostic - requires admin token)
+  if (e.parameter.action === 'compareFolders') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Feature flag: Disable diagnostic endpoints by default to preserve Drive API quota
+    const diagnosticsEnabled = PropertiesService.getScriptProperties().getProperty('DIAGNOSTICS_ENABLED') === 'true';
+    if (!diagnosticsEnabled) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'error',
+          message: 'Diagnostics disabled to preserve Drive API quota. Set DIAGNOSTICS_ENABLED=true in Script Properties to enable.'
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const folder1Id = e.parameter.folder1Id;
+      const folder2Id = e.parameter.folder2Id;
+      if (!folder1Id || !folder2Id) {
+        throw new Error('Missing folder1Id or folder2Id parameter');
+      }
+
+      const folder1 = DriveApp.getFolderById(folder1Id);
+      const folder2 = DriveApp.getFolderById(folder2Id);
+
+      // Get all files from folder1
+      const files1 = new Map();
+      const iter1 = folder1.getFiles();
+      while (iter1.hasNext()) {
+        const file = iter1.next();
+        files1.set(file.getName(), {
+          id: file.getId(),
+          size: file.getSize(),
+          created: file.getDateCreated().toISOString(),
+          url: file.getUrl()
+        });
+      }
+
+      // Get all files from folder2
+      const files2 = new Map();
+      const iter2 = folder2.getFiles();
+      while (iter2.hasNext()) {
+        const file = iter2.next();
+        files2.set(file.getName(), {
+          id: file.getId(),
+          size: file.getSize(),
+          created: file.getDateCreated().toISOString(),
+          url: file.getUrl()
+        });
+      }
+
+      // Find differences
+      const onlyInFolder1 = [];
+      const onlyInFolder2 = [];
+      const inBoth = [];
+      const duplicates = [];
+
+      files1.forEach((file1Data, name) => {
+        if (files2.has(name)) {
+          const file2Data = files2.get(name);
+          inBoth.push({ name, folder1: file1Data, folder2: file2Data });
+
+          // Check if they're actually duplicates (different file IDs but same name)
+          if (file1Data.id !== file2Data.id) {
+            duplicates.push({
+              name,
+              folder1: file1Data,
+              folder2: file2Data,
+              sizeDiff: Math.abs(file1Data.size - file2Data.size)
+            });
+          }
+        } else {
+          onlyInFolder1.push({ name, ...file1Data });
+        }
+      });
+
+      files2.forEach((file2Data, name) => {
+        if (!files1.has(name)) {
+          onlyInFolder2.push({ name, ...file2Data });
+        }
+      });
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          folder1: {
+            name: folder1.getName(),
+            id: folder1Id,
+            totalFiles: files1.size
+          },
+          folder2: {
+            name: folder2.getName(),
+            id: folder2Id,
+            totalFiles: files2.size
+          },
+          comparison: {
+            onlyInFolder1: {
+              count: onlyInFolder1.length,
+              sample: onlyInFolder1.slice(0, 20)
+            },
+            onlyInFolder2: {
+              count: onlyInFolder2.length,
+              sample: onlyInFolder2.slice(0, 20)
+            },
+            inBoth: {
+              count: inBoth.length,
+              sample: inBoth.slice(0, 10)
+            },
+            duplicates: {
+              count: duplicates.length,
+              list: duplicates
+            }
+          }
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString(), stack: error.stack }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // Unknown action: Return error
   return ContentService
     .createTextOutput(JSON.stringify({
       status: 'error',
-      message: 'Unknown action. Supported admin actions (require token): init, test, ping, sendDailySummary, getExecutionLog, queryDeliveries, backfillPhotoLinks, findPhotos, cleanupCorruptedPhotos, listTriggers, createTrigger, deleteTrigger. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
+      message: 'Unknown action. Supported admin actions (require token): init, test, ping, sendDailySummary, getExecutionLog, queryDeliveries, backfillPhotoLinks, findPhotos, cleanupCorruptedPhotos, listTriggers, createTrigger, deleteTrigger, exploreFolderStructure, compareFolders, searchTrash, deepScanFolder. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
     }))
     .setMimeType(ContentService.MimeType.JSON);
 }
