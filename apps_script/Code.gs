@@ -1525,6 +1525,34 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // Set Script Property (requires admin token)
+  if (e.parameter.action === 'setScriptProperty') {
+    if (!verifyAdminToken(e.parameter.token)) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: 'Unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    try {
+      const key = e.parameter.key;
+      const value = e.parameter.value;
+      if (!key) throw new Error('Missing key parameter');
+
+      PropertiesService.getScriptProperties().setProperty(key, value);
+
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: 'ok',
+          message: `Set ${key} = ${value}`
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (error) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // Send daily summary email on demand (requires admin token)
   if (e.parameter.action === 'sendDailySummary') {
     if (!verifyAdminToken(e.parameter.token)) {
