@@ -1390,7 +1390,19 @@ function displayDeliveryTable() {
   }
 
   const rows = pageData.map(d => {
-    const storeName = DATA.stores.find(s => s.id === d.store)?.name || `Store ${d.store}`;
+    // Extract store ID from either format:
+    // - New format: "6542" (just ID)
+    // - Old format: "Store 6542 – Carlisle, PA" (full name with ID)
+    let storeId = d.store;
+    const idMatch = d.store?.toString().match(/\b(\d{4})\b/); // Extract 4-digit ID
+    if (idMatch) {
+      storeId = idMatch[1];
+    }
+
+    // Look up store name by ID, or use original value if no match
+    const storeData = DATA.stores.find(s => s.id === storeId);
+    const storeName = storeData ? `${storeData.name} – ${storeData.location}` : d.store;
+
     const hasViolation = hasHACCPViolation(d);
     const rowStyle = hasViolation ? 'style="background:#FADBD8;border-left:4px solid var(--red);"' : '';
     const tempIcon = hasViolation ? '⚠️ ' : '';
