@@ -1075,6 +1075,8 @@ function applyDeliveryCustomRange() {
 
 function applyDeliveryAdvancedFilters() {
   // Get current filter values from UI (or use saved state on refresh)
+  const dateFrom = document.getElementById('delivery-date-from')?.value || DELIVERY_STATE.filters.dateFrom || '';
+  const dateTo = document.getElementById('delivery-date-to')?.value || DELIVERY_STATE.filters.dateTo || '';
   const driver = document.getElementById('delivery-driver-filter')?.value || DELIVERY_STATE.filters.driver;
   const dish = document.getElementById('delivery-dish-filter')?.value || DELIVERY_STATE.filters.dish;
   const search = (document.getElementById('delivery-search')?.value || DELIVERY_STATE.filters.search).toLowerCase();
@@ -1085,7 +1087,7 @@ function applyDeliveryAdvancedFilters() {
   const caseFullness = DELIVERY_STATE.filters.caseFullness || [];
 
   // Save filter state for persistence across refreshes
-  DELIVERY_STATE.filters = { driver, stores, daysOfWeek, caseFullness, dish, search };
+  DELIVERY_STATE.filters = { dateFrom, dateTo, driver, stores, daysOfWeek, caseFullness, dish, search };
 
   // Restore UI state (in case this is called after data refresh)
   if (document.getElementById('delivery-driver-filter')) {
@@ -1096,6 +1098,12 @@ function applyDeliveryAdvancedFilters() {
   }
   if (document.getElementById('delivery-search')) {
     document.getElementById('delivery-search').value = DELIVERY_STATE.filters.search;
+  }
+  if (document.getElementById('delivery-date-from')) {
+    document.getElementById('delivery-date-from').value = dateFrom;
+  }
+  if (document.getElementById('delivery-date-to')) {
+    document.getElementById('delivery-date-to').value = dateTo;
   }
 
   // Restore multi-select values
@@ -1110,6 +1118,17 @@ function applyDeliveryAdvancedFilters() {
   }
 
   let filtered = [...DELIVERY_STATE.filtered];
+
+  // Apply date range filter
+  if (dateFrom || dateTo) {
+    filtered = filtered.filter(d => {
+      if (!d.date) return false;
+      const deliveryDate = d.date.split('T')[0]; // Get YYYY-MM-DD part
+      if (dateFrom && deliveryDate < dateFrom) return false;
+      if (dateTo && deliveryDate > dateTo) return false;
+      return true;
+    });
+  }
 
   // Apply filters
   if (driver) filtered = filtered.filter(d => d.driver === driver);
@@ -1156,6 +1175,8 @@ function clearAllDeliveryFilters() {
   document.getElementById('delivery-driver-filter').value = '';
   document.getElementById('delivery-dish-filter').value = '';
   document.getElementById('delivery-search').value = '';
+  document.getElementById('delivery-date-from').value = '';
+  document.getElementById('delivery-date-to').value = '';
 
   // Clear multi-select components
   if (DELIVERY_STATE.multiSelects.store) {
@@ -1169,7 +1190,7 @@ function clearAllDeliveryFilters() {
   }
 
   // Clear saved filter state
-  DELIVERY_STATE.filters = { driver: '', stores: [], daysOfWeek: [], caseFullness: [], dish: '', search: '' };
+  DELIVERY_STATE.filters = { dateFrom: '', dateTo: '', driver: '', stores: [], daysOfWeek: [], caseFullness: [], dish: '', search: '' };
 
   setDeliveryQuickRange(7); // Reset to default
 }
