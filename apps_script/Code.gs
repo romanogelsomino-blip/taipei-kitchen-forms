@@ -2106,25 +2106,25 @@ function doGet(e) {
           const offset = OFFSET;
 
           return {
-            submittedAt: row[0],                      // Col A  – Client Timestamp
-            serverTimestamp: row[1 + offset] || '',   // Col B  – Server Timestamp (new format only)
-            date: row[2 + offset],                    // Col C/B – Date
-            driver: row[3 + offset],                  // Col D/C – Driver
-            store: row[4 + offset],                   // Col E/D – Store (reading from correct column)
-            arrive: row[5 + offset],                  // Col F/E – Arrival Time (FIXED: was row[6+offset])
-            coolerTemp: row[6 + offset],              // Col G/F – Cooler Temp °F (FIXED: was row[7+offset])
-            coolerCond: row[7 + offset],              // Col H/G – Cooler Condition (FIXED: was row[8+offset])
-            dish: row[8 + offset],                    // Col I/H – Dish (FIXED: was row[10+offset])
-            casePrefillPercent: row[9 + offset],      // Col J/I – Case Pre-Fill % (FIXED: was row[9+offset] - already correct)
-            added: row[10 + offset],                  // Col K/J – Qty Added (FIXED: was row[11+offset])
-            before: row[11 + offset],                 // Col L/K – On Shelf Before (FIXED: was row[12+offset])
-            removed: row[12 + offset],                // Col M/L – Qty Removed (Expired) (FIXED: was row[13+offset])
-            reason: row[13 + offset],                 // Col N/M – Expire Reason (FIXED: was row[14+offset])
-            after: row[14 + offset],                  // Col O/N – Shelf Total After (FIXED: was row[15+offset])
-            notes: row[14 + offset],                  // Col O/N – Store Notes (FIXED: was row[15+offset], then row[16+offset])
-            receivedBy: row[15 + offset],             // Col P/O – Received By (FIXED: was row[16+offset])
-            beforePhotoLink: row[16 + offset],        // Col Q/P – Before Photo Link (Column Q has before photos)
-            afterPhotoLink: row[17 + offset]          // Col R/Q – After Photo Link (Column R has after photos)
+            submittedAt: row[0],                      // Col A – Client Timestamp
+            serverTimestamp: offset === 1 ? row[1] : '',  // Col B – Server Timestamp (only when offset=1)
+            date: row[1 + offset],                    // Col B/C – Date (FIXED: was row[2+offset])
+            driver: row[2 + offset],                  // Col C/D – Driver (FIXED: was row[3+offset])
+            store: row[3 + offset],                   // Col D/E – Store (FIXED: was row[4+offset])
+            arrive: row[4 + offset],                  // Col E/F – Arrival Time (FIXED: was row[5+offset])
+            coolerTemp: row[5 + offset],              // Col F/G – Cooler Temp °F (FIXED: was row[6+offset])
+            coolerCond: row[6 + offset],              // Col G/H – Cooler Condition (FIXED: was row[7+offset])
+            dish: row[7 + offset],                    // Col H/I – Dish (FIXED: was row[8+offset])
+            casePrefillPercent: row[8 + offset],      // Col I/J – Case Pre-Fill % (FIXED: was row[9+offset])
+            added: row[9 + offset],                   // Col J/K – Qty Added (FIXED: was row[10+offset])
+            before: row[10 + offset],                 // Col K/L – On Shelf Before (FIXED: was row[11+offset])
+            removed: row[11 + offset],                // Col L/M – Qty Removed (Expired) (FIXED: was row[12+offset])
+            reason: row[12 + offset],                 // Col M/N – Expire Reason (FIXED: was row[13+offset])
+            after: row[13 + offset],                  // Col N/O – Shelf Total After (FIXED: was row[14+offset])
+            notes: row[13 + offset],                  // Col N/O – Store Notes (FIXED: was row[14+offset])
+            receivedBy: row[14 + offset],             // Col O/P – Received By (FIXED: was row[15+offset])
+            beforePhotoLink: row[15 + offset],        // Col P/Q – Before Photo Link (FIXED: was row[16+offset])
+            afterPhotoLink: row[16 + offset]          // Col Q/R – After Photo Link (FIXED: was row[17+offset])
           };
         });
 
