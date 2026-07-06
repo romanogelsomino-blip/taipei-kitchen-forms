@@ -2063,46 +2063,41 @@ function doGet(e) {
       const deliverySheet = ss.getSheetByName('Delivery Log - Live');
       const deliveryData = deliverySheet ? deliverySheet.getDataRange().getValues() : [];
 
+      // Detect spreadsheet format by checking headers (not data)
+      // This is more reliable than checking each row's data format
+      let headerRow = null;
+      let dataStartIndex = 0;
+
+      // Find header row (skip title rows)
+      for (let i = 0; i < Math.min(3, deliveryData.length); i++) {
+        const row = deliveryData[i];
+        if (row[0] && row[0].toString().toUpperCase().includes('SUBMITTED')) {
+          headerRow = row;
+          dataStartIndex = i + 1;
+          break;
+        }
+      }
+
+      // Determine offset based on header structure
+      // If headers include "Server Timestamp" or column B is "Date", then no serverTimestamp column (offset = -1)
+      // If column B is NOT "Date", then there IS a serverTimestamp column (offset = 0)
+      const hasServerTimestampColumn = headerRow && headerRow[1] && !headerRow[1].toString().toUpperCase().includes('DATE');
+      const OFFSET = hasServerTimestampColumn ? 0 : -1;
+
+      Logger.log(`[Dashboard] Spreadsheet format detection: hasServerTimestampColumn=${hasServerTimestampColumn}, offset=${OFFSET}`);
+
       // Filter out title and header rows
       const deliveries = deliveryData
+        .slice(dataStartIndex) // Start after header row
         .filter(row => {
           // FIX: Check Column B (date) instead of Column A since some rows have blank clientTimestamp
           // This handles rows 3071-4656 which have data but no Column A timestamp
           if (!row[1] && !row[0]) return false; // Skip if both date AND timestamp are empty
-
-          // If Column A exists, check if it's a header
-          if (row[0]) {
-            const firstCol = row[0].toString().toUpperCase();
-            if (firstCol.includes('TAIPEI') ||
-                firstCol.includes('TIMESTAMP') ||
-                firstCol.includes('SUBMITTED') ||
-                firstCol.includes('CLIENT')) {
-              return false; // Skip header rows
-            }
-          }
-
-          // If Column B (date) exists, check if it's a header
-          if (row[1]) {
-            const secondCol = row[1].toString().toUpperCase();
-            if (secondCol.includes('DATE') || secondCol.includes('DRIVER') || secondCol.includes('SERVER')) {
-              return false; // Skip header rows
-            }
-          }
-
           return true; // Include row if it has date or timestamp data
         })
         .map(row => {
-          // FIX: Detect if row uses old format (no serverTimestamp) or new format (with serverTimestamp)
-          // Old format: Col A = clientTimestamp, Col B = date, Col C = driver, ...
-          // New format: Col A = clientTimestamp, Col B = serverTimestamp, Col C = date, Col D = driver, ...
-          const col1Str = row[1] ? row[1].toString() : '';
-
-          // New format: row[1] contains ISO timestamp (YYYY-MM-DDTHH:MM:SS.SSSZ)
-          // Old format: row[1] contains date (Date object → "Wed Apr 15 2026..." or YYYY-MM-DD)
-          // NOTE: Can't just check includes('T') because "GMT" in date strings contains 'T'!
-          // Check for ISO format pattern: digit followed by 'T' followed by digit
-          const hasServerTimestamp = /\d{4}-\d{2}-\d{2}T\d{2}:/.test(col1Str);
-          const offset = hasServerTimestamp ? 0 : -1; // Shift indices back by 1 for old format
+          // Use consistent offset for ALL rows based on header detection
+          const offset = OFFSET;
 
           return {
             submittedAt: row[0],                      // Col A  – Client Timestamp
