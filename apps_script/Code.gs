@@ -2079,10 +2079,16 @@ function doGet(e) {
       }
 
       // Determine offset based on header structure
-      // If headers include "Server Timestamp" or column B is "Date", then no serverTimestamp column (offset = -1)
-      // If column B is NOT "Date", then there IS a serverTimestamp column (offset = 0)
+      // Current spreadsheet: ["Submitted At", "Date", "Driver", ...] (NO serverTimestamp column)
+      // Legacy spreadsheet: ["Submitted At", "Server Timestamp", "Date", "Driver", ...] (HAS serverTimestamp column)
+      //
+      // Code template uses: row[16 + offset] to read photo links
+      // - If NO serverTimestamp: photo links at col 16/17, so offset = 0
+      // - If HAS serverTimestamp: photo links shifted right, so offset would need adjustment
+      //
+      // Detection: If column B (index 1) is "Date", then NO serverTimestamp column
       const hasServerTimestampColumn = headerRow && headerRow[1] && !headerRow[1].toString().toUpperCase().includes('DATE');
-      const OFFSET = hasServerTimestampColumn ? 0 : -1;
+      const OFFSET = hasServerTimestampColumn ? 1 : 0;  // FIX: was backwards (0 : -1)
 
       Logger.log(`[Dashboard] Spreadsheet format detection: hasServerTimestampColumn=${hasServerTimestampColumn}, offset=${OFFSET}`);
 
