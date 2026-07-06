@@ -1373,6 +1373,16 @@ function displayDeliveryTable() {
     const hasViolation = hasHACCPViolation(d);
     const rowStyle = hasViolation ? 'style="background:#FADBD8;border-left:4px solid var(--red);"' : '';
     const tempIcon = hasViolation ? '⚠️ ' : '';
+
+    // Photo thumbnails
+    let photoCell = 'N/A';
+    if (d.beforePhotoLink || d.afterPhotoLink) {
+      const photos = [];
+      if (d.beforePhotoLink) photos.push(`<a href="${d.beforePhotoLink}" target="_blank" title="Before Photo">📷 Before</a>`);
+      if (d.afterPhotoLink) photos.push(`<a href="${d.afterPhotoLink}" target="_blank" title="After Photo">📷 After</a>`);
+      photoCell = photos.join(' ');
+    }
+
     return `
       <tr ${rowStyle}>
         <td>${d.date}</td>
@@ -1384,6 +1394,7 @@ function displayDeliveryTable() {
         <td>${d.added || 0}</td>
         <td>${d.removed || 0}</td>
         <td>${d.receivedBy || 'N/A'}</td>
+        <td>${photoCell}</td>
       </tr>
     `;
   }).join('');
@@ -1401,6 +1412,7 @@ function displayDeliveryTable() {
           <th>Added</th>
           <th>Removed</th>
           <th>Received By</th>
+          <th>Photos</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>

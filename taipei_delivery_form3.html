@@ -1013,7 +1013,7 @@ function buildPayload() {
   const casePrefill = document.getElementById('f-case-prefill').value;
   const notes  = document.getElementById('f-notes').value;
   const rcvd   = document.getElementById('f-received-by').value;
-  const store  = storeData ? storeData.name + ' – ' + storeData.location : storeId;
+  const store  = storeId;  // Send only store ID, not full name (dashboard will format it)
   const storeIdClean = storeId;
 
   // Transit temps + corrective action

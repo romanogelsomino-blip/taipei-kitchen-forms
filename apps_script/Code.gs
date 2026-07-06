@@ -2109,7 +2109,7 @@ function doGet(e) {
             serverTimestamp: row[1 + offset] || '',   // Col B  – Server Timestamp (new format only)
             date: row[2 + offset],                    // Col C/B – Date
             driver: row[3 + offset],                  // Col D/C – Driver
-            store: row[4 + offset],                   // Col E/D – Store (FIXED: was row[5+offset])
+            store: row[4 + offset],                   // Col E/D – Store (reading from correct column)
             arrive: row[5 + offset],                  // Col F/E – Arrival Time (FIXED: was row[6+offset])
             coolerTemp: row[6 + offset],              // Col G/F – Cooler Temp °F (FIXED: was row[7+offset])
             coolerCond: row[7 + offset],              // Col H/G – Cooler Condition (FIXED: was row[8+offset])
