@@ -2123,8 +2123,8 @@ function doGet(e) {
             after: row[14 + offset],                  // Col O/N – Shelf Total After (FIXED: was row[15+offset])
             notes: row[14 + offset],                  // Col O/N – Store Notes (FIXED: was row[15+offset], then row[16+offset])
             receivedBy: row[15 + offset],             // Col P/O – Received By (FIXED: was row[16+offset])
-            beforePhotoLink: row[17 + offset],        // Col R/Q – Before Photo Link (SWAPPED: was row[16+offset])
-            afterPhotoLink: row[16 + offset]          // Col Q/P – After Photo Link (SWAPPED: was row[17+offset])
+            beforePhotoLink: row[16 + offset],        // Col Q/P – Before Photo Link (Column Q has before photos)
+            afterPhotoLink: row[17 + offset]          // Col R/Q – After Photo Link (Column R has after photos)
           };
         });
 
