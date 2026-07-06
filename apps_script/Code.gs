@@ -2121,10 +2121,10 @@ function doGet(e) {
             removed: row[12 + offset],                // Col M/L – Qty Removed (Expired) (FIXED: was row[13+offset])
             reason: row[13 + offset],                 // Col N/M – Expire Reason (FIXED: was row[14+offset])
             after: row[14 + offset],                  // Col O/N – Shelf Total After (FIXED: was row[15+offset])
-            notes: row[15 + offset],                  // Col P/O – Store Notes (FIXED: was row[16+offset])
+            notes: row[14 + offset],                  // Col O/N – Store Notes (FIXED: was row[15+offset], then row[16+offset])
             receivedBy: row[15 + offset],             // Col P/O – Received By (FIXED: was row[16+offset])
-            beforePhotoLink: row[16 + offset],        // Col Q/P – Before Photo Link (FIXED: was row[17+offset])
-            afterPhotoLink: row[17 + offset]          // Col R/Q – After Photo Link (FIXED: was row[18+offset])
+            beforePhotoLink: row[17 + offset],        // Col R/Q – Before Photo Link (SWAPPED: was row[16+offset])
+            afterPhotoLink: row[16 + offset]          // Col Q/P – After Photo Link (SWAPPED: was row[17+offset])
           };
         });
 
