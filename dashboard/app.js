@@ -37,6 +37,10 @@ let REFRESH_INTERVAL = null;
 const POLL_INTERVAL_MS = 30000; // Changed from 10s to 30s for better UX
 const DEMO_MODE = true; // Enable demo data for local development
 
+// Cache configuration
+const CACHE_KEY = 'dashboard-data-cache';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Date Normalization Utilities
 // ═══════════════════════════════════════════════════════════════════════════
