@@ -106,7 +106,6 @@ Dashboard highlights all violations in red with corrective action notes.
 - **[HANDOFF.md](docs/HANDOFF.md)** — Daily operations guide and deployment procedures
 - **[ADD_A_STORE.md](docs/ADD_A_STORE.md)** — How to onboard a new Giant location
 - **[FRICTION_AUDIT.md](docs/FRICTION_AUDIT.md)** — Data quality issues and UX improvements
-- **[COORDINATION.md](COORDINATION.md)** — Task board and agent collaboration protocol
 
 ---
 

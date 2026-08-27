@@ -79,7 +79,7 @@ Before fixing, check:
 ### Observability Tools in This Project
 - **Sentry**: Error tracking for dashboard (DSN in dashboard/app.js)
 - **Execution Log**: Sheet tab with every doPost() call (auto-created on first submission)
-- **Daily Summary Email**: Sent at 9am to support@universoleappstudios.com
+- **Daily Summary Email**: Sent at 9am to tech-support@kalispellconsulting.com
 - **Apps Script Logger**: Console logs in Apps Script editor (View → Logs)
 
 ### Case Study: The Observability Gap (June 1-26, 2026)
@@ -513,7 +513,6 @@ const blob = Utilities.newBlob(
 
 ### Required Docs
 - ✅ **README.md**: User-facing feature list + setup instructions
-- ✅ **COORDINATION.md**: Task status + handoff notes between @code and @browser
 - ✅ **docs/**: Technical specs, testing checklists, API docs
 
 ### When to Document
@@ -541,7 +540,6 @@ const blob = Utilities.newBlob(
 - Update guided tour AND README for every user-facing change
 - Use `clasp push` for Apps Script deployment
 - One commit per logical change
-- Check COORDINATION.md for current task ownership
 - Ask if unsure whether feature is in scope
 - Document deferred work clearly (don't just disable buttons)
 
@@ -570,7 +568,6 @@ const blob = Utilities.newBlob(
 ├── taipei_delivery_form3.html
 ├── taipei_production_form3.html
 ├── README.md                # User-facing docs
-├── COORDINATION.md          # Task board + agent handoffs
 ├── CLAUDE.md                # This file (conventions)
 ├── package.json             # Node dependencies (clasp, etc.)
 ├── .clasp.json              # Clasp project config
@@ -581,7 +578,6 @@ const blob = Utilities.newBlob(
 
 ## Questions?
 
-- **Unsure if feature is complete?** Check `docs/P2_4_STATUS_TRACKING_PHASE2.md` for "done vs deferred" examples
 - **Don't know commit format?** Look at `git log --oneline -10` for recent examples
 - **Mobile testing unclear?** See `docs/MOBILE_TESTING_CHECKLIST.md`
 - **Apps Script deployment?** Check `package.json` scripts: `npm run deploy`

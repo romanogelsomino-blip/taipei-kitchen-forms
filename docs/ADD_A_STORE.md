@@ -150,4 +150,3 @@ If a store closes or ends the bento program:
 Questions? Check:
 - `/docs/HANDOFF.md` for operational procedures
 - `/dashboard/README.md` for dashboard help
-- `COORDINATION.md` for technical details

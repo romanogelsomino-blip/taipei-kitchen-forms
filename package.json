@@ -40,7 +40,7 @@
     "type": "git",
     "url": "https://github.com/romanogelsomino-blip/taipei-kitchen-forms.git"
   },
-  "author": "Leander Toney <leandertoney@gmail.com>",
+  "author": "Kalispell Consulting <tech-support@kalispellconsulting.com>",
   "license": "UNLICENSED",
   "private": true,
   "devDependencies": {

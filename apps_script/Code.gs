@@ -66,7 +66,7 @@ function doPost(e) {
   // Get spreadsheet ID from Script Properties (set per environment) or fallback to production
   const scriptProperties = PropertiesService.getScriptProperties();
   const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
-  const BUG_REPORT_EMAIL = 'support@universoleappstudios.com'; // Email for bug reports
+  const BUG_REPORT_EMAIL = 'tech-support@kalispellconsulting.com'; // Email for bug reports
 
   Logger.log(`[INIT] Using SPREADSHEET_ID: ${SPREADSHEET_ID}`);
 
@@ -506,7 +506,7 @@ function initializeExecutionLog() {
 function sendDailySummary() {
   const scriptProperties = PropertiesService.getScriptProperties();
   const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
-  const SUMMARY_EMAIL = 'support@universoleappstudios.com';
+  const SUMMARY_EMAIL = 'tech-support@kalispellconsulting.com';
 
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -646,7 +646,7 @@ https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=${logSheet.get
 function checkPhotoDrift() {
   const scriptProperties = PropertiesService.getScriptProperties();
   const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
-  const ALERT_EMAIL = 'support@universoleappstudios.com';
+  const ALERT_EMAIL = 'tech-support@kalispellconsulting.com';
   const DRIFT_THRESHOLD = 0.05; // 5%
   const DAYS_TO_CHECK = 7;
 
