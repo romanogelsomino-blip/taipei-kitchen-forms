@@ -12,8 +12,23 @@
  * Authorization helper - Run this once to authorize Drive scope
  * This ensures the Web App can access Drive for photo uploads
  */
+/**
+ * Canonical Drive photo folder name — SINGLE SOURCE OF TRUTH.
+ *
+ * Override per-environment via the PHOTO_FOLDER_NAME Script Property, so a rename
+ * never requires a code deploy. Default is the folder owned by the client
+ * (Romano), replacing "Taipei Kitchen Photos" which was tied to the former
+ * contractor's Google account and became inaccessible 2026-08-27.
+ *
+ * Name-based lookup only — never hardcode folder IDs.
+ */
+function getPhotoFolderName() {
+  return PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER_NAME')
+      || 'NEW Bento Box Photos';
+}
+
 function authorizeDriveAccess() {
-  const folderName = 'Taipei Kitchen Photos';
+  const folderName = getPhotoFolderName();
   const folders = DriveApp.getFoldersByName(folderName);
   if (folders.hasNext()) {
     Logger.log('Found existing photos folder');
@@ -24,10 +39,10 @@ function authorizeDriveAccess() {
 }
 
 /**
- * Get or create date-based subfolder in Taipei Kitchen Photos
+ * Get or create date-based subfolder in the photo folder
  * Uses session cache to minimize Drive API quota usage
  *
- * @param {Folder} rootFolder - The Taipei Kitchen Photos root folder
+ * @param {Folder} rootFolder - The photo root folder (see getPhotoFolderName)
  * @param {string} date - Date in YYYY-MM-DD format
  * @returns {Folder} The date subfolder
  */
@@ -209,7 +224,7 @@ function doPost(e) {
       Logger.log('[PHOTO UPLOAD] ENTERED BRANCH - Starting photo upload handler');
       logEntry.formType = 'photos_only';
       const photos = payload.photos;
-      const folderName = 'Taipei Kitchen Photos';
+      const folderName = getPhotoFolderName();
 
       // Get or create photos folder (with caching for quota optimization)
       let rootFolder;
@@ -666,7 +681,7 @@ function checkPhotoDrift() {
     startDate.setHours(0, 0, 0, 0);
 
     // Count Drive photos by date
-    const folderName = 'Taipei Kitchen Photos';
+    const folderName = getPhotoFolderName();
     const folders = DriveApp.getFoldersByName(folderName);
     let drivePhotoCounts = {};
 
@@ -786,7 +801,7 @@ ACTION REQUIRED:
 3. Check Drive folder for orphaned photos
 
 Spreadsheet: https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}
-Drive Folder: Search for "Taipei Kitchen Photos" in Google Drive
+Drive Folder: Search for "${getPhotoFolderName()}" in Google Drive
 
 This check ran at ${now.toISOString()}`;
 
@@ -2382,7 +2397,7 @@ function doGet(e) {
 
       // Search 1: In target folder (same logic as photo upload)
       try {
-        const folderName = 'Taipei Kitchen Photos';
+        const folderName = getPhotoFolderName();
         const folders = DriveApp.getFoldersByName(folderName);
         if (!folders.hasNext()) {
           results.targetFolderError = `Folder "${folderName}" not found`;
@@ -2548,7 +2563,7 @@ function doGet(e) {
       if (!sheet) throw new Error('Sheet "Delivery Log - Live" not found');
 
       // Get Drive folder (same logic as photo upload)
-      const folderName = 'Taipei Kitchen Photos';
+      const folderName = getPhotoFolderName();
       const folders = DriveApp.getFoldersByName(folderName);
       if (!folders.hasNext()) {
         throw new Error(`Folder "${folderName}" not found`);
@@ -2755,7 +2770,7 @@ function doGet(e) {
       const targetDates = (e.parameter.dates || '2026-06-26,2026-06-27,2026-06-29').split(',');
 
       // Get Drive folder
-      const folderName = 'Taipei Kitchen Photos';
+      const folderName = getPhotoFolderName();
       const folders = DriveApp.getFoldersByName(folderName);
       if (!folders.hasNext()) {
         throw new Error(`Folder "${folderName}" not found`);

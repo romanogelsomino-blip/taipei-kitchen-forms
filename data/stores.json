@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "lastUpdated": "2026-05-06",
+  "lastUpdated": "2026-08-27",
   "stores": [
     {
       "id": "6006",
@@ -12,6 +12,12 @@
       "id": "6061",
       "name": "Store 6061",
       "location": "Shippensburg, PA",
+      "active": true
+    },
+    {
+      "id": "6112",
+      "name": "Store 6112",
+      "location": "255 S Spring Garden St, Carlisle, PA",
       "active": true
     },
     {

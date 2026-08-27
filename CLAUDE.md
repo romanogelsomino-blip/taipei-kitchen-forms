@@ -116,29 +116,40 @@ Before fixing, check:
 **CANONICAL DRIVE FOLDER** (READ THIS FIRST):
 
 ```
-Name:  Taipei Kitchen Photos
-ID:    1gCVZ767RjlSDqgzWkPQKntjmyHbfBO_g
-Owner: Romano Gelsomino (romanogelsomino@gmail.com)
-URL:   https://drive.google.com/drive/folders/1gCVZ767RjlSDqgzWkPQKntjmyHbfBO_g
+Name:  NEW Bento Box Photos          <- resolved at runtime, see getPhotoFolderName()
+Owner: Romano Gelsomino (client)
 ```
 
+**Do not hardcode this name in new code.** `Code.gs` resolves it in exactly one place:
+
+```javascript
+function getPhotoFolderName() {
+  return PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER_NAME')
+      || 'NEW Bento Box Photos';
+}
+```
+
+All six photo call sites call `getPhotoFolderName()`. To point an environment at a
+different folder, set the `PHOTO_FOLDER_NAME` Script Property — no code deploy needed.
+
 **Critical Rules**:
-1. ✅ **NEVER hardcode folder IDs** - Always use `DriveApp.getFoldersByName('Taipei Kitchen Photos')`
-2. ✅ **Single source of truth** - All photo operations (upload, search, backfill) use the SAME folder lookup
-3. ✅ **Folder created automatically** - Code creates folder if it doesn't exist (first photo upload)
-4. ✅ **Owned by Romano** - The Apps Script runs under Romano's Google account, so he owns the folder
+1. ✅ **NEVER hardcode folder IDs or names** - go through `getPhotoFolderName()`
+2. ✅ **Single source of truth** - upload, search, and backfill all use the same lookup
+3. ⚠️ **Code creates the folder if the name does not resolve** (`DriveApp.createFolder`).
+   A wrong name, or an identity that cannot see the folder, silently produces a
+   DUPLICATE and splits photos across two locations. Verify with
+   `authorizeDriveAccess()` (read-only) before deploying under a new identity.
+4. ⚠️ **The Web App runs as whoever created the deployment** (`executeAs: USER_DEPLOYING`
+   in appsscript.json). `getFoldersByName` searches THAT account's Drive — including the
+   "Shared with me" inconsistency. The deploying account needs the folder in My Drive,
+   or ownership.
 
-**Folder References in Code.gs**:
-- Line ~17: `authorizeDriveAccess()` - Drive authorization helper
-- Line ~173: Photo upload handler (doPost)
-- Line ~606: Daily summary email (photo count)
-- Line ~2264: `findPhotos` endpoint (diagnostic)
-- Line ~2400: `backfillPhotoLinks` endpoint (recovery)
-
-**Common Mistake to Avoid**:
-- ❌ Do NOT create separate folders for "staging" vs "production" photos
-- ❌ Do NOT use hardcoded folder IDs like `getFolderById('...')`
-- ❌ Do NOT reference any folder other than "Taipei Kitchen Photos"
+**Superseded — do not restore**:
+The former folder `Taipei Kitchen Photos` (`1gCVZ767RjlSDqgzWkPQKntjmyHbfBO_g`) belonged
+to the former contractor's Google account. That account became unrecoverable on
+2026-08-27, taking the folder with it. Historical photo URLs in Delivery Log columns
+Q/R point into it and are expected to be broken. Earlier revisions of this file named
+that folder as canonical and claimed Romano owned it; both were wrong.
 
 **Photo Naming Convention**:
 ```
