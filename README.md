@@ -55,7 +55,11 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 | 6542     | Carlisle, PA                   |
 | 6564     | Harrisburg (Grayson Rd), PA    |
 
-To add a new store, see [`docs/ADD_A_STORE.md`](docs/ADD_A_STORE.md).
+To add a store: add it to `data/stores.json`, mirror the entry into the hardcoded fallback
+in `taipei_delivery_form3.html`, and push to `main`. The store list is also duplicated in
+`apps_script/Code.gs` (violation-alert names and the dashboard store filter) — those need a
+backend deploy to pick up a new store. QR codes point at
+`taipei_delivery_form3.html?store=<id>`.
 
 ---
 
@@ -102,10 +106,8 @@ Dashboard highlights all violations in red with corrective action notes.
 
 ## Project Documentation
 
-- **[SCOPE.md](docs/SCOPE.md)** — Original proposal scope (verbatim from UAS-2026-001)
-- **[HANDOFF.md](docs/HANDOFF.md)** — Daily operations guide and deployment procedures
-- **[ADD_A_STORE.md](docs/ADD_A_STORE.md)** — How to onboard a new Giant location
-- **[FRICTION_AUDIT.md](docs/FRICTION_AUDIT.md)** — Data quality issues and UX improvements
+- **[CLAUDE.md](CLAUDE.md)** — Deployment steps for both halves of the stack, and the two
+  failure modes that have each caused a multi-day outage
 
 ---
 
@@ -132,94 +134,46 @@ To update the dashboard:
 4. Dashboard updates at https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
 
 ### Apps Script
-The backend (`Code.gs`) runs as a Google Apps Script attached to both staging and production sheets.
 
-**Deployment is fully automated** — no browser GUI required. Web App deployments are created programmatically via Apps Script API.
+The backend (`Code.gs`) is a standalone Apps Script project that reaches the spreadsheet by
+ID — it is not attached to the sheet. **`git push` does not deploy it.**
 
-#### Programmatic Web App Deployment (NO MANUAL STEPS)
-```bash
-# Create Web App deployment via Apps Script API (automatic)
-bash scripts/create-webapp-deployment.sh staging
-bash scripts/create-webapp-deployment.sh production
-
-# What happens:
-# 1. Creates a new version via Apps Script API
-# 2. Creates deployment with webapp config from appsscript.json
-# 3. Returns deployment URL
-# 4. Script output shows: Update .env.staging with WEB_APP_URL=...
-
-# IMPORTANT: This creates a NEW deployment URL
-# Update .env.staging or .env.production immediately
-```
-
-#### Admin Token Authentication
-All automation endpoints are protected by UUID tokens stored in Script Properties.
+See **[CLAUDE.md](CLAUDE.md)** for the full procedure, environment identifiers, and the two
+failure modes that have each caused a multi-day outage. The short version:
 
 ```bash
-# Generate initial token (first time only)
-curl -sL "${WEB_APP_URL}?action=setupAdminToken"
-# Save the returned token to .env.staging or .env.production
-
-# Force regenerate token (invalidates old one)
-curl -sL "${WEB_APP_URL}?action=setupAdminToken&force=true"
-
-# Rotate token (requires current valid token)
-source .env.staging && curl -sL "${WEB_APP_URL}?action=rotateAdminToken&token=${ADMIN_TOKEN}"
+cp .clasp.production.json .clasp.json
+npx clasp push -f                       # uploads source — NOT yet live
+npx clasp deploy -i <DEPLOYMENT_ID> --description "what changed"
 ```
 
-Tokens are stored in `.env.staging` and `.env.production` (gitignored) and used by all npm scripts for authentication.
+The deployment is version-pinned, so `clasp push` alone changes nothing that users see.
+Always pass `-i` with the existing deployment ID, or you mint a new URL that then has to be
+updated in both forms and `dashboard/config.json`.
 
-#### Automated Workflow (Staging → Production)
+Verify with a write, not a read — reads can succeed while writes fail:
+
 ```bash
-# 1. Deploy code to staging
-npm run deploy
-
-# 2. Create Web App deployment (if needed)
-bash scripts/create-webapp-deployment.sh staging
-
-# 3. Initialize staging sheets (first time only)
-npm run init:staging
-
-# 4. Test email alerts on staging
-npm run test:violation:staging
-
-# 5. Verify email received at leandertoney@gmail.com
-# Check email inbox + Alert Log sheet for SUCCESS status
-
-# 6. Deploy to production (only after staging tests pass)
-npm run deploy:production
-
-# 7. Create Web App deployment for production
-bash scripts/create-webapp-deployment.sh production
-
-# 8. Initialize production sheets (first time only)
-npm run init:production
-
-# 9. Test email alerts on production
-npm run test:violation:production
+source .env.production
+curl -sL "$WEB_APP_URL" -H 'Content-Type: text/plain;charset=utf-8' --data-binary @payload.json
+# {"status":"ok"}
 ```
 
-#### Available Commands
+#### Admin endpoints
+
+Protected by a UUID token in Script Properties, mirrored into `.env.production`
+(gitignored) and read by every `npm run *:production` script.
+
 ```bash
-# Deployment
-npm run deploy                      # Deploy to staging (default)
-npm run deploy:staging              # Deploy to staging (explicit)
-npm run deploy:production           # Deploy to production
-
-# Initialization (first time setup)
-npm run init:staging                # Create Config & Alert Log sheets
-npm run init:production             # Create Config & Alert Log sheets
-
-# Testing
-npm run test:violation:staging      # Simulate HACCP violation alert
-npm run test:violation:production   # Simulate HACCP violation alert
-
-# Utilities
-npm run open:staging                # Open staging script in browser
-npm run open:production             # Open production script in browser
+npm run ping:production              # health check
+npm run test:log:production          # recent doPost executions
+npm run test:triggers:production     # list installed triggers
+npm run email:summary:production     # send the daily summary now
+npm run test:violation:production    # simulate a HACCP violation alert
 ```
 
-**Note**: All Apps Script functions are automated via `clasp run` — no GUI clicking required. Always test on staging before production.
+**Staging is currently non-functional** — `.clasp.staging.json` points at a project owned by
+an unrecoverable Google account. The `*:staging` scripts will fail until it is rebuilt.
 
 ---
 

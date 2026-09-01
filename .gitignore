@@ -15,3 +15,11 @@ dashboard/config.local.json
 .env.staging
 .env.production
 .env
+
+# OS / editor cruft
+.DS_Store
+*.swp
+*.swo
+
+# Scratch space — not part of the project
+/tmp/

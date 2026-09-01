@@ -3,9 +3,6 @@
   "version": "2.1.0",
   "description": "Taipei Kitchen Bento operations system - production, delivery, food safety, and analytics",
   "scripts": {
-    "deploy": "bash scripts/deploy-staging.sh",
-    "deploy:staging": "bash scripts/deploy-staging.sh",
-    "deploy:production": "bash scripts/deploy-production.sh",
     "init:staging": "node scripts/admin-action.js staging init",
     "init:production": "node scripts/admin-action.js production init",
     "test:violation:staging": "node scripts/admin-action.js staging test",
