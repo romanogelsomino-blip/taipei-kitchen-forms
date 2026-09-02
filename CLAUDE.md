@@ -6,48 +6,70 @@ multi-day outage.
 
 ---
 
+## Repo layout
+
+```
+frontend/    forms, dashboard, branding — PUBLISHED AT THE SITE ROOT, not under /frontend/
+backend/     Code.gs, appsscript.json — deployed by clasp, never by git
+deployment/  clasp presets, copied to .clasp.json by npm run env:*
+data/        stores/drivers/supervisors JSON — published at /data/
+scripts/     admin endpoint helpers, all read .env.{staging,production}
+```
+
+The published URL layout differs from the repo layout: `frontend/*` and `data/` are copied
+to the artifact root, so `frontend/taipei_delivery_form3.html` serves as
+`/taipei-kitchen-forms/taipei_delivery_form3.html`. **Every printed QR code depends on
+that mapping** — if the deploy stops flattening `frontend/`, all seven store QR codes break.
+
 ## Environments
 
-| | Production |
-|---|---|
-| Spreadsheet | `1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI` (`TaipeiKitchen_BentoOps_v2`) |
-| Apps Script project | `1_EOw2bBdaD_f4XePeRVJB6Wp7iiVCL6wvGBOjBe6sD93feMvHL9htjyT` |
-| Web App deployment | `AKfycbxP7nIBkoOz64YstMKQ5x0gqYk6cRKKzjj9DHv_J8GuBta3cUC8YFfb0IL8nRA2s2MZIw` — **@1, version-pinned** |
-| Photo folder | `NEW Bento Box Photos` — `1xUFF_Dfov1uK2kPjryCtw6lx4-3FBo9j` |
-| Frontend | GitHub Pages, served from `main` |
+Both are standalone Apps Script projects owned by Kalispell, fully isolated: separate
+project, deployment, spreadsheet, and Drive folder. Verified 2026-09-02 — a staging write
+does not appear in production's execution log.
 
-Credentials are in `.env.production` (gitignored). Script Properties on the Apps Script
-project hold `SPREADSHEET_ID`, `PHOTO_FOLDER_ID`, and `ADMIN_TOKEN`.
+| | Production | Staging |
+|---|---|---|
+| Spreadsheet | `1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI` | `12DjACv-MFoIHOfh5s03jeovpI9j6HCftfjTDddTAxBI` |
+| Script project | `1_EOw2bBdaD_f4XePeRVJB6Wp7iiVCL6wvGBOjBe6sD93feMvHL9htjyT` | `1bnRgdAzzp23hWOLWdxa26yNDGw6zsxPjk_6G8v8AXQnj4vbu9oamoDZ1` |
+| Deployment (**@1, pinned**) | `AKfycbxP7nIBkoOz64YstMKQ5x0gqYk6cRKKzjj9DHv_J8GuBta3cUC8YFfb0IL8nRA2s2MZIw` | `AKfycbwZYq72B_6pkEzgHYBonIZxJ0f_2r1rfgoV-7MyEBBsyuON2Tjf_EO2Fb4mSEK1zmGX` |
+| Photo folder | `1C-TnIQLW5qodNhtzpGFLzEtewiuCHNcK` (`New Bento Box/Prod`) | `1zBjQbz7NBLbZ-5itMbv1UerVFs1X6bpc` |
 
-**Staging does not work.** `.clasp.staging.json` points at a project owned by a Google
-account that is no longer recoverable. Replacing it is open work.
+Credentials in `.env.production` / `.env.staging` (both gitignored). Each project's Script
+Properties hold `SPREADSHEET_ID`, `PHOTO_FOLDER_ID`, and `ADMIN_TOKEN`.
+
+**There are no defaults.** `getSpreadsheetId()` and `getPhotoRootFolder()` throw if their
+Script Property is unset, and the photo folder is resolved by ID only — no name lookup, no
+`createFolder`. A new environment that skips either property fails every request instead of
+quietly writing into production or inventing a Drive folder.
+
+Photos uploaded before 2026-09-02 are in `1xUFF_Dfov1uK2kPjryCtw6lx4-3FBo9j`
+("NEW Bento Box Photos"). Sheet links are direct file URLs, so they still resolve.
 
 ---
 
 ## Frontend — forms, dashboard, `data/*.json`
 
-Static files, no build step.
+Static files, no build step beyond copying.
 
-```bash
-git push origin main        # live in 1–2 minutes
-```
+Branches: `dev` is the default and working branch, `prod` is the release branch. Pages
+currently builds from a branch directly; the intended end state is a GitHub Actions
+workflow publishing `prod` at the root and `dev` under `/staging/`.
 
-Pages builds from `main` only. There is no second branch to push to.
-
-- The CDN caches hard. `app.js` is cache-busted by `?v=N` in `dashboard/index.html` — bump
-  it when you change `app.js`. `config.json` has no cache-buster.
+- The CDN caches hard. `app.js` is cache-busted by `?v=N` in
+  `frontend/dashboard/index.html` — bump it when you change `app.js`. `config.json` has no
+  cache-buster.
 - Forms cache `data/stores.json` in localStorage for 1 hour, so store changes take up to
   60 minutes to reach a phone that already loaded the form.
 
 ---
 
-## Backend — `apps_script/Code.gs`
+## Backend — `backend/Code.gs`
 
 **`git push` does nothing here.** Git and Apps Script are unconnected. Deployment is two
 steps, and skipping the second is the common mistake:
 
 ```bash
-cp .clasp.production.json .clasp.json
+npm run env:production                     # copies deployment/clasp.production.json -> .clasp.json
 npx clasp push -f                          # uploads source to the project
 ```
 
@@ -63,9 +85,11 @@ npx clasp deploy -i AKfycbxP7nIBkoOz64YstMKQ5x0gqYk6cRKKzjj9DHv_J8GuBta3cUC8YFfb
 deployment with a new URL, which must then be updated in three places or the forms keep
 calling the old one:
 
-- `taipei_delivery_form3.html:515`
-- `taipei_production_form3.html:537`
-- `dashboard/config.json`
+- `frontend/taipei_delivery_form3.html:515`
+- `frontend/taipei_production_form3.html:537`
+- `frontend/dashboard/config.json`
+- `frontend/dashboard/index.html:1061` (bug-report handler — a fourth copy, currently
+  pointing at a dead deployment)
 
 Verify by writing, not reading — reads can succeed while writes fail (trap 2):
 

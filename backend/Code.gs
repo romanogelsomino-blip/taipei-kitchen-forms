@@ -1,11 +1,13 @@
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Taipei Kitchen — Google Apps Script
-// 1. In your Google Sheet go to Extensions → Apps Script
-// 2. Delete everything there and paste ALL of the code below
-// 3. Replace 1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI with your actual Sheet ID
-// 4. Click Deploy → New deployment → Web app → Execute as: Me → Anyone → Deploy
-// 5. Copy the Web app URL and paste it into both HTML form files
+// Taipei Kitchen — Google Apps Script backend
+//
+// Do NOT edit this in the Apps Script editor. Git is the source of truth; a clasp push
+// overwrites the project's files without warning. See CLAUDE.md for the deploy procedure.
+//
+// This project is environment-agnostic: the target spreadsheet and photo folder come
+// from Script Properties (SPREADSHEET_ID, PHOTO_FOLDER_ID), never from a default in
+// this file. Both are required; an unset property throws rather than guessing.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
@@ -13,28 +15,59 @@
  * This ensures the Web App can access Drive for photo uploads
  */
 /**
- * Canonical Drive photo folder name — SINGLE SOURCE OF TRUTH.
+ * Target spreadsheet for this environment — SINGLE SOURCE OF TRUTH.
  *
- * Override per-environment via the PHOTO_FOLDER_NAME Script Property, so a rename
- * never requires a code deploy. Default is the folder owned by the client
- * (Romano), replacing "Taipei Kitchen Photos" which was tied to the former
- * contractor's Google account and became inaccessible 2026-08-27.
- *
- * Name-based lookup only — never hardcode folder IDs.
+ * NO DEFAULT, BY DESIGN. This used to fall back to the production sheet ID, which meant
+ * any environment with an unset or mistyped SPREADSHEET_ID silently wrote into the live
+ * HACCP record. Failing loudly is the only safe behaviour.
  */
-function getPhotoFolderName() {
-  return PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER_NAME')
-      || 'NEW Bento Box Photos';
+function getSpreadsheetId() {
+  const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (!id) {
+    throw new Error(
+      'SPREADSHEET_ID Script Property is not set on this Apps Script project. ' +
+      'Set it under Project Settings > Script Properties before deploying. ' +
+      'Refusing to fall back to a default — that would risk writing to production.'
+    );
+  }
+  return id;
+}
+
+/**
+ * Photo root folder for this environment — resolved BY ID ONLY.
+ *
+ * There is deliberately no name lookup and no folder creation. The previous
+ * implementation resolved DriveApp.getFoldersByName() and called createFolder() on a
+ * miss, which meant a wrong name — or an identity that could not see the folder —
+ * silently produced a DUPLICATE and split photos across two locations. That is the
+ * June 2026 incident.
+ *
+ * A bad or inaccessible PHOTO_FOLDER_ID now fails loudly. Fix the property or the
+ * folder sharing; do not reintroduce a fallback.
+ */
+function getPhotoRootFolder() {
+  const id = PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER_ID');
+  if (!id) {
+    throw new Error(
+      'PHOTO_FOLDER_ID Script Property is not set on this Apps Script project. ' +
+      'Set it under Project Settings > Script Properties before deploying.'
+    );
+  }
+  try {
+    return DriveApp.getFolderById(id);
+  } catch (e) {
+    throw new Error(
+      'PHOTO_FOLDER_ID "' + id + '" is not accessible to the account this deployment ' +
+      'runs as (executeAs: USER_DEPLOYING). Fix the property or the folder sharing. ' +
+      'Refusing to fall back to a name lookup, which risks creating a duplicate folder. ' +
+      'Underlying error: ' + e.toString()
+    );
+  }
 }
 
 function authorizeDriveAccess() {
-  const folderName = getPhotoFolderName();
-  const folders = DriveApp.getFoldersByName(folderName);
-  if (folders.hasNext()) {
-    Logger.log('Found existing photos folder');
-  } else {
-    Logger.log('Photos folder not found - will be created on first upload');
-  }
+  const folder = getPhotoRootFolder();
+  Logger.log('Photo folder resolved: "' + folder.getName() + '" (' + folder.getId() + ')');
   Logger.log('Drive access authorized successfully');
 }
 
@@ -42,7 +75,7 @@ function authorizeDriveAccess() {
  * Get or create date-based subfolder in the photo folder
  * Uses session cache to minimize Drive API quota usage
  *
- * @param {Folder} rootFolder - The photo root folder (see getPhotoFolderName)
+ * @param {Folder} rootFolder - The photo root folder (see getPhotoRootFolder)
  * @param {string} date - Date in YYYY-MM-DD format
  * @returns {Folder} The date subfolder
  */
@@ -80,7 +113,7 @@ function getOrCreateDateSubfolder(rootFolder, date) {
 function doPost(e) {
   // Get spreadsheet ID from Script Properties (set per environment) or fallback to production
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const BUG_REPORT_EMAIL = 'tech-support@kalispellconsulting.com'; // Email for bug reports
 
   Logger.log(`[INIT] Using SPREADSHEET_ID: ${SPREADSHEET_ID}`);
@@ -224,37 +257,9 @@ function doPost(e) {
       Logger.log('[PHOTO UPLOAD] ENTERED BRANCH - Starting photo upload handler');
       logEntry.formType = 'photos_only';
       const photos = payload.photos;
-      const folderName = getPhotoFolderName();
 
-      // Get or create photos folder (with caching for quota optimization)
-      let rootFolder;
-      const cachedFolderId = PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER_ID');
-
-      if (cachedFolderId) {
-        try {
-          rootFolder = DriveApp.getFolderById(cachedFolderId);
-        } catch (e) {
-          // Cached ID invalid, re-lookup and update cache
-          Logger.log(`[PHOTO UPLOAD] Cached folder ID invalid, re-looking up folder: ${e.toString()}`);
-          const folders = DriveApp.getFoldersByName(folderName);
-          if (folders.hasNext()) {
-            rootFolder = folders.next();
-            PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', rootFolder.getId());
-          } else {
-            rootFolder = DriveApp.createFolder(folderName);
-            PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', rootFolder.getId());
-          }
-        }
-      } else {
-        // No cached ID, do lookup and cache result
-        const folders = DriveApp.getFoldersByName(folderName);
-        if (folders.hasNext()) {
-          rootFolder = folders.next();
-        } else {
-          rootFolder = DriveApp.createFolder(folderName);
-        }
-        PropertiesService.getScriptProperties().setProperty('PHOTO_FOLDER_ID', rootFolder.getId());
-      }
+      // Resolved by ID only. No name lookup, no createFolder — see getPhotoRootFolder().
+      const rootFolder = getPhotoRootFolder();
 
       // Get or create date-based subfolder (YYYY-MM-DD)
       const dateFolder = getOrCreateDateSubfolder(rootFolder, photos.date);
@@ -429,7 +434,7 @@ function doPost(e) {
 // Test function — run this manually in the editor to verify your Sheet ID is correct
 function testConnection() {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   Logger.log('Connected to: ' + ss.getName());
   Logger.log('Sheets found: ' + ss.getSheets().map(s => s.getName()).join(', '));
@@ -445,7 +450,7 @@ function testConnection() {
  */
 function writeExecutionLog(logEntry) {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
   let logSheet = ss.getSheetByName('Execution Log');
@@ -485,7 +490,7 @@ function writeExecutionLog(logEntry) {
  */
 function initializeExecutionLog() {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
   let logSheet = ss.getSheetByName('Execution Log');
@@ -520,7 +525,7 @@ function initializeExecutionLog() {
  */
 function sendDailySummary() {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const SUMMARY_EMAIL = 'tech-support@kalispellconsulting.com';
 
   try {
@@ -660,7 +665,7 @@ https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=${logSheet.get
  */
 function checkPhotoDrift() {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const ALERT_EMAIL = 'tech-support@kalispellconsulting.com';
   const DRIFT_THRESHOLD = 0.05; // 5%
   const DAYS_TO_CHECK = 7;
@@ -681,12 +686,10 @@ function checkPhotoDrift() {
     startDate.setHours(0, 0, 0, 0);
 
     // Count Drive photos by date
-    const folderName = getPhotoFolderName();
-    const folders = DriveApp.getFoldersByName(folderName);
     let drivePhotoCounts = {};
 
-    if (folders.hasNext()) {
-      const rootFolder = folders.next();
+    {
+      const rootFolder = getPhotoRootFolder();
 
       // Helper: Count photos in a folder
       const countPhotosInFolder = (folder) => {
@@ -797,11 +800,11 @@ POSSIBLE CAUSES:
 
 ACTION REQUIRED:
 1. Check Apps Script execution logs for [PHOTO UPLOAD] warnings/errors
-2. Review Delivery Log columns S/T for missing URLs
-3. Check Drive folder for orphaned photos
+2. Review Delivery Log columns Q/R for missing URLs
+3. Check the Drive folder for orphaned photos
 
 Spreadsheet: https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}
-Drive Folder: Search for "${getPhotoFolderName()}" in Google Drive
+Drive Folder: https://drive.google.com/drive/folders/${PropertiesService.getScriptProperties().getProperty('PHOTO_FOLDER_ID')}
 
 This check ran at ${now.toISOString()}`;
 
@@ -868,7 +871,7 @@ function createDailySummaryTrigger() {
  */
 function initializeConfigSheet() {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
   let configSheet = ss.getSheetByName('Config');
@@ -901,7 +904,7 @@ function initializeConfigSheet() {
  */
 function initializeAlertLogSheet() {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
   let alertLogSheet = ss.getSheetByName('Alert Log');
@@ -949,7 +952,7 @@ function initializeAlertLogSheet() {
  */
 function initializeViolationsTrackerSheet() {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
   let violationsSheet = ss.getSheetByName('Violations Tracker');
@@ -995,7 +998,7 @@ function initializeViolationsTrackerSheet() {
  */
 function getConfig(key) {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const configSheet = ss.getSheetByName('Config');
 
@@ -1029,7 +1032,7 @@ function getConfig(key) {
  */
 function setConfig(key, value) {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let configSheet = ss.getSheetByName('Config');
 
@@ -1070,7 +1073,7 @@ function setConfig(key, value) {
  */
 function logViolationAlert(violationType, storeId, storeName, temp, threshold, date, time, driver, receivedBy, recipients, emailStatus, errorMessage) {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let alertLogSheet = ss.getSheetByName('Alert Log');
 
@@ -1101,7 +1104,7 @@ function logViolationAlert(violationType, storeId, storeName, temp, threshold, d
  */
 function createViolationTrackerEntry(violationType, storeId, storeName, temp, threshold, alertLogTimestamp) {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let violationsSheet = ss.getSheetByName('Violations Tracker');
 
@@ -1418,7 +1421,7 @@ function verifyAdminToken(providedToken) {
 
 function doGet(e) {
   const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = scriptProperties.getProperty('SPREADSHEET_ID') || '1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI';
+  const SPREADSHEET_ID = getSpreadsheetId();
 
   // ────────────────────────────────────────────────────────────────────────────────
   // Admin Actions (Protected by Token)
@@ -2397,13 +2400,13 @@ function doGet(e) {
 
       // Search 1: In target folder (same logic as photo upload)
       try {
-        const folderName = getPhotoFolderName();
-        const folders = DriveApp.getFoldersByName(folderName);
-        if (!folders.hasNext()) {
-          results.targetFolderError = `Folder "${folderName}" not found`;
-          throw new Error(`Folder "${folderName}" not found`);
+        let rootFolder;
+        try {
+          rootFolder = getPhotoRootFolder();
+        } catch (folderErr) {
+          results.targetFolderError = folderErr.message;
+          throw folderErr;
         }
-        const rootFolder = folders.next();
 
         // Helper: Find photos in a folder
         const findPhotosInFolder = (folder, location) => {
@@ -2563,12 +2566,7 @@ function doGet(e) {
       if (!sheet) throw new Error('Sheet "Delivery Log - Live" not found');
 
       // Get Drive folder (same logic as photo upload)
-      const folderName = getPhotoFolderName();
-      const folders = DriveApp.getFoldersByName(folderName);
-      if (!folders.hasNext()) {
-        throw new Error(`Folder "${folderName}" not found`);
-      }
-      const rootFolder = folders.next();
+      const rootFolder = getPhotoRootFolder();
 
       // Check if move parameter is enabled (for backfilling photos into date subfolders)
       const shouldMove = e.parameter.move === 'true';
@@ -2770,12 +2768,7 @@ function doGet(e) {
       const targetDates = (e.parameter.dates || '2026-06-26,2026-06-27,2026-06-29').split(',');
 
       // Get Drive folder
-      const folderName = getPhotoFolderName();
-      const folders = DriveApp.getFoldersByName(folderName);
-      if (!folders.hasNext()) {
-        throw new Error(`Folder "${folderName}" not found`);
-      }
-      const rootFolder = folders.next();
+      const rootFolder = getPhotoRootFolder();
 
       // Helper: Find corrupted files in a folder
       const findCorruptedInFolder = (folder, location) => {

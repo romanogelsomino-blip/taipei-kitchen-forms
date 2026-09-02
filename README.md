@@ -8,15 +8,21 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 
 ## What's Here
 
-| Component                          | What it does                                                 |
-|------------------------------------|--------------------------------------------------------------|
-| `taipei_production_form3.html`     | Kitchen form. Logs each batch — cook times, cooling, dish counts, quality notes. |
-| `taipei_delivery_form3.html`       | Driver form. Logs each store delivery — temps, photos, what was loaded, what was left, case fill levels. |
-| `dashboard/`                       | Live web dashboard showing real-time metrics, deliveries, production, waste analysis, and HACCP compliance. |
-| `Code.gs`                          | Google Apps Script that handles form submissions and serves dashboard API. |
-| `data/`                            | JSON files for drivers, supervisors, stores, and dishes — loaded dynamically by forms. |
+| Path | What it does |
+|---|---|
+| `frontend/taipei_production_form3.html` | Kitchen form. Logs each batch — cook times, cooling, dish counts, quality notes. |
+| `frontend/taipei_delivery_form3.html` | Driver form. Logs each store delivery — temps, photos, what was loaded, what was left, case fill levels. |
+| `frontend/dashboard/` | Live web dashboard — metrics, deliveries, production, waste analysis, HACCP compliance. |
+| `frontend/assets/` | Branding used by the forms. |
+| `backend/Code.gs` | Google Apps Script handling form submissions and serving the dashboard API. |
+| `data/` | JSON for drivers, supervisors, stores, and dishes — fetched at form load. |
+| `deployment/` | clasp presets per environment. |
+| `scripts/` | Admin-endpoint helpers, driven by `.env.{staging,production}`. |
 
 All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR codes posted at each location.
+
+**`frontend/` and `data/` publish to the site root**, so the served URLs contain no
+`frontend/` segment. The QR codes depend on that — see [CLAUDE.md](CLAUDE.md).
 
 **Live Dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
 
@@ -56,8 +62,8 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 | 6564     | Harrisburg (Grayson Rd), PA    |
 
 To add a store: add it to `data/stores.json`, mirror the entry into the hardcoded fallback
-in `taipei_delivery_form3.html`, and push to `main`. The store list is also duplicated in
-`apps_script/Code.gs` (violation-alert names and the dashboard store filter) — those need a
+in `frontend/taipei_delivery_form3.html`, and release. The store list is also duplicated in
+`backend/Code.gs` (violation-alert names and the dashboard store filter) — those need a
 backend deploy to pick up a new store. QR codes point at
 `taipei_delivery_form3.html?store=<id>`.
 
@@ -125,13 +131,13 @@ To deploy changes:
 4. GitHub Pages auto-deploys within 1-2 minutes
 
 ### Dashboard
-Dashboard files live in `/dashboard/` and deploy automatically with forms.
+Dashboard files live in `frontend/dashboard/` and deploy with the forms.
 
 To update the dashboard:
-1. Edit files in `dashboard/` directory
-2. Test locally: `cd dashboard && python3 -m http.server 8080`
-3. Commit and push to `main` branch
-4. Dashboard updates at https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
+1. Edit files in `frontend/dashboard/`
+2. Test locally: `cd frontend/dashboard && python3 -m http.server 8080`
+3. Commit and release
+4. Dashboard serves at https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
 
 ### Apps Script
 
@@ -142,14 +148,15 @@ See **[CLAUDE.md](CLAUDE.md)** for the full procedure, environment identifiers, 
 failure modes that have each caused a multi-day outage. The short version:
 
 ```bash
-cp .clasp.production.json .clasp.json
+npm run env:production                  # or env:staging — sets the clasp target
 npx clasp push -f                       # uploads source — NOT yet live
 npx clasp deploy -i <DEPLOYMENT_ID> --description "what changed"
 ```
 
 The deployment is version-pinned, so `clasp push` alone changes nothing that users see.
 Always pass `-i` with the existing deployment ID, or you mint a new URL that then has to be
-updated in both forms and `dashboard/config.json`.
+updated in both forms, `frontend/dashboard/config.json`, and the bug-report handler at
+`frontend/dashboard/index.html:1061`.
 
 Verify with a write, not a read — reads can succeed while writes fail:
 
@@ -172,8 +179,9 @@ npm run email:summary:production     # send the daily summary now
 npm run test:violation:production    # simulate a HACCP violation alert
 ```
 
-**Staging is currently non-functional** — `.clasp.staging.json` points at a project owned by
-an unrecoverable Google account. The `*:staging` scripts will fail until it is rebuilt.
+A parallel staging environment exists with its own script project, deployment, spreadsheet,
+and Drive folder — see [CLAUDE.md](CLAUDE.md) for identifiers. Every command above has a
+`:staging` equivalent, e.g. `npm run ping:staging`.
 
 ---
 

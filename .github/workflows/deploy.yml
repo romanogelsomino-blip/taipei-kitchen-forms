@@ -1,0 +1,194 @@
+name: Deploy
+
+# dev  -> staging backend + site published under /staging/
+# prod -> production backend + site published at the root
+#
+# Backend deploys BEFORE the frontend, so a still-cached old frontend talks to a backend
+# that already understands the new contract (expand/contract). The two platforms cannot be
+# made atomic, so contract changes must stay backward-compatible for one release cycle.
+
+on:
+  push:
+    branches: [dev, prod]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Pages allows one publish at a time. Never cancel in flight — a cancelled deploy can
+# leave the site serving a half-assembled artifact.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────────
+  backend:
+    name: Backend (Apps Script)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # No lockfile is committed, so `npm i` resolves from package.json. The clasp version
+      # there is pinned exactly (not a caret range) so CI and local stay identical.
+      # No setup-node cache: the cache key needs a lockfile.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm i
+
+      - name: Restore clasp credentials
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ]; then
+            echo "::error::CLASPRC_JSON secret is not set — backend cannot deploy."
+            exit 1
+          fi
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+
+      - name: Select environment
+        id: env
+        run: |
+          if [ "${{ github.ref_name }}" = "prod" ]; then
+            cp deployment/clasp.production.json .clasp.json
+            echo "name=production"                                   >> "$GITHUB_OUTPUT"
+            echo "deployment_id=${{ secrets.PROD_DEPLOYMENT_ID }}"   >> "$GITHUB_OUTPUT"
+            echo "web_app_url=${{ secrets.PROD_WEB_APP_URL }}"       >> "$GITHUB_OUTPUT"
+          else
+            cp deployment/clasp.staging.json .clasp.json
+            echo "name=staging"                                       >> "$GITHUB_OUTPUT"
+            echo "deployment_id=${{ secrets.STAGING_DEPLOYMENT_ID }}" >> "$GITHUB_OUTPUT"
+            echo "web_app_url=${{ secrets.STAGING_WEB_APP_URL }}"     >> "$GITHUB_OUTPUT"
+          fi
+          cat .clasp.json
+
+      - name: Push source
+        run: npx clasp push -f
+
+      # -i redeploys IN PLACE so the Web App URL never changes. Without it clasp mints a
+      # new URL, which then has to be chased into four frontend files.
+      - name: Redeploy in place
+        run: |
+          ID="${{ steps.env.outputs.deployment_id }}"
+          if [ -z "$ID" ]; then
+            echo "::error::${{ steps.env.outputs.name }} deployment id variable is not set."
+            exit 1
+          fi
+          npx clasp deploy -i "$ID" --description "${{ github.ref_name }} ${{ github.sha }}"
+
+      - name: Verify deployment is live and bound to the right sheet
+        env:
+          URL: ${{ steps.env.outputs.web_app_url }}
+          TOKEN: ${{ github.ref_name == 'prod' && secrets.PROD_ADMIN_TOKEN || secrets.STAGING_ADMIN_TOKEN }}
+        run: |
+          OUT=$(curl -sL --max-time 120 "$URL?action=ping&token=$TOKEN")
+          echo "$OUT"
+          echo "$OUT" | grep -q '"status":"ok"' \
+            || { echo "::error::ping did not return ok — deployment is not serving."; exit 1; }
+
+      # A real write is the only thing that catches the failure mode that took production
+      # down in Aug 2026 (reads fine, writes denied). Staging only: production has no
+      # write-then-clean endpoint, so a synthetic row there would pollute the HACCP record.
+      - name: Verify writes (staging only)
+        if: github.ref_name == 'dev'
+        env:
+          URL: ${{ steps.env.outputs.web_app_url }}
+        run: |
+          cat > payload.json <<'JSON'
+          {"formType":"delivery","rows":[{
+            "clientTimestamp":"1970-01-01T00:00:00.000Z","date":"1970-01-01",
+            "driver":"ZZ-CI-SMOKE","store":"0000","storeId":"0000","arrive":"00:00",
+            "coolerTemp":"38","coolerCond":"Good","dish":"ZZ-CI-SMOKE",
+            "casePrefillPercent":"0-25%","added":"0","before":"0","removed":"0",
+            "reason":"","after":"0","notes":"CI smoke test - safe to delete",
+            "receivedBy":"ZZ-CI-SMOKE","formType":"delivery"}]}
+          JSON
+          OUT=$(curl -sL --max-time 150 "$URL" \
+                 -H 'Content-Type: text/plain;charset=utf-8' --data-binary @payload.json)
+          echo "$OUT"
+          echo "$OUT" | grep -q '"status":"ok"' \
+            || { echo "::error::staging write failed — backend accepted no data."; exit 1; }
+
+  # ───────────────────────────────────────────────────────────────────────────────
+  frontend:
+    name: Site (prod at /, dev at /staging/)
+    needs: backend
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      # A Pages deploy replaces the ENTIRE site, so the artifact must always contain both
+      # halves regardless of which branch triggered this run.
+      - name: Check out prod
+        uses: actions/checkout@v4
+        with:
+          ref: prod
+          path: prod-src
+
+      - name: Check out dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: dev-src
+
+      - name: Assemble site
+        env:
+          PROD_URL: ${{ secrets.PROD_WEB_APP_URL }}
+          STAGING_URL: ${{ secrets.STAGING_WEB_APP_URL }}
+        run: |
+          set -euo pipefail
+
+          for b in prod-src dev-src; do
+            [ -d "$b/frontend" ] || { echo "::error::$b has no frontend/ — restructure that branch first."; exit 1; }
+          done
+
+          # prod -> site root. frontend/ is FLATTENED: every printed QR code depends on
+          # the served URL containing no /frontend/ segment.
+          mkdir -p _site
+          cp -r prod-src/frontend/. _site/
+          cp -r prod-src/data       _site/data
+
+          # dev -> /staging/
+          mkdir -p _site/staging
+          cp -r dev-src/frontend/. _site/staging/
+          cp -r dev-src/data       _site/staging/data
+
+          # Repoint the staging copy at the staging backend. The source keeps the
+          # production URL, so this rewrite catches all four hardcoded copies at once
+          # (both forms, dashboard/config.json, and the bug-report handler).
+          if [ -z "$STAGING_URL" ] || [ -z "$PROD_URL" ]; then
+            echo "::error::PROD_WEB_APP_URL / STAGING_WEB_APP_URL variables are not set."
+            exit 1
+          fi
+          MATCHES=$(grep -rl -F "$PROD_URL" _site/staging || true)
+          if [ -z "$MATCHES" ]; then
+            echo "::error::No production URL found in the staging copy — substitution would silently no-op."
+            exit 1
+          fi
+          echo "$MATCHES" | xargs sed -i "s|$PROD_URL|$STAGING_URL|g"
+          echo "Repointed to staging:"; echo "$MATCHES"
+
+          # Fail loudly if any production URL survived in the staging tree.
+          if grep -rq -F "$PROD_URL" _site/staging; then
+            echo "::error::Production URL still present under /staging/ after substitution."
+            exit 1
+          fi
+
+          # Make /staging/ unmistakable in the UI.
+          find _site/staging -maxdepth 2 -name '*.html' -print0 | xargs -0 sed -i \
+            's|<body>|<body><div style="position:sticky;top:0;z-index:99999;background:#b45309;color:#fff;font:700 13px monospace;text-align:center;padding:8px">\&#9888; STAGING \&mdash; not production data</div>|'
+
+          # Actions mode does not run Jekyll, but be explicit.
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
