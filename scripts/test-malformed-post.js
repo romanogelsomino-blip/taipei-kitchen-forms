@@ -17,8 +17,8 @@ if (!environment) {
   process.exit(1);
 }
 
-// Load .env file
-const envFile = `.env.${environment}`;
+// Load .env — single file, every variable, prefixed by environment.
+const envFile = '.env';
 if (!fs.existsSync(envFile)) {
   console.error(`Error: ${envFile} not found`);
   process.exit(1);
@@ -31,13 +31,18 @@ envContent.split('\n').forEach(line => {
   if (line && !line.startsWith('#')) {
     const [key, ...valueParts] = line.split('=');
     if (key && valueParts.length > 0) {
-      env[key] = valueParts.join('=');
+      // Strip a trailing ` # comment` — whitespace required before the #.
+      env[key] = valueParts.join('=').replace(/\s+#.*$/, '').trim();
     }
   }
 });
 
+const PREFIX = environment === 'production' ? 'PROD' : 'STAGING';
+env.WEB_APP_URL = env[`${PREFIX}_WEB_APP_URL`];
+env.ADMIN_TOKEN = env[`${PREFIX}_ADMIN_TOKEN`];
+
 if (!env.WEB_APP_URL || !env.ADMIN_TOKEN) {
-  console.error(`Error: WEB_APP_URL or ADMIN_TOKEN not found in ${envFile}`);
+  console.error(`Error: ${PREFIX}_WEB_APP_URL or ${PREFIX}_ADMIN_TOKEN not found in ${envFile}`);
   process.exit(1);
 }
 

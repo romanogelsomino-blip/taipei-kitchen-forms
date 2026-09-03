@@ -50,21 +50,28 @@ jobs:
           fi
           printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
 
+      # .clasp.json is GENERATED from the secret, never copied from a committed file —
+      # so the script id has exactly one source of truth and cannot drift.
       - name: Select environment
         id: env
+        env:
+          SCRIPT_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SCRIPT_ID || secrets.STAGING_SCRIPT_ID }}
         run: |
+          if [ -z "$SCRIPT_ID" ]; then
+            echo "::error::SCRIPT_ID secret is not set for ${{ github.ref_name }}."
+            exit 1
+          fi
+          printf '{\n  "scriptId": "%s",\n  "rootDir": "./backend"\n}\n' "$SCRIPT_ID" > .clasp.json
+
           if [ "${{ github.ref_name }}" = "prod" ]; then
-            cp deployment/clasp.production.json .clasp.json
             echo "name=production"                                   >> "$GITHUB_OUTPUT"
             echo "deployment_id=${{ secrets.PROD_DEPLOYMENT_ID }}"   >> "$GITHUB_OUTPUT"
             echo "web_app_url=${{ secrets.PROD_WEB_APP_URL }}"       >> "$GITHUB_OUTPUT"
           else
-            cp deployment/clasp.staging.json .clasp.json
             echo "name=staging"                                       >> "$GITHUB_OUTPUT"
             echo "deployment_id=${{ secrets.STAGING_DEPLOYMENT_ID }}" >> "$GITHUB_OUTPUT"
             echo "web_app_url=${{ secrets.STAGING_WEB_APP_URL }}"     >> "$GITHUB_OUTPUT"
           fi
-          cat .clasp.json
 
       - name: Push source
         run: npx clasp push -f

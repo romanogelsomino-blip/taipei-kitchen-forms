@@ -20,8 +20,9 @@ if (!environment || !action) {
   process.exit(1);
 }
 
-// Load .env file
-const envFile = `.env.${environment}`;
+// Load .env — a single file holding every variable for every environment, prefixed,
+// mirroring the GitHub Actions secrets one-for-one.
+const envFile = '.env';
 if (!fs.existsSync(envFile)) {
   console.error(`Error: ${envFile} not found`);
   process.exit(1);
@@ -34,21 +35,24 @@ envContent.split('\n').forEach(line => {
   if (line && !line.startsWith('#')) {
     const [key, ...valueParts] = line.split('=');
     if (key && valueParts.length > 0) {
-      env[key] = valueParts.join('=');
+      // Strip a trailing ` # comment`. Requires whitespace before the #, so a literal
+      // '#' inside a value (URL fragment, token) is preserved.
+      env[key] = valueParts.join('=').replace(/\s+#.*$/, '').trim();
     }
   }
 });
 
-if (!env.WEB_APP_URL || !env.ADMIN_TOKEN) {
-  console.error(`Error: WEB_APP_URL or ADMIN_TOKEN not found in ${envFile}`);
+const PREFIX = environment === 'production' ? 'PROD' : 'STAGING';
+const WEB_APP_URL = env[`${PREFIX}_WEB_APP_URL`];
+const ADMIN_TOKEN = env[`${PREFIX}_ADMIN_TOKEN`];
+
+if (!WEB_APP_URL || !ADMIN_TOKEN) {
+  console.error(`Error: ${PREFIX}_WEB_APP_URL or ${PREFIX}_ADMIN_TOKEN not found in ${envFile}`);
   process.exit(1);
 }
 
-if (env.ADMIN_TOKEN === 'NEEDS_REGENERATION') {
-  console.error(`Error: Admin token needs regeneration for ${environment}.`);
-  console.error('Follow instructions in .env.${environment} to regenerate token.');
-  process.exit(1);
-}
+env.WEB_APP_URL = WEB_APP_URL;
+env.ADMIN_TOKEN = ADMIN_TOKEN;
 
 // Build request URL with optional parameters
 let requestUrl = `${env.WEB_APP_URL}?action=${action}&token=${encodeURIComponent(env.ADMIN_TOKEN)}`;

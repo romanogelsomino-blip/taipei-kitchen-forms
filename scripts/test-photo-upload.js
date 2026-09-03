@@ -16,7 +16,8 @@ const path = require('path');
 
 // Configuration
 const ENV = process.argv[2] || 'staging';
-const envFile = path.join(__dirname, '..', `.env.${ENV}`);
+// Single .env holding every variable for every environment, prefixed.
+const envFile = path.join(__dirname, '..', '.env');
 
 if (!fs.existsSync(envFile)) {
   console.error(`❌ Error: ${envFile} not found`);
@@ -29,14 +30,16 @@ const envVars = fs.readFileSync(envFile, 'utf-8')
   .filter(line => line && !line.startsWith('#'))
   .reduce((acc, line) => {
     const [key, ...valueParts] = line.split('=');
-    acc[key.trim()] = valueParts.join('=').trim();
+    // Strip a trailing ` # comment` — whitespace required before the #.
+    acc[key.trim()] = valueParts.join('=').replace(/\s+#.*$/, '').trim();
     return acc;
   }, {});
 
-const WEB_APP_URL = envVars.WEB_APP_URL;
+const PREFIX = ENV === 'production' ? 'PROD' : 'STAGING';
+const WEB_APP_URL = envVars[`${PREFIX}_WEB_APP_URL`];
 
 if (!WEB_APP_URL) {
-  console.error(`❌ Error: WEB_APP_URL not found in ${envFile}`);
+  console.error(`❌ Error: ${PREFIX}_WEB_APP_URL not found in ${envFile}`);
   process.exit(1);
 }
 

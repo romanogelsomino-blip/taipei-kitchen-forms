@@ -3,8 +3,8 @@
   "version": "2.1.0",
   "description": "Taipei Kitchen Bento operations system - production, delivery, food safety, and analytics",
   "scripts": {
-    "env:staging": "cp deployment/clasp.staging.json .clasp.json && echo 'clasp target -> STAGING'",
-    "env:production": "cp deployment/clasp.production.json .clasp.json && echo 'clasp target -> PRODUCTION'",
+    "env:staging": "node scripts/set-clasp-env.js staging",
+    "env:production": "node scripts/set-clasp-env.js production",
     "init:staging": "node scripts/admin-action.js staging init",
     "init:production": "node scripts/admin-action.js production init",
     "test:violation:staging": "node scripts/admin-action.js staging test",

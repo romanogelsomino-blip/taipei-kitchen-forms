@@ -16,7 +16,7 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 | `frontend/assets/` | Branding used by the forms. |
 | `backend/Code.gs` | Google Apps Script handling form submissions and serving the dashboard API. |
 | `data/` | JSON for drivers, supervisors, stores, and dishes — fetched at form load. |
-| `deployment/` | clasp presets per environment. |
+| `deployment/` | Deployment guide — start here for how either half reaches production. |
 | `scripts/` | Admin-endpoint helpers, driven by `.env.{staging,production}`. |
 
 All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR codes posted at each location.
@@ -114,6 +114,72 @@ Dashboard highlights all violations in red with corrective action notes.
 
 - **[CLAUDE.md](CLAUDE.md)** — Deployment steps for both halves of the stack, and the two
   failure modes that have each caused a multi-day outage
+
+---
+
+## Configuration
+
+### `.env` is the source of truth
+
+A single gitignored `.env` at the repo root holds **every** configuration value for **both**
+environments. Nothing else is authoritative — everywhere else these values appear, they are
+copies that have to be kept in step with this file.
+
+```
+CLASPRC_JSON                   clasp OAuth credentials, shared by both environments
+PROD_ADMIN_TOKEN               STAGING_ADMIN_TOKEN
+PROD_DEPLOYMENT_ID             STAGING_DEPLOYMENT_ID
+PROD_PHOTO_FOLDER_ID           STAGING_PHOTO_FOLDER_ID
+PROD_SCRIPT_ID                 STAGING_SCRIPT_ID
+PROD_SPREADSHEET_FOLDER_ID     STAGING_SPREADSHEET_FOLDER_ID
+PROD_SPREADSHEET_ID            STAGING_SPREADSHEET_ID
+PROD_WEB_APP_URL               STAGING_WEB_APP_URL
+```
+
+Trailing `# comments` are stripped by the parsers on whitespace-then-hash, so a literal `#`
+inside a value survives. **Do not paste the comment when copying a value into GitHub** — the
+value is everything before the ` #`.
+
+### Why the prefixes
+
+The conventional pattern is one file per environment — `.env.staging`, `.env.production` —
+with unprefixed keys, where the *filename* selects the environment. This repo used to do
+that. Two things forced the change:
+
+**GitHub secrets are flat.** There is one namespace per repository, so the environment has
+to be in the key name. And the deploy workflow genuinely needs both environments in scope in
+a single run: it publishes `prod` at the site root and `dev` under `/staging/`, rewriting the
+staging copy's endpoint as it goes. A per-environment file cannot express that.
+
+**GitHub secrets are write-only.** Once set, no one — not the UI, not the API, not `gh` — can
+read a value back. If this file did not mirror them exactly, the only readable copy of the
+configuration would be gone, and a successor would have to rediscover every identifier. That
+is precisely the situation this project was left in by the previous handover.
+
+So `.env` mirrors the GitHub secret names one-for-one. The cost is that both environments are
+in scope at once locally, where the two-file model made that impossible. Worth knowing when
+writing an ad-hoc script.
+
+### Where the values go
+
+`.env` is not read at runtime by anything in production. It is the reference copy that four
+downstream stores are populated *from*:
+
+| Destination | Which values | How they get there |
+|---|---|---|
+| **GitHub Actions secrets** | all 15 | pasted by hand, one per key, same names |
+| **Apps Script Script Properties** | `SPREADSHEET_ID`, `PHOTO_FOLDER_ID`, `ADMIN_TOKEN` (unprefixed, per project) | set by hand in Project Settings today; the intent is for the deploy workflow to reconcile them via `?action=setScriptProperty` so they cannot drift |
+| **The published frontend** | `WEB_APP_URL` | the workflow rewrites the staging copy's hardcoded endpoint during site assembly |
+| **`.clasp.json`** (clasp target) | `SCRIPT_ID` | generated, never committed — `npm run env:*` writes it from `.env` locally, the workflow writes it from the secret in CI |
+
+Apps Script is the only *runtime* consumer: `Code.gs` reads its three Script Properties and
+nothing else. `SPREADSHEET_ID` and `PHOTO_FOLDER_ID` have no defaults — an unset property
+throws rather than falling back, so a misconfigured environment fails loudly instead of
+quietly writing into production.
+
+`SPREADSHEET_FOLDER_ID` is recorded but unused. It exists for a planned move to
+year/month-split spreadsheets, mirroring how photos are already organised; the flat
+`SPREADSHEET_ID` is retired when that lands.
 
 ---
 
