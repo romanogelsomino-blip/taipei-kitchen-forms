@@ -3,6 +3,8 @@
   "version": "2.1.0",
   "description": "Taipei Kitchen Bento operations system - production, delivery, food safety, and analytics",
   "scripts": {
+    "env:staging": "node scripts/set-clasp-env.js staging",
+    "env:production": "node scripts/set-clasp-env.js production",
     "init:staging": "node scripts/admin-action.js staging init",
     "init:production": "node scripts/admin-action.js production init",
     "test:violation:staging": "node scripts/admin-action.js staging test",
@@ -29,8 +31,8 @@
     "config:reset:production": "node scripts/admin-action.js production resetConfig",
     "watch": "clasp push --watch",
     "open": "clasp open",
-    "open:staging": "cp .clasp.staging.json .clasp.json && clasp open",
-    "open:production": "cp .clasp.production.json .clasp.json && clasp open",
+    "open:staging": "npm run env:staging && clasp open",
+    "open:production": "npm run env:production && clasp open",
     "logs": "clasp logs"
   },
   "repository": {
@@ -41,6 +43,6 @@
   "license": "UNLICENSED",
   "private": true,
   "devDependencies": {
-    "@google/clasp": "^2.4.2"
+    "@google/clasp": "2.5.0"
   }
 }

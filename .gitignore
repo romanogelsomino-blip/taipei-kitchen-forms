@@ -5,11 +5,12 @@ package-lock.json
 
 # Clasp
 .clasprc.json
-# Generated dynamically from .clasp.staging.json or .clasp.production.json
+# Generated at the repo root by `npm run env:staging|production`,
+# copied from deployment/clasp.{staging,production}.json
 .clasp.json
 
 # Local config (contains sensitive URLs)
-dashboard/config.local.json
+frontend/dashboard/config.local.json
 
 # Environment files with admin tokens (NEVER COMMIT)
 .env.staging

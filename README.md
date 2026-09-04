@@ -8,15 +8,21 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 
 ## What's Here
 
-| Component                          | What it does                                                 |
-|------------------------------------|--------------------------------------------------------------|
-| `taipei_production_form3.html`     | Kitchen form. Logs each batch — cook times, cooling, dish counts, quality notes. |
-| `taipei_delivery_form3.html`       | Driver form. Logs each store delivery — temps, photos, what was loaded, what was left, case fill levels. |
-| `dashboard/`                       | Live web dashboard showing real-time metrics, deliveries, production, waste analysis, and HACCP compliance. |
-| `Code.gs`                          | Google Apps Script that handles form submissions and serves dashboard API. |
-| `data/`                            | JSON files for drivers, supervisors, stores, and dishes — loaded dynamically by forms. |
+| Path | What it does |
+|---|---|
+| `frontend/taipei_production_form3.html` | Kitchen form. Logs each batch — cook times, cooling, dish counts, quality notes. |
+| `frontend/taipei_delivery_form3.html` | Driver form. Logs each store delivery — temps, photos, what was loaded, what was left, case fill levels. |
+| `frontend/dashboard/` | Live web dashboard — metrics, deliveries, production, waste analysis, HACCP compliance. |
+| `frontend/assets/` | Branding used by the forms. |
+| `backend/Code.gs` | Google Apps Script handling form submissions and serving the dashboard API. |
+| `data/` | JSON for drivers, supervisors, stores, and dishes — fetched at form load. |
+| `deployment/` | Deployment guide — start here for how either half reaches production. |
+| `scripts/` | Admin-endpoint helpers, driven by `.env.{staging,production}`. |
 
 All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR codes posted at each location.
+
+**`frontend/` and `data/` publish to the site root**, so the served URLs contain no
+`frontend/` segment. The QR codes depend on that — see [CLAUDE.md](CLAUDE.md).
 
 **Live Dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
 
@@ -56,8 +62,8 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 | 6564     | Harrisburg (Grayson Rd), PA    |
 
 To add a store: add it to `data/stores.json`, mirror the entry into the hardcoded fallback
-in `taipei_delivery_form3.html`, and push to `main`. The store list is also duplicated in
-`apps_script/Code.gs` (violation-alert names and the dashboard store filter) — those need a
+in `frontend/taipei_delivery_form3.html`, and release. The store list is also duplicated in
+`backend/Code.gs` (violation-alert names and the dashboard store filter) — those need a
 backend deploy to pick up a new store. QR codes point at
 `taipei_delivery_form3.html?store=<id>`.
 
@@ -111,6 +117,72 @@ Dashboard highlights all violations in red with corrective action notes.
 
 ---
 
+## Configuration
+
+### `.env` is the source of truth
+
+A single gitignored `.env` at the repo root holds **every** configuration value for **both**
+environments. Nothing else is authoritative — everywhere else these values appear, they are
+copies that have to be kept in step with this file.
+
+```
+CLASPRC_JSON                   clasp OAuth credentials, shared by both environments
+PROD_ADMIN_TOKEN               STAGING_ADMIN_TOKEN
+PROD_DEPLOYMENT_ID             STAGING_DEPLOYMENT_ID
+PROD_PHOTO_FOLDER_ID           STAGING_PHOTO_FOLDER_ID
+PROD_SCRIPT_ID                 STAGING_SCRIPT_ID
+PROD_SPREADSHEET_FOLDER_ID     STAGING_SPREADSHEET_FOLDER_ID
+PROD_SPREADSHEET_ID            STAGING_SPREADSHEET_ID
+PROD_WEB_APP_URL               STAGING_WEB_APP_URL
+```
+
+Trailing `# comments` are stripped by the parsers on whitespace-then-hash, so a literal `#`
+inside a value survives. **Do not paste the comment when copying a value into GitHub** — the
+value is everything before the ` #`.
+
+### Why the prefixes
+
+The conventional pattern is one file per environment — `.env.staging`, `.env.production` —
+with unprefixed keys, where the *filename* selects the environment. This repo used to do
+that. Two things forced the change:
+
+**GitHub secrets are flat.** There is one namespace per repository, so the environment has
+to be in the key name. And the deploy workflow genuinely needs both environments in scope in
+a single run: it publishes `prod` at the site root and `dev` under `/staging/`, rewriting the
+staging copy's endpoint as it goes. A per-environment file cannot express that.
+
+**GitHub secrets are write-only.** Once set, no one — not the UI, not the API, not `gh` — can
+read a value back. If this file did not mirror them exactly, the only readable copy of the
+configuration would be gone, and a successor would have to rediscover every identifier. That
+is precisely the situation this project was left in by the previous handover.
+
+So `.env` mirrors the GitHub secret names one-for-one. The cost is that both environments are
+in scope at once locally, where the two-file model made that impossible. Worth knowing when
+writing an ad-hoc script.
+
+### Where the values go
+
+`.env` is not read at runtime by anything in production. It is the reference copy that four
+downstream stores are populated *from*:
+
+| Destination | Which values | How they get there |
+|---|---|---|
+| **GitHub Actions secrets** | all 15 | pasted by hand, one per key, same names |
+| **Apps Script Script Properties** | `SPREADSHEET_ID`, `PHOTO_FOLDER_ID`, `ADMIN_TOKEN` (unprefixed, per project) | set by hand in Project Settings today; the intent is for the deploy workflow to reconcile them via `?action=setScriptProperty` so they cannot drift |
+| **The published frontend** | `WEB_APP_URL` | the workflow rewrites the staging copy's hardcoded endpoint during site assembly |
+| **`.clasp.json`** (clasp target) | `SCRIPT_ID` | generated, never committed — `npm run env:*` writes it from `.env` locally, the workflow writes it from the secret in CI |
+
+Apps Script is the only *runtime* consumer: `Code.gs` reads its three Script Properties and
+nothing else. `SPREADSHEET_ID` and `PHOTO_FOLDER_ID` have no defaults — an unset property
+throws rather than falling back, so a misconfigured environment fails loudly instead of
+quietly writing into production.
+
+`SPREADSHEET_FOLDER_ID` is recorded but unused. It exists for a planned move to
+year/month-split spreadsheets, mirroring how photos are already organised; the flat
+`SPREADSHEET_ID` is retired when that lands.
+
+---
+
 ## Deployment
 
 ### Forms
@@ -125,13 +197,13 @@ To deploy changes:
 4. GitHub Pages auto-deploys within 1-2 minutes
 
 ### Dashboard
-Dashboard files live in `/dashboard/` and deploy automatically with forms.
+Dashboard files live in `frontend/dashboard/` and deploy with the forms.
 
 To update the dashboard:
-1. Edit files in `dashboard/` directory
-2. Test locally: `cd dashboard && python3 -m http.server 8080`
-3. Commit and push to `main` branch
-4. Dashboard updates at https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
+1. Edit files in `frontend/dashboard/`
+2. Test locally: `cd frontend/dashboard && python3 -m http.server 8080`
+3. Commit and release
+4. Dashboard serves at https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
 
 ### Apps Script
 
@@ -142,14 +214,15 @@ See **[CLAUDE.md](CLAUDE.md)** for the full procedure, environment identifiers, 
 failure modes that have each caused a multi-day outage. The short version:
 
 ```bash
-cp .clasp.production.json .clasp.json
+npm run env:production                  # or env:staging — sets the clasp target
 npx clasp push -f                       # uploads source — NOT yet live
 npx clasp deploy -i <DEPLOYMENT_ID> --description "what changed"
 ```
 
 The deployment is version-pinned, so `clasp push` alone changes nothing that users see.
 Always pass `-i` with the existing deployment ID, or you mint a new URL that then has to be
-updated in both forms and `dashboard/config.json`.
+updated in both forms, `frontend/dashboard/config.json`, and the bug-report handler at
+`frontend/dashboard/index.html:1061`.
 
 Verify with a write, not a read — reads can succeed while writes fail:
 
@@ -172,8 +245,9 @@ npm run email:summary:production     # send the daily summary now
 npm run test:violation:production    # simulate a HACCP violation alert
 ```
 
-**Staging is currently non-functional** — `.clasp.staging.json` points at a project owned by
-an unrecoverable Google account. The `*:staging` scripts will fail until it is rebuilt.
+A parallel staging environment exists with its own script project, deployment, spreadsheet,
+and Drive folder — see [CLAUDE.md](CLAUDE.md) for identifiers. Every command above has a
+`:staging` equivalent, e.g. `npm run ping:staging`.
 
 ---
 
