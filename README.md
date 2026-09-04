@@ -17,7 +17,7 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 | `backend/Code.gs` | Google Apps Script handling form submissions and serving the dashboard API. |
 | `data/` | JSON for drivers, supervisors, stores, and dishes — fetched at form load. |
 | `deployment/` | Deployment guide — start here for how either half reaches production. |
-| `scripts/` | Admin-endpoint helpers, driven by `.env.{staging,production}`. |
+| `scripts/` | Admin-endpoint helpers, driven by the single root `.env`. |
 
 All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR codes posted at each location.
 
@@ -90,7 +90,8 @@ Dashboard highlights all violations in red with corrective action notes.
 - **Admin Token Authentication** — UUID-based token auth for protected automation endpoints
 - **Violation Email Alerts** — Automatic HACCP cooler temp violation notifications with Alert Log tracking
 - **Bulletproof Boolean Handling** — Normalized config value handling (true/TRUE/1/yes all work)
-- **Token Rotation** — Secure token regeneration and rotation endpoints (force and authenticated modes)
+- **Token Rotation** — `?action=rotateAdminToken`, which requires the current token
+  (the unauthenticated "force" variant this shipped with was removed 2026-09-04)
 - **Config Reset Automation** — `npm run config:reset:staging/production` to wipe and reinitialize Config sheet
 - Multi-select filters for stores and days-of-week on dashboard
 - Case fullness analytics with trend visualizations
@@ -168,8 +169,9 @@ downstream stores are populated *from*:
 | Destination | Which values | How they get there |
 |---|---|---|
 | **GitHub Actions secrets** | all 15 | pasted by hand, one per key, same names |
-| **Apps Script Script Properties** | `SPREADSHEET_ID`, `PHOTO_FOLDER_ID`, `ADMIN_TOKEN` (unprefixed, per project) | set by hand in Project Settings today; the intent is for the deploy workflow to reconcile them via `?action=setScriptProperty` so they cannot drift |
-| **The published frontend** | `WEB_APP_URL` | the workflow rewrites the staging copy's hardcoded endpoint during site assembly |
+| **Apps Script Script Properties** | `SPREADSHEET_ID`, `PHOTO_FOLDER_ID` (unprefixed, per project) | pushed by the deploy workflow via `?action=setScriptProperty` on every deploy — the secret is authoritative |
+| **Apps Script Script Properties** | `ADMIN_TOKEN` | set by hand in Project Settings. It cannot be pushed: `setScriptProperty` authenticates *with* it |
+| **The published frontend** | `WEB_APP_URL` | written into a generated `frontend/config.js`, one per environment — see [The frontend has no environment](#the-frontend-has-no-environment) |
 | **`.clasp.json`** (clasp target) | `SCRIPT_ID` | generated, never committed — `npm run env:*` writes it from `.env` locally, the workflow writes it from the secret in CI |
 
 Apps Script is the only *runtime* consumer: `Code.gs` reads its three Script Properties and
@@ -181,29 +183,80 @@ quietly writing into production.
 year/month-split spreadsheets, mirroring how photos are already organised; the flat
 `SPREADSHEET_ID` is retired when that lands.
 
+### The frontend has no environment
+
+An environment variable belongs to a running process. The forms and dashboard are static
+files on a CDN — a phone opens them and gets bytes. There is no process, so there is
+nothing to read a variable *from*. The value has to be written into a file at build time by
+something that does have an environment.
+
+That file is **`frontend/config.js`**, and it is the only place a Web App URL exists:
+
+```js
+window.APP_CONFIG = { "environment": "staging", "webAppUrl": "https://script.google.com/…/exec" };
+```
+
+| Written by | When | From |
+|---|---|---|
+| `npm run env:staging` / `env:production` | you run it | `.env` |
+| `.github/workflows/deploy.yml` | site assembly, once per tree | the matching GitHub secret |
+
+It is gitignored, so no endpoint URL is committed and a form cannot inherit the wrong
+environment's backend by being copied into the wrong directory. Every call site — both
+forms, the dashboard, the bug-report handler — reads `window.APP_CONFIG.webAppUrl`. A CI
+guard fails the build if `script.google.com/macros` appears anywhere else in the artifact.
+
+This is the same thing a bundler does for `VITE_*` or `NEXT_PUBLIC_*`: substitute the value
+at build time and ship it in the output. We have no bundler, so the substitution is
+explicit. **None of it is secret** — the Web App URL is printed on QR codes and visible in
+view-source. The point is one source of truth, not confidentiality.
+
+Run `npm run env:staging` once after cloning, or the forms show "Not Configured".
+
 ---
 
 ## Deployment
 
+There is no `main` branch. `dev` is the working branch, `prod` is the release branch, and
+`.github/workflows/deploy.yml` deploys both halves of the stack on push:
+
+```
+dev   → staging backend    + site published under /staging/
+prod  → production backend + site published at the root
+```
+
+⚠️ **The workflow does not run yet.** `prod` predates the repo restructure and still has
+`apps_script/`, `dashboard/` and the forms at the root — no `frontend/`, no `backend/`, no
+`.github/`. Site assembly requires `frontend/` on both branches, so `dev` pushes fail it,
+and `prod` pushes trigger nothing at all because Actions reads the workflow from the branch
+being pushed. Until `prod` is restructured, both halves are manual — see [CLAUDE.md](CLAUDE.md).
+
 ### Forms
-Forms are served via GitHub Pages from the `main` branch:
 - **Production form:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_production_form3.html
 - **Delivery form:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_delivery_form3.html
 
-To deploy changes:
-1. Edit the HTML files locally
-2. Test on a local server: `python3 -m http.server 8080`
-3. Commit and push to `main` branch
-4. GitHub Pages auto-deploys within 1-2 minutes
+1. Edit the HTML in `frontend/`
+2. Generate the local config once: `npm run env:staging`
+3. Test on a local server: `cd frontend && python3 -m http.server 8080`
+4. Push to `dev`, check `/staging/`, then merge to `prod`
 
 ### Dashboard
 Dashboard files live in `frontend/dashboard/` and deploy with the forms.
 
-To update the dashboard:
 1. Edit files in `frontend/dashboard/`
-2. Test locally: `cd frontend/dashboard && python3 -m http.server 8080`
-3. Commit and release
+2. Test locally: serve from `frontend/`, not `frontend/dashboard/` — the dashboard loads
+   `../config.js`, so it needs the parent as the web root:
+   `cd frontend && python3 -m http.server 8080` → http://localhost:8080/dashboard/
+3. Push to `dev`, check `/staging/`, then merge to `prod`
 4. Dashboard serves at https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
+
+Cache-busting is automatic — every `<script src>` carries `?v=__BUILD_ID__`, stamped with
+the commit SHA at assembly. Nothing to bump by hand.
+
+### Rollback
+
+Revert the commit and push it to `prod`. See [CLAUDE.md § Rollback](CLAUDE.md#rollback) for
+what that does not cover, and the break-glass path when a CI round-trip is too slow.
 
 ### Apps Script
 
@@ -220,22 +273,23 @@ npx clasp deploy -i <DEPLOYMENT_ID> --description "what changed"
 ```
 
 The deployment is version-pinned, so `clasp push` alone changes nothing that users see.
-Always pass `-i` with the existing deployment ID, or you mint a new URL that then has to be
-updated in both forms, `frontend/dashboard/config.json`, and the bug-report handler at
-`frontend/dashboard/index.html:1061`.
+Always pass `-i` with the existing deployment ID, or you mint a new URL — which then has to
+be updated in `.env` and in the GitHub secrets before the frontend picks it up.
 
-Verify with a write, not a read — reads can succeed while writes fail:
+Verify with a write, not a read — reads can succeed while writes fail. Do not `source .env`
+(it holds `CLASPRC_JSON`, and the shell chokes on the JSON) and do not `grep | cut` (values
+carry trailing ` # comments` that only the parser strips):
 
 ```bash
-source .env.production
+WEB_APP_URL=$(node scripts/print-env.js production WEB_APP_URL)
 curl -sL "$WEB_APP_URL" -H 'Content-Type: text/plain;charset=utf-8' --data-binary @payload.json
 # {"status":"ok"}
 ```
 
 #### Admin endpoints
 
-Protected by a UUID token in Script Properties, mirrored into `.env.production`
-(gitignored) and read by every `npm run *:production` script.
+Protected by a UUID token in each project's Script Properties, mirrored into `.env` as
+`PROD_ADMIN_TOKEN` / `STAGING_ADMIN_TOKEN` and read by every `npm run *:production` script.
 
 ```bash
 npm run ping:production              # health check
@@ -276,7 +330,7 @@ Generate new QR codes at: https://www.qr-code-generator.com/
 - **Master spreadsheet:** `TaipeiKitchen_BentoOps_v2` in Google Sheets (ID: 1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI)
 - **Photo repository:** Google Drive (shareable via link)
 - **Live dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
-- **Staging sheet:** `TaipeiKitchen_BentoOps_v2_STAGING` (ID: 1TXM_iAxOVBDZdD80MME4KQyljj7SiljUxP6GieKG36E)
+- **Staging sheet:** `Copy of TaipeiKitchen_BentoOps_v2` (ID: 12DjACv-MFoIHOfh5s03jeovpI9j6HCftfjTDddTAxBI)
 
 All changes to the live forms should be tested on the staging sheet first.
 

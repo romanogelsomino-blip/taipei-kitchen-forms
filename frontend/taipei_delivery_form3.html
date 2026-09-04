@@ -511,8 +511,12 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
   </div>
 </div>
 
+<script src="config.js?v=__BUILD_ID__"></script>
+<script src="env-banner.js?v=__BUILD_ID__"></script>
 <script>
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxP7nIBkoOz64YstMKQ5x0gqYk6cRKKzjj9DHv_J8GuBta3cUC8YFfb0IL8nRA2s2MZIw/exec';
+// The backend endpoint comes from config.js, generated per environment at build time —
+// never hardcoded here. See scripts/write-frontend-config.js.
+const GOOGLE_SCRIPT_URL = (window.APP_CONFIG && window.APP_CONFIG.webAppUrl) || null;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // T-027: Timestamp Locking (Regulatory Requirement)
@@ -1344,8 +1348,8 @@ async function submitForm() {
   const driver = getDriverValue();
   if (!driver) { alert('Please select a driver before submitting.'); return; }
 
-  if (GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_SCRIPT_URL') {
-    showStatus('\u26a0\ufe0f', 'Not Configured', 'Replace YOUR_GOOGLE_SCRIPT_URL with your Apps Script URL and re-upload to GitHub.');
+  if (!GOOGLE_SCRIPT_URL) {
+    showStatus('\u26a0\ufe0f', 'Not Configured', 'config.js is missing or has no webAppUrl. Locally, run: npm run env:staging');
     document.getElementById('s-btn').style.display = 'block';
     return;
   }

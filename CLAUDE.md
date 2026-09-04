@@ -35,8 +35,16 @@ does not appear in production's execution log.
 | Deployment (**@1, pinned**) | `AKfycbxP7nIBkoOz64YstMKQ5x0gqYk6cRKKzjj9DHv_J8GuBta3cUC8YFfb0IL8nRA2s2MZIw` | `AKfycbwZYq72B_6pkEzgHYBonIZxJ0f_2r1rfgoV-7MyEBBsyuON2Tjf_EO2Fb4mSEK1zmGX` |
 | Photo folder | `1C-TnIQLW5qodNhtzpGFLzEtewiuCHNcK` (`New Bento Box/Prod`) | `1zBjQbz7NBLbZ-5itMbv1UerVFs1X6bpc` |
 
-Credentials in `.env.production` / `.env.staging` (both gitignored). Each project's Script
-Properties hold `SPREADSHEET_ID`, `PHOTO_FOLDER_ID`, and `ADMIN_TOKEN`.
+Credentials in a single gitignored `.env` at the repo root, prefixed `PROD_` / `STAGING_`
+and mirroring the GitHub Actions secret names one-for-one — see
+[README § Configuration](README.md#configuration).
+
+Each project's Script Properties hold `SPREADSHEET_ID`, `PHOTO_FOLDER_ID`, and
+`ADMIN_TOKEN`. The deploy workflow pushes the first two from secrets on every deploy, so
+the secret is authoritative and the Apps Script UI copy cannot drift. **`ADMIN_TOKEN` is
+set by hand and stays that way** — `setScriptProperty` authenticates with it, so it cannot
+bootstrap itself. A brand-new environment needs its `ADMIN_TOKEN` set in Project Settings
+before its first deploy, or every step after `clasp deploy` fails on an invalid token.
 
 **There are no defaults.** `getSpreadsheetId()` and `getPhotoRootFolder()` throw if their
 Script Property is unset, and the photo folder is resolved by ID only — no name lookup, no
@@ -52,13 +60,26 @@ Photos uploaded before 2026-09-02 are in `1xUFF_Dfov1uK2kPjryCtw6lx4-3FBo9j`
 
 Static files, no build step beyond copying.
 
-Branches: `dev` is the default and working branch, `prod` is the release branch. Pages
-currently builds from a branch directly; the intended end state is a GitHub Actions
-workflow publishing `prod` at the root and `dev` under `/staging/`.
+Branches: `dev` is the default and working branch, `prod` is the release branch.
+`.github/workflows/deploy.yml` publishes both in one Pages artifact — `prod` at the root,
+`dev` under `/staging/`.
 
-- The CDN caches hard. `app.js` is cache-busted by `?v=N` in
-  `frontend/dashboard/index.html` — bump it when you change `app.js`. `config.json` has no
-  cache-buster.
+**The workflow does not run yet.** `prod` predates the repo restructure: it still has
+`apps_script/`, `dashboard/` and the forms at the root, with no `frontend/`, no `backend/`
+and no `.github/`. So a push to `dev` fails site assembly (the workflow requires
+`frontend/` on *both* branches), and a push to `prod` triggers nothing at all, because
+Actions reads the workflow from the branch being pushed. Bringing `prod` to the `dev`
+layout is the prerequisite for everything else here.
+
+- **The backend endpoint is never hardcoded.** `frontend/config.js` sets
+  `window.APP_CONFIG`, and every page reads `APP_CONFIG.webAppUrl` from it. The file is
+  generated and gitignored — `npm run env:staging|production` writes it from `.env`, the
+  deploy workflow writes it per tree from the matching secret. A CI guard fails the build
+  if `script.google.com/macros` appears anywhere else in the artifact, so a fifth hardcoded
+  copy cannot reappear.
+- The CDN caches hard, so every `<script src>` carries `?v=__BUILD_ID__`, stamped with the
+  commit SHA at assembly. Nothing is bumped by hand. A token that is missing *or* left
+  unreplaced fails the build.
 - Forms cache `data/stores.json` in localStorage for 1 hour, so store changes take up to
   60 minutes to reach a phone that already loaded the form.
 
@@ -74,8 +95,8 @@ npm run env:production                     # generates .clasp.json from PROD_SCR
 npx clasp push -f                          # uploads source to the project
 ```
 
-The code is now uploaded but **not live**. The deployment is pinned to version 1 and keeps
-serving version 1 until you cut a new one:
+The code is now uploaded but **not live**. The deployment is pinned to a specific version
+and keeps serving it until you cut a new one:
 
 ```bash
 npx clasp deploy -i AKfycbxP7nIBkoOz64YstMKQ5x0gqYk6cRKKzjj9DHv_J8GuBta3cUC8YFfb0IL8nRA2s2MZIw \
@@ -83,22 +104,44 @@ npx clasp deploy -i AKfycbxP7nIBkoOz64YstMKQ5x0gqYk6cRKKzjj9DHv_J8GuBta3cUC8YFfb
 ```
 
 **Always pass `-i` with the existing deployment ID.** Without it, `clasp deploy` mints a new
-deployment with a new URL, which must then be updated in three places or the forms keep
-calling the old one:
+deployment with a new URL. That used to mean chasing the URL into four hardcoded copies; it
+now means updating `PROD_WEB_APP_URL` / `STAGING_WEB_APP_URL` in `.env` and in the GitHub
+secrets, and redeploying. The frontend picks it up from `config.js`.
 
-- `frontend/taipei_delivery_form3.html:515`
-- `frontend/taipei_production_form3.html:537`
-- `frontend/dashboard/config.json`
-- `frontend/dashboard/index.html:1061` (bug-report handler — a fourth copy, currently
-  pointing at a dead deployment)
-
-Verify by writing, not reading — reads can succeed while writes fail (trap 2):
+Verify by writing, not reading — reads can succeed while writes fail (trap 2). Do not
+`source .env`: it holds `CLASPRC_JSON`, and the shell chokes on the JSON. Do not
+`grep | cut` either — values carry trailing ` # comments` that only the parser strips:
 
 ```bash
-source .env.production
+WEB_APP_URL=$(node scripts/print-env.js production WEB_APP_URL)
 curl -sL "$WEB_APP_URL" -H 'Content-Type: text/plain;charset=utf-8' --data-binary @payload.json
 # {"status":"ok"} means it worked
 ```
+
+## Rollback
+
+Revert the commit and push it to `prod`. The workflow redeploys the backend and republishes
+the site from the reverted tree — same path in, same path out. Pushing a revert to `dev`
+rolls back staging only.
+
+Three things it does not cover:
+
+- **The two halves are not atomic.** A revert redeploys Apps Script first, then Pages, so
+  there is a window where an old backend serves a new frontend. The expand/contract rule
+  applies in reverse — the same reason contract changes must stay backward-compatible for
+  one release cycle.
+- **Spreadsheet schema changes do not revert.** A new column or sheet tab written by the
+  old code stays; only the code goes back.
+- **A revert costs a full CI round-trip.** When that is too slow, Apps Script keeps every
+  pushed version — redeploy an older one directly and skip git entirely:
+
+  ```bash
+  npx clasp deployments                    # list versions behind the deployment
+  npx clasp deploy -i "$DEPLOYMENT_ID" -V <version> --description "rollback to <version>"
+  ```
+
+  This is break-glass only. Git is still the source of truth, so follow it with the revert
+  or the next deploy will reintroduce the bad version.
 
 ---
 

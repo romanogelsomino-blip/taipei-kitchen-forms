@@ -4,10 +4,10 @@
  * Usage: node scripts/test-malformed-post.js <staging|production>
  */
 
-const fs = require('fs');
 const https = require('https');
 const http = require('http');
 const url = require('url');
+const { readPrefix, requireKeys } = require('./env');
 
 // Parse command line args
 const [,, environment] = process.argv;
@@ -17,34 +17,11 @@ if (!environment) {
   process.exit(1);
 }
 
-// Load .env — single file, every variable, prefixed by environment.
-const envFile = '.env';
-if (!fs.existsSync(envFile)) {
-  console.error(`Error: ${envFile} not found`);
-  process.exit(1);
-}
-
-const envContent = fs.readFileSync(envFile, 'utf8');
-const env = {};
-envContent.split('\n').forEach(line => {
-  line = line.trim();
-  if (line && !line.startsWith('#')) {
-    const [key, ...valueParts] = line.split('=');
-    if (key && valueParts.length > 0) {
-      // Strip a trailing ` # comment` — whitespace required before the #.
-      env[key] = valueParts.join('=').replace(/\s+#.*$/, '').trim();
-    }
-  }
-});
-
-const PREFIX = environment === 'production' ? 'PROD' : 'STAGING';
-env.WEB_APP_URL = env[`${PREFIX}_WEB_APP_URL`];
-env.ADMIN_TOKEN = env[`${PREFIX}_ADMIN_TOKEN`];
-
-if (!env.WEB_APP_URL || !env.ADMIN_TOKEN) {
-  console.error(`Error: ${PREFIX}_WEB_APP_URL or ${PREFIX}_ADMIN_TOKEN not found in ${envFile}`);
-  process.exit(1);
-}
+const { prefix: PREFIX } = readPrefix(
+  environment,
+  'Usage: node scripts/test-malformed-post.js <staging|production>'
+);
+const env = requireKeys(PREFIX, ['WEB_APP_URL', 'ADMIN_TOKEN']);
 
 console.log(`🧪 Testing malformed POST to ${environment}...`);
 
