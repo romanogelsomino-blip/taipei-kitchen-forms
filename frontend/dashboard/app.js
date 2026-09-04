@@ -165,7 +165,7 @@ function createMultiSelect(containerId, options, placeholder, onChange) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 window.addEventListener('DOMContentLoaded', async () => {
-  await loadConfig();
+  loadConfig();
   setupNavigation();
   updateCurrentDate();
 
@@ -210,18 +210,18 @@ function toggleHACCPPolicy() {
   policy.style.display = policy.style.display === 'none' ? 'block' : 'none';
 }
 
-// Load config.json (config.local.json in dev)
-async function loadConfig() {
-  try {
-    const response = await fetch('config.json');
-    if (!response.ok) throw new Error('config.json not found');
-    CONFIG = await response.json();
+// Read config.js, generated per environment at build time (see
+// scripts/write-frontend-config.js). Loaded by a <script> tag ahead of this file, so it is
+// already on window — no fetch, nothing to fail over the network.
+function loadConfig() {
+  if (window.APP_CONFIG && window.APP_CONFIG.webAppUrl) {
+    CONFIG = window.APP_CONFIG;
     console.log('[Config] Loaded:', CONFIG);
-  } catch (e) {
-    console.error('[Config] Failed to load config.json:', e);
-    updateStatus('error', 'Config file missing');
-    showConfigInstructions();
+    return;
   }
+  console.error('[Config] config.js missing or has no webAppUrl');
+  updateStatus('error', 'Config file missing');
+  showConfigInstructions();
 }
 
 function showConfigInstructions() {
@@ -229,14 +229,12 @@ function showConfigInstructions() {
     <div style="padding:40px;text-align:center;background:var(--red-lt);border:2px solid var(--red);border-radius:12px;margin:20px;">
       <h2 style="font-family:'Syne',sans-serif;color:var(--red);margin-bottom:16px;">Configuration Required</h2>
       <p style="font-size:0.95rem;color:var(--mid);margin-bottom:20px;">
-        Create a file named <code style="background:#fff;padding:2px 6px;border-radius:3px;font-family:'DM Mono',monospace;">config.local.json</code> in the <code>/dashboard</code> directory with the following content:
+        <code style="background:#fff;padding:2px 6px;border-radius:3px;font-family:'DM Mono',monospace;">frontend/config.js</code> is missing. It is generated per environment, never committed — run:
       </p>
-      <pre style="background:var(--dark);color:#0f0;padding:20px;border-radius:8px;text-align:left;font-family:'DM Mono',monospace;font-size:0.85rem;overflow-x:auto;">{
-  "webAppUrl": "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE"
-}</pre>
+      <pre style="background:var(--dark);color:#0f0;padding:20px;border-radius:8px;text-align:left;font-family:'DM Mono',monospace;font-size:0.85rem;overflow-x:auto;">npm run env:staging      # or env:production</pre>
       <p style="font-size:0.85rem;color:var(--soft);margin-top:16px;">
-        After creating the file, refresh this page. <br>
-        <strong>Note:</strong> config.local.json is gitignored for security.
+        Then refresh this page. <br>
+        If you are seeing this on a deployed site, the deploy workflow failed to write it.
       </p>
     </div>
   `;

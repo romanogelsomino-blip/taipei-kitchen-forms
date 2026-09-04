@@ -920,7 +920,9 @@
   </div>
 </div>
 
-<script src="app.js?v=7"></script>
+<script src="../config.js?v=__BUILD_ID__"></script>
+<script src="../env-banner.js?v=__BUILD_ID__"></script>
+<script src="app.js?v=__BUILD_ID__"></script>
 
 <!-- Dark Mode Toggle -->
 <script>
@@ -1050,9 +1052,16 @@ ${lastError ? `
 ` : 'No errors caught before report'}
   `.trim();
 
+  const webAppUrl = window.APP_CONFIG && window.APP_CONFIG.webAppUrl;
+  if (!webAppUrl) {
+    status.textContent = 'Cannot send — config.js is missing.';
+    status.style.color = 'var(--red)';
+    return;
+  }
+
   try {
     // Send to Apps Script endpoint for email
-    const response = await fetch('https://script.google.com/macros/s/AKfycbwJN9q6ch_0Gds9dDbOcM1k_Qnwg3Q0FcK_c8NfjHZTlpX6eu7sERrQu5OiTh7nO5BgRA/exec', {
+    const response = await fetch(webAppUrl, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },

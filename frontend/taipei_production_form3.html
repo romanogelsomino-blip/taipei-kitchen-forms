@@ -531,10 +531,13 @@ tfoot td:first-child{text-align:left;padding-left:14px;}
   </div>
 </div>
 
+<script src="config.js?v=__BUILD_ID__"></script>
+<script src="env-banner.js?v=__BUILD_ID__"></script>
 <script>
 // ─── CONFIGURATION ────────────────────────────────────────
-// Replace with your Google Apps Script deployment URL (see Setup Guide)
-const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxP7nIBkoOz64YstMKQ5x0gqYk6cRKKzjj9DHv_J8GuBta3cUC8YFfb0IL8nRA2s2MZIw/exec';
+// The backend endpoint comes from config.js, generated per environment at build time —
+// never hardcoded here. See scripts/write-frontend-config.js.
+const GOOGLE_SCRIPT_URL = (window.APP_CONFIG && window.APP_CONFIG.webAppUrl) || null;
 
 // Fallback dish list (used if fetch fails)
 let DISHES = ['General Tso Chicken Bento', 'Sesame Chicken Bento', 'Bento Chicken Lo Mein', 'Bento Shrimp Lo Mein', 'Bento Smoked Pork Lo Mein', 'Bento Sweet & Sour Chicken', 'Bourbon Chicken Bento', 'Broccoli Chicken Bento', 'Hot Spicy Chicken Bento', 'Bento Steamed Dumplings', 'Chicken Egg Roll', 'Pork Egg Roll', 'Shrimp Egg Roll'];
@@ -1157,10 +1160,10 @@ async function submitForm() {
 
   const payload = buildPayload();
 
-  if (GOOGLE_SCRIPT_URL === 'YOUR_GOOGLE_SCRIPT_URL') {
+  if (!GOOGLE_SCRIPT_URL) {
     console.log('DEMO MODE — would send:', payload);
     setTimeout(() => {
-      showStatus('⚠️', 'Demo Mode', 'Configure GOOGLE_SCRIPT_URL to enable live submission. Data logged to browser console.');
+      showStatus('⚠️', 'Demo Mode', 'config.js is missing or has no webAppUrl. Locally, run: npm run env:staging');
       document.getElementById('s-btn').style.display = 'block';
       document.getElementById('submit-btn').disabled = false;
     }, 700);

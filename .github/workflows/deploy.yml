@@ -31,14 +31,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # No lockfile is committed, so `npm i` resolves from package.json. The clasp version
-      # there is pinned exactly (not a caret range) so CI and local stay identical.
-      # No setup-node cache: the cache key needs a lockfile.
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - run: npm i
+      - run: npm ci
 
       - name: Restore clasp credentials
         env:
@@ -76,8 +74,8 @@ jobs:
       - name: Push source
         run: npx clasp push -f
 
-      # -i redeploys IN PLACE so the Web App URL never changes. Without it clasp mints a
-      # new URL, which then has to be chased into four frontend files.
+      # -i redeploys IN PLACE so the Web App URL never changes. Without it clasp mints a new
+      # URL, which then has to be updated in .env and in the secrets before anything works.
       - name: Redeploy in place
         run: |
           ID="${{ steps.env.outputs.deployment_id }}"
@@ -87,15 +85,61 @@ jobs:
           fi
           npx clasp deploy -i "$ID" --description "${{ github.ref_name }} ${{ github.sha }}"
 
+      # The spreadsheet and photo-folder bindings live in the project's Script Properties,
+      # not in this repo. They used to be set by hand in the Apps Script UI, which meant two
+      # uncontrolled copies of each id and nothing keeping them in step. Pushing them here
+      # makes the secrets authoritative — the same values, applied every deploy.
+      #
+      # ADMIN_TOKEN is deliberately NOT pushed: this endpoint authenticates *with* it, so it
+      # cannot bootstrap itself. It stays a manual Script Property. That also means a brand
+      # new environment needs its ADMIN_TOKEN set by hand before its first deploy.
+      - name: Reconcile Script Properties
+        env:
+          URL: ${{ steps.env.outputs.web_app_url }}
+          TOKEN: ${{ github.ref_name == 'prod' && secrets.PROD_ADMIN_TOKEN || secrets.STAGING_ADMIN_TOKEN }}
+          SPREADSHEET_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_ID || secrets.STAGING_SPREADSHEET_ID }}
+          PHOTO_FOLDER_ID: ${{ github.ref_name == 'prod' && secrets.PROD_PHOTO_FOLDER_ID || secrets.STAGING_PHOTO_FOLDER_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TOKEN" ]; then
+            echo "::error::admin token secret is not set for ${{ steps.env.outputs.name }}."
+            exit 1
+          fi
+          for KEY in SPREADSHEET_ID PHOTO_FOLDER_ID; do
+            VALUE="${!KEY}"
+            if [ -z "$VALUE" ]; then
+              echo "::error::${{ steps.env.outputs.name }} $KEY secret is not set."
+              exit 1
+            fi
+            OUT=$(curl -sL --max-time 120 --get "$URL" \
+                    --data-urlencode "action=setScriptProperty" \
+                    --data-urlencode "token=$TOKEN" \
+                    --data-urlencode "key=$KEY" \
+                    --data-urlencode "value=$VALUE")
+            if ! echo "$OUT" | grep -q '"status":"ok"'; then
+              echo "$OUT"
+              echo "::error::could not set $KEY — is the admin token current?"
+              exit 1
+            fi
+            echo "set $KEY"
+          done
+
       - name: Verify deployment is live and bound to the right sheet
         env:
           URL: ${{ steps.env.outputs.web_app_url }}
           TOKEN: ${{ github.ref_name == 'prod' && secrets.PROD_ADMIN_TOKEN || secrets.STAGING_ADMIN_TOKEN }}
+          SPREADSHEET_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_ID || secrets.STAGING_SPREADSHEET_ID }}
         run: |
-          OUT=$(curl -sL --max-time 120 "$URL?action=ping&token=$TOKEN")
+          set -euo pipefail
+          OUT=$(curl -sL --max-time 120 --get "$URL" \
+                  --data-urlencode "action=ping" --data-urlencode "token=$TOKEN")
           echo "$OUT"
           echo "$OUT" | grep -q '"status":"ok"' \
             || { echo "::error::ping did not return ok — deployment is not serving."; exit 1; }
+          # ping reports the sheet it actually opened. Asserting it is what makes this step
+          # match its name — without it, a deploy pointed at the wrong spreadsheet passes.
+          echo "$OUT" | grep -q "\"sheet_id\":\"$SPREADSHEET_ID\"" \
+            || { echo "::error::deployment is serving a different spreadsheet than the ${{ steps.env.outputs.name }} secret specifies."; exit 1; }
 
       # A real write is the only thing that catches the failure mode that took production
       # down in Aug 2026 (reads fine, writes denied). Staging only: production has no
@@ -165,30 +209,45 @@ jobs:
           cp -r dev-src/frontend/. _site/staging/
           cp -r dev-src/data       _site/staging/data
 
-          # Repoint the staging copy at the staging backend. The source keeps the
-          # production URL, so this rewrite catches all four hardcoded copies at once
-          # (both forms, dashboard/config.json, and the bug-report handler).
-          if [ -z "$STAGING_URL" ] || [ -z "$PROD_URL" ]; then
-            echo "::error::PROD_WEB_APP_URL / STAGING_WEB_APP_URL variables are not set."
+          # Each tree gets its own config.js. The browser has no environment to read, so
+          # the endpoint is written into a file here and every page reads window.APP_CONFIG
+          # from it. Nothing in git holds a Web App URL, so a form cannot inherit the wrong
+          # backend by being copied to the wrong directory.
+          if [ -z "$PROD_URL" ] || [ -z "$STAGING_URL" ]; then
+            echo "::error::PROD_WEB_APP_URL / STAGING_WEB_APP_URL secrets are not set."
             exit 1
           fi
-          MATCHES=$(grep -rl -F "$PROD_URL" _site/staging || true)
-          if [ -z "$MATCHES" ]; then
-            echo "::error::No production URL found in the staging copy — substitution would silently no-op."
-            exit 1
-          fi
-          echo "$MATCHES" | xargs sed -i "s|$PROD_URL|$STAGING_URL|g"
-          echo "Repointed to staging:"; echo "$MATCHES"
+          write_config() {
+            printf 'window.APP_CONFIG = {\n  "environment": "%s",\n  "webAppUrl": "%s"\n};\n' "$1" "$2" > "$3"
+          }
+          write_config production "$PROD_URL"    _site/config.js
+          write_config staging    "$STAGING_URL" _site/staging/config.js
 
-          # Fail loudly if any production URL survived in the staging tree.
-          if grep -rq -F "$PROD_URL" _site/staging; then
-            echo "::error::Production URL still present under /staging/ after substitution."
+          # No page may carry its own endpoint. This is the guard the old string-replace
+          # lacked: it caught only the exact production URL, so the bug-report handler's
+          # stale one survived into both trees unnoticed.
+          if grep -rn --include='*.html' --include='*.js' -F 'script.google.com/macros' _site \
+               | grep -v '^_site/config.js:' | grep -v '^_site/staging/config.js:'; then
+            echo "::error::Hardcoded Apps Script URL above. Read it from window.APP_CONFIG instead."
             exit 1
           fi
 
-          # Make /staging/ unmistakable in the UI.
-          find _site/staging -maxdepth 2 -name '*.html' -print0 | xargs -0 sed -i \
-            's|<body>|<body><div style="position:sticky;top:0;z-index:99999;background:#b45309;color:#fff;font:700 13px monospace;text-align:center;padding:8px">\&#9888; STAGING \&mdash; not production data</div>|'
+          # Stamp cache-busters. __BUILD_ID__ has no valid runtime value, so both a missing
+          # token and a surviving one are build failures rather than something that ships
+          # looking fine. This replaces the hand-bumped ?v=N nobody remembered to change.
+          STAMP=$(grep -rl -F '__BUILD_ID__' _site || true)
+          if [ -z "$STAMP" ]; then
+            echo "::error::No __BUILD_ID__ tokens found — cache-busting would silently no-op."
+            exit 1
+          fi
+          echo "$STAMP" | xargs sed -i "s|__BUILD_ID__|${GITHUB_SHA}|g"
+          if grep -rq -F '__BUILD_ID__' _site; then
+            echo "::error::__BUILD_ID__ survived stamping."
+            exit 1
+          fi
+
+          # The /staging/ banner is not injected here — frontend/env-banner.js renders it
+          # from APP_CONFIG.environment. See the comment in that file for why.
 
           # Actions mode does not run Jekyll, but be explicit.
           touch _site/.nojekyll

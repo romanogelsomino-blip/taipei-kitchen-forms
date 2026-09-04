@@ -11,37 +11,14 @@
  */
 
 const https = require('https');
-const fs = require('fs');
-const path = require('path');
+const { readPrefix, requireKeys } = require('./env');
 
 // Configuration
-const ENV = process.argv[2] || 'staging';
-// Single .env holding every variable for every environment, prefixed.
-const envFile = path.join(__dirname, '..', '.env');
-
-if (!fs.existsSync(envFile)) {
-  console.error(`❌ Error: ${envFile} not found`);
-  process.exit(1);
-}
-
-// Parse .env file
-const envVars = fs.readFileSync(envFile, 'utf-8')
-  .split('\n')
-  .filter(line => line && !line.startsWith('#'))
-  .reduce((acc, line) => {
-    const [key, ...valueParts] = line.split('=');
-    // Strip a trailing ` # comment` — whitespace required before the #.
-    acc[key.trim()] = valueParts.join('=').replace(/\s+#.*$/, '').trim();
-    return acc;
-  }, {});
-
-const PREFIX = ENV === 'production' ? 'PROD' : 'STAGING';
-const WEB_APP_URL = envVars[`${PREFIX}_WEB_APP_URL`];
-
-if (!WEB_APP_URL) {
-  console.error(`❌ Error: ${PREFIX}_WEB_APP_URL not found in ${envFile}`);
-  process.exit(1);
-}
+const { environment: ENV, prefix: PREFIX } = readPrefix(
+  process.argv[2] || 'staging',
+  'Usage: node scripts/test-photo-upload.js <staging|production>'
+);
+const { WEB_APP_URL } = requireKeys(PREFIX, ['WEB_APP_URL']);
 
 // Test data
 const TEST_DATE = new Date().toISOString().split('T')[0]; // YYYY-MM-DD

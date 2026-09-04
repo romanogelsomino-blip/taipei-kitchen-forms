@@ -1357,43 +1357,6 @@ function simulateViolation() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * One-time setup: Generate and store admin token for protected endpoints.
- * Call this via Web App URL with ?action=setupAdminToken (first time only).
- * Returns the generated token - save it to .env.staging or .env.production.
- *
- * @param {boolean} force - If true, overwrite existing token (use cautiously)
- * @returns {Object} Generated token and instructions
- */
-function setupAdminToken(force) {
-  const scriptProperties = PropertiesService.getScriptProperties();
-
-  // Check if token already exists
-  const existingToken = scriptProperties.getProperty('ADMIN_TOKEN');
-  if (existingToken && !force) {
-    return {
-      status: 'EXISTS',
-      message: 'Admin token already configured. Use force=true to overwrite (this will invalidate the old token).',
-      token: '[REDACTED]'
-    };
-  }
-
-  // Generate strong random token
-  const token = Utilities.getUuid();
-
-  // Store in Script Properties
-  scriptProperties.setProperty('ADMIN_TOKEN', token);
-
-  Logger.log(`✅ Admin token generated: ${token}`);
-
-  return {
-    status: 'SUCCESS',
-    message: existingToken ? 'Admin token regenerated (old token invalidated)' : 'Admin token generated and stored in Script Properties',
-    token: token,
-    instructions: 'Save this token to .env.staging or .env.production (gitignored). You will need it for all admin API calls.'
-  };
-}
-
-/**
  * Verify admin token from request parameter.
  *
  * @param {string} providedToken - Token from request
@@ -1408,7 +1371,7 @@ function verifyAdminToken(providedToken) {
   const storedToken = scriptProperties.getProperty('ADMIN_TOKEN');
 
   if (!storedToken) {
-    Logger.log('⚠️ No admin token configured. Run setupAdminToken first.');
+    Logger.log('⚠️ No ADMIN_TOKEN script property set. Set it in Project Settings > Script Properties.');
     return false;
   }
 
@@ -1427,20 +1390,10 @@ function doGet(e) {
   // Admin Actions (Protected by Token)
   // ────────────────────────────────────────────────────────────────────────────────
 
-  // One-time setup: Generate admin token (no auth required - first time only)
-  if (e.parameter.action === 'setupAdminToken') {
-    try {
-      const force = e.parameter.force === 'true' || e.parameter.force === '1';
-      const result = setupAdminToken(force);
-      return ContentService
-        .createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
-    } catch (error) {
-      return ContentService
-        .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-  }
+  // There is deliberately no unauthenticated token-setup action here. The first ADMIN_TOKEN
+  // for a new environment is set by hand in Project Settings > Script Properties, alongside
+  // SPREADSHEET_ID and PHOTO_FOLDER_ID. Anything that mints a token over HTTP is reachable
+  // by anyone, because this web app is ANYONE_ANONYMOUS and its URL is printed on QR codes.
 
   // Rotate admin token: generate new token (requires current valid token)
   if (e.parameter.action === 'rotateAdminToken') {
