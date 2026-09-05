@@ -110,16 +110,119 @@ function getOrCreateDateSubfolder(rootFolder, date) {
   return dateFolder;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// POST handling
+//
+// Apps Script gives a web app exactly two entry points, doGet and doPost, so dispatching
+// on payload shape is unavoidable. Keeping doPost thin is not: each payload type gets its
+// own function, callable on its own from the editor — the only test harness this platform
+// really offers.
+//
+// Sheet rows are built from the schemas below rather than from inline positional arrays.
+// Column order used to be implicit in an 18-element literal, which is where a long run of
+// off-by-one and column-shift bugs came from. Order here IS the sheet's column order.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const BUG_REPORT_EMAIL = 'tech-support@kalispellconsulting.com';
+
+// Display names for violation alerts. A fourth copy of the store list — data/stores.json
+// is the one the forms read; this one needs a backend deploy to pick up a new store.
+const STORE_NAMES = {
+  '6006': 'Giant Hampden',
+  '6061': 'Giant Columbia Gateway',
+  '6253': 'Giant Columbia',
+  '6331': 'Giant Clarksville',
+  '6443': 'Giant Elkridge',
+  '6542': 'Giant Laurel',
+  '6564': 'Giant Catonsville'
+};
+
+// 'Delivery Log - Live'. Do not reorder — position is the contract with the sheet.
+const DELIVERY_LOG_COLUMNS = [
+  { col: 'A', header: 'Submitted At',      from: 'clientTimestamp' },
+  { col: 'B', header: 'Date',              from: 'date' },
+  { col: 'C', header: 'Driver',            from: 'driver' },
+  { col: 'D', header: 'Store #',           from: 'store' },   // misspelled "Strore #" in the sheet
+  { col: 'E', header: 'Arrival Time',      from: 'arrive' },
+  { col: 'F', header: 'Cooler Temp °F',    from: 'coolerTemp' },
+  { col: 'G', header: 'Cooler Condition',  from: 'coolerCond' },
+  { col: 'H', header: 'Dish',              from: 'dish' },
+  { col: 'I', header: 'Case Pre-Fill %',   from: 'casePrefillPercent' },
+  { col: 'J', header: 'Qty Added',         from: 'added' },
+  { col: 'K', header: 'On Shelf Before',   from: 'before' },
+  { col: 'L', header: 'Qty Removed',       from: 'removed' },
+  { col: 'M', header: 'Expire Reason',     from: 'reason' },
+  { col: 'N', header: 'Shelf Total After', from: 'after' },
+  { col: 'O', header: 'Store Notes',       from: 'notes' },
+  { col: 'P', header: 'Received By',       from: 'receivedBy' },
+  { col: 'Q', header: 'Before Photo Link', value: () => '' },  // filled later by handlePhotoUpload
+  { col: 'R', header: 'After Photo Link',  value: () => '' }
+];
+
+// 'Production Log - Live'. Note this log carries a server timestamp at column B and the
+// delivery log does not — the readers in doGet detect that difference at runtime.
+const PRODUCTION_LOG_COLUMNS = [
+  { col: 'A', header: 'Client Timestamp', from: 'clientTimestamp' },
+  { col: 'B', header: 'Server Timestamp', value: (row, ctx) => ctx.serverTimestamp },
+  { col: 'C', header: 'Date',             from: 'date' },
+  { col: 'D', header: 'Shift',            from: 'shift' },
+  { col: 'E', header: 'Kitchen',          from: 'kitchen' },
+  { col: 'F', header: 'Supervisor',       from: 'supervisor' },
+  { col: 'G', header: 'Dish',             from: 'dish' },
+  { col: 'H', header: 'Batch #',          from: 'batch' },
+  { col: 'I', header: 'Cook Temp °F',     from: 'cookTemp' },
+  { col: 'J', header: 'Cook Start',       from: 'cookStart' },
+  { col: 'K', header: 'Cook End',         from: 'cookEnd' },
+  { col: 'L', header: 'Cook Time (min)',  from: 'cookTime' },
+  { col: 'M', header: 'Qty Produced',     from: 'qtyProduced' },
+  { col: 'N', header: 'Qty Discarded',    from: 'qtyDiscarded' },
+  { col: 'O', header: 'Discard Reason',   from: 'discardReason' },
+  { col: 'P', header: 'Cool Start',       from: 'coolStart' },
+  { col: 'Q', header: 'Cool End',         from: 'coolEnd' },
+  { col: 'R', header: 'Cool Time (min)',  from: 'coolTime' },
+  { col: 'S', header: 'Final Temp °F',    from: 'finalTemp' },
+  { col: 'T', header: 'QA Result',        from: 'qa' },
+  { col: 'U', header: 'QA Notes',         from: 'qaNotes' },
+  { col: 'V', header: 'Initials',         from: 'initials' },
+  { col: 'W', header: 'General Notes',    from: 'generalNotes' },
+  { col: 'X', header: 'Batch QA Notes',   from: 'batchQANotes' }
+];
+
+/** Build one sheet row from a schema. `ctx` carries per-request values like serverTimestamp. */
+function buildSheetRow(schema, row, ctx) {
+  return schema.map(column => (column.value ? column.value(row, ctx) : row[column.from]));
+}
+
+function jsonResponse(body) {
+  return ContentService
+    .createTextOutput(JSON.stringify(body))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function openSpreadsheet() {
+  const id = getSpreadsheetId();
+  Logger.log(`[INIT] Using SPREADSHEET_ID: ${id}`);
+  return SpreadsheetApp.openById(id);
+}
+
+function requireSheet(ss, name) {
+  const sheet = ss.getSheetByName(name);
+  if (!sheet) throw new Error(`Sheet "${name}" not found. Upload the provided Google Sheet file first.`);
+  return sheet;
+}
+
+/** Approximate decoded size of a photo payload, for the execution log. */
+function photoPayloadSizeKB(photos) {
+  if (!photos) return 0;
+  let bytes = 0;
+  if (photos.before && photos.before.data) bytes += photos.before.data.length * 0.75;
+  if (photos.after && photos.after.data) bytes += photos.after.data.length * 0.75;
+  return Math.round(bytes / 1024);
+}
+
 function doPost(e) {
-  // Get spreadsheet ID from Script Properties (set per environment) or fallback to production
-  const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = getSpreadsheetId();
-  const BUG_REPORT_EMAIL = 'tech-support@kalispellconsulting.com'; // Email for bug reports
-
-  Logger.log(`[INIT] Using SPREADSHEET_ID: ${SPREADSHEET_ID}`);
-
   const startTime = new Date();
-  let logEntry = {
+  const logEntry = {
     timestamp: startTime.toISOString(),
     formType: 'unknown',
     rowCount: 0,
@@ -130,295 +233,30 @@ function doPost(e) {
   };
 
   try {
-    const payload  = JSON.parse(e.postData.contents);
-
-    // DEBUG: Log what we received
+    const payload = JSON.parse(e.postData.contents);
     Logger.log(`[DEBUG] Received payload - formType: ${payload.formType}, type: ${payload.type}, has photos: ${!!payload.photos}, has rows: ${!!payload.rows}`);
 
-    // Handle bug reports
-    if (payload.type === 'bugReport') {
-      logEntry.formType = 'bugReport';
-      MailApp.sendEmail({
-        to: BUG_REPORT_EMAIL,
-        subject: payload.subject,
-        body: payload.body
-      });
-      logEntry.status = 'SUCCESS';
-      return ContentService
-        .createTextOutput(JSON.stringify({ status: 'ok', message: 'Bug report sent' }))
-        .setMimeType(ContentService.MimeType.JSON);
+    if (payload.type === 'bugReport') return handleBugReport(payload, logEntry);
+
+    logEntry.formType = payload.formType || 'unknown';
+    logEntry.rowCount = payload.rows ? payload.rows.length : 0;
+    logEntry.photoSizeKB = photoPayloadSizeKB(payload.photos);
+
+    switch (payload.formType) {
+      case 'delivery':    return handleDeliverySubmission(payload, logEntry);
+      case 'production':  return handleProductionSubmission(payload, logEntry);
+      case 'photos_only': return handlePhotoUpload(payload, logEntry);
+      default:
+        // This used to fall through to {"status":"ok"} having written nothing. The forms
+        // submit with mode:'no-cors' and cannot read the response, so a silent no-op was
+        // indistinguishable from a successful save. Now it lands in the execution log.
+        throw new Error(`Unknown formType: ${JSON.stringify(payload.formType)}`);
     }
-
-    // Handle form submissions
-    const rows     = payload.rows;
-    const formType = payload.formType;
-    const ss       = SpreadsheetApp.openById(SPREADSHEET_ID);
-
-    // Update log entry with form details
-    logEntry.formType = formType || 'unknown';
-    logEntry.rowCount = rows ? rows.length : 0;
-
-    // Calculate photo payload size if present
-    if (payload.photos) {
-      let photoSize = 0;
-      if (payload.photos.before && payload.photos.before.data) {
-        photoSize += payload.photos.before.data.length * 0.75 / 1024; // base64 to KB
-      }
-      if (payload.photos.after && payload.photos.after.data) {
-        photoSize += payload.photos.after.data.length * 0.75 / 1024;
-      }
-      logEntry.photoSizeKB = Math.round(photoSize);
-    }
-
-    // T-027: Capture server timestamp when data is received
-    const serverTimestamp = new Date().toISOString();
-
-    if (formType === 'delivery') {
-      const sheet = ss.getSheetByName('Delivery Log - Live');
-      if (!sheet) throw new Error('Sheet "Delivery Log - Live" not found. Upload the provided Google Sheet file first.');
-      rows.forEach(row => {
-        sheet.appendRow([
-          row.clientTimestamp,    // Col A  – Submitted At (when user submitted)
-          row.date,               // Col B  – Date
-          row.driver,             // Col C  – Driver
-          row.store,              // Col D  – Store # (misspelled "Strore #" in sheet)
-          row.arrive,             // Col E  – Arrival Time
-          row.coolerTemp,         // Col F  – Cooler Temp °F
-          row.coolerCond,         // Col G  – Cooler Condition
-          row.dish,               // Col H  – Dish
-          row.casePrefillPercent, // Col I  – Case Pre-Fill %
-          row.added,              // Col J  – Qty Added
-          row.before,             // Col K  – On Shelf Before
-          row.removed,            // Col L  – Qty Removed (Expired)
-          row.reason,             // Col M  – Expire Reason
-          row.after,              // Col N  – Shelf Total After
-          row.notes,              // Col O  – Store Notes
-          row.receivedBy,         // Col P  – Received By
-          '',                     // Col Q  – Before Photo Link (filled by photo handler)
-          ''                      // Col R  – After Photo Link (filled by photo handler)
-        ]);
-
-        // P2.4: Check for HACCP violations and send alerts
-        try {
-          // Get store name from data/stores.json format
-          const storeNames = {
-            '6006': 'Giant Hampden',
-            '6061': 'Giant Columbia Gateway',
-            '6253': 'Giant Columbia',
-            '6331': 'Giant Clarksville',
-            '6443': 'Giant Elkridge',
-            '6542': 'Giant Laurel',
-            '6564': 'Giant Catonsville'
-          };
-          const storeName = storeNames[row.store] || `Store ${row.store}`;
-          onViolationDetected(row, storeName);
-        } catch (alertError) {
-          Logger.log(`Warning: Violation check failed for ${row.store}: ${alertError}`);
-          // Don't fail the whole submission if alert fails
-        }
-      });
-    }
-
-    if (formType === 'production') {
-      const sheet = ss.getSheetByName('Production Log - Live');
-      if (!sheet) throw new Error('Sheet "Production Log - Live" not found. Upload the provided Google Sheet file first.');
-      rows.forEach(row => {
-        sheet.appendRow([
-          row.clientTimestamp, // Col A  – Client Timestamp (when user submitted)
-          serverTimestamp,     // Col B  – Server Timestamp (when server received)
-          row.date,            // Col C  – Date
-          row.shift,           // Col D  – Shift
-          row.kitchen,         // Col E  – Kitchen
-          row.supervisor,      // Col F  – Supervisor
-          row.dish,            // Col G  – Dish
-          row.batch,           // Col H  – Batch #
-          row.cookTemp,        // Col I  – Cook Temp °F
-          row.cookStart,       // Col J  – Cook Start
-          row.cookEnd,         // Col K  – Cook End
-          row.cookTime,        // Col L  – Cook Time (min)
-          row.qtyProduced,     // Col M  – Qty Produced
-          row.qtyDiscarded,    // Col N  – Qty Discarded
-          row.discardReason,   // Col O  – Discard Reason
-          row.coolStart,       // Col P  – Cool Start
-          row.coolEnd,         // Col Q  – Cool End
-          row.coolTime,        // Col R  – Cool Time (min)
-          row.finalTemp,       // Col S  – Final Temp °F
-          row.qa,              // Col T  – QA Result
-          row.qaNotes,         // Col U  – QA Notes
-          row.initials,        // Col V  – Initials
-          row.generalNotes,    // Col W  – General Notes
-          row.batchQANotes     // Col X  – Batch QA Notes
-        ]);
-      });
-    }
-
-    // Handle photo uploads
-    if (formType === 'photos_only') {
-      Logger.log('[PHOTO UPLOAD] ENTERED BRANCH - Starting photo upload handler');
-      logEntry.formType = 'photos_only';
-      const photos = payload.photos;
-
-      // Resolved by ID only. No name lookup, no createFolder — see getPhotoRootFolder().
-      const rootFolder = getPhotoRootFolder();
-
-      // Get or create date-based subfolder (YYYY-MM-DD)
-      const dateFolder = getOrCreateDateSubfolder(rootFolder, photos.date);
-
-      // Save photos to Drive and get URLs
-      let beforeUrl = null;
-      let afterUrl = null;
-      let savedCount = 0;
-
-      if (photos.before && photos.before.data) {
-        const blob = Utilities.newBlob(
-          Utilities.base64Decode(photos.before.data),
-          photos.before.mimeType,
-          `${photos.storeId}_${photos.date}_before.jpg`
-        );
-        const beforeFile = dateFolder.createFile(blob);
-        beforeUrl = beforeFile.getUrl();
-        savedCount++;
-      }
-
-      if (photos.after && photos.after.data) {
-        const blob = Utilities.newBlob(
-          Utilities.base64Decode(photos.after.data),
-          photos.after.mimeType,
-          `${photos.storeId}_${photos.date}_after.jpg`
-        );
-        const afterFile = dateFolder.createFile(blob);
-        afterUrl = afterFile.getUrl();
-        savedCount++;
-      }
-
-      // Write URLs back to Delivery Log sheet
-      try {
-        const sheet = ss.getSheetByName('Delivery Log - Live');
-        if (!sheet) {
-          Logger.log(`[PHOTO UPLOAD] WARNING: Sheet not found. Photos saved to Drive but URLs not written. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}`);
-        } else {
-          const data = sheet.getDataRange().getValues();
-
-          // Auto-detect column indices from header row (handles staging/production schema differences)
-          // Header row might be at index 0 or 1 (if row 1 is a banner)
-          const headerRow = data[0];
-          const headerRow2 = data[1] || [];
-
-          // Find column indices by header name (case-insensitive, handles variations)
-          const findColumnIndex = (headerNames) => {
-            for (let colIdx = 0; colIdx < headerRow.length; colIdx++) {
-              const header = String(headerRow[colIdx]).toLowerCase().trim();
-              const header2 = String(headerRow2[colIdx]).toLowerCase().trim();
-              if (headerNames.some(name => header.includes(name) || header2.includes(name))) {
-                return colIdx;
-              }
-            }
-            return -1;
-          };
-
-          const storeIdCol = findColumnIndex(['store', 'strore']);  // handles misspelling
-          const dateCol = findColumnIndex(['date']);
-          const driverCol = findColumnIndex(['driver']);
-
-          // Fallback to observed staging indices if headers not found
-          const storeIdx = storeIdCol >= 0 ? storeIdCol : 3;  // Col D in staging
-          const dateIdx = dateCol >= 0 ? dateCol : 1;         // Col B in staging
-          const driverIdx = driverCol >= 0 ? driverCol : 2;   // Col C in staging
-
-          // Find photo URL columns (or use next available columns if not found)
-          // Use exact match for 'photo link' to avoid false matches with other 'photo' columns
-          const beforePhotoCol = findColumnIndex(['before photo link', 'photo before', 'before link']);
-          const afterPhotoCol = findColumnIndex(['after photo link', 'photo after', 'after link']);
-
-          // If not found, find first empty column after known data columns
-          const lastDataCol = Math.max(storeIdx, dateIdx, driverIdx, 16);  // Assume data ends around col P (16)
-          const beforePhotoIdx = beforePhotoCol >= 0 ? beforePhotoCol : lastDataCol + 1;
-          const afterPhotoIdx = afterPhotoCol >= 0 ? afterPhotoCol : lastDataCol + 2;
-
-          // Convert to 1-indexed for sheet.getRange() (columns are 1-indexed, rows are 1-indexed)
-          const beforePhotoSheetCol = beforePhotoIdx + 1;
-          const afterPhotoSheetCol = afterPhotoIdx + 1;
-
-          Logger.log(`[PHOTO UPLOAD] Column detection: storeIdx=${storeIdx}, dateIdx=${dateIdx}, driverIdx=${driverIdx}, beforePhotoCol=${beforePhotoSheetCol} (found=${beforePhotoCol>=0}), afterPhotoCol=${afterPhotoSheetCol} (found=${afterPhotoCol>=0})`);
-
-          const matchingRows = [];
-
-          // Helper: Extract numeric store ID from full store name (e.g., "Store 6253 – New Cumberland, PA" → "6253")
-          const extractStoreId = (fullStoreName) => {
-            const match = String(fullStoreName).match(/Store (\d+)/i);
-            return match ? match[1] : String(fullStoreName).trim();
-          };
-
-          // Search for matching delivery rows (skip header rows - start at index 2 to be safe)
-          for (let i = 2; i < data.length; i++) {
-            const row = data[i];
-            const rowStoreIdRaw = String(row[storeIdx]).trim();
-            const rowStoreId = extractStoreId(rowStoreIdRaw);  // Extract numeric ID
-            const rowDate = row[dateIdx];
-            const rowDriver = String(row[driverIdx]).trim();
-
-            // Normalize date comparison
-            let rowDateStr = '';
-            if (rowDate instanceof Date) {
-              rowDateStr = Utilities.formatDate(rowDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-            } else {
-              rowDateStr = String(rowDate);
-            }
-
-            // Match by storeId + date + driver (exact match)
-            if (rowStoreId === String(photos.storeId) &&
-                rowDateStr === photos.date &&
-                rowDriver === photos.driver) {
-              matchingRows.push(i + 1); // +1 because sheet rows are 1-indexed
-            }
-          }
-
-          // Handle different match scenarios
-          if (matchingRows.length === 0) {
-            // No matching row found - log orphan (photos saved to Drive anyway)
-            Logger.log(`[PHOTO UPLOAD] ORPHAN: No matching delivery row found. Photos saved to Drive but not linked. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${beforeUrl}, afterUrl=${afterUrl}`);
-            logEntry.notes = 'ORPHAN: No matching delivery row';
-          } else if (matchingRows.length === 1) {
-            // Single match - write URLs to detected photo columns
-            const targetRow = matchingRows[0];
-            if (beforeUrl) sheet.getRange(targetRow, beforePhotoSheetCol).setValue(beforeUrl);
-            if (afterUrl) sheet.getRange(targetRow, afterPhotoSheetCol).setValue(afterUrl);
-            Logger.log(`[PHOTO UPLOAD] SUCCESS: Linked photos to row ${targetRow} cols ${beforePhotoSheetCol}/${afterPhotoSheetCol}. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${beforeUrl}, afterUrl=${afterUrl}`);
-            logEntry.notes = `Linked to row ${targetRow}`;
-          } else {
-            // Multiple matches - write to most recent (last match), log warning
-            const targetRow = matchingRows[matchingRows.length - 1];
-            if (beforeUrl) sheet.getRange(targetRow, beforePhotoSheetCol).setValue(beforeUrl);
-            if (afterUrl) sheet.getRange(targetRow, afterPhotoSheetCol).setValue(afterUrl);
-            Logger.log(`[PHOTO UPLOAD] WARNING: Multiple matches found (${matchingRows.length}), wrote to most recent row ${targetRow} cols ${beforePhotoSheetCol}/${afterPhotoSheetCol}. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, allMatches=[${matchingRows.join(', ')}], beforeUrl=${beforeUrl}, afterUrl=${afterUrl}`);
-            logEntry.notes = `Multiple matches, linked to row ${targetRow}`;
-          }
-        }
-      } catch (sheetError) {
-        // Drive write succeeded but sheet update failed - log discrepancy, don't fail submission
-        Logger.log(`[PHOTO UPLOAD] ERROR: Photos saved to Drive but sheet update failed. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${beforeUrl}, afterUrl=${afterUrl}, error=${sheetError.toString()}`);
-        logEntry.notes = `Drive OK, sheet update failed: ${sheetError.toString()}`;
-        // Still return success - photos are saved to Drive
-      }
-
-      logEntry.rowCount = savedCount;
-      logEntry.status = 'SUCCESS';
-      return ContentService
-        .createTextOutput(JSON.stringify({ status: 'ok', savedPhotos: savedCount }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    logEntry.status = 'SUCCESS';
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: 'ok' }))
-      .setMimeType(ContentService.MimeType.JSON);
 
   } catch(err) {
     logEntry.status = 'ERROR';
     logEntry.errorMessage = err.toString();
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: 'error', message: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return jsonResponse({ status: 'error', message: err.toString() });
   } finally {
     // Always write execution log, even if logging itself fails
     try {
@@ -428,6 +266,210 @@ function doPost(e) {
       Logger.log('[Execution Log] Failed to write log: ' + logError);
       // Don't throw - logging failure should not break submissions
     }
+  }
+}
+
+function handleBugReport(payload, logEntry) {
+  logEntry.formType = 'bugReport';
+  MailApp.sendEmail({
+    to: BUG_REPORT_EMAIL,
+    subject: payload.subject,
+    body: payload.body
+  });
+  logEntry.status = 'SUCCESS';
+  return jsonResponse({ status: 'ok', message: 'Bug report sent' });
+}
+
+function handleDeliverySubmission(payload, logEntry) {
+  const sheet = requireSheet(openSpreadsheet(), 'Delivery Log - Live');
+
+  payload.rows.forEach(row => {
+    sheet.appendRow(buildSheetRow(DELIVERY_LOG_COLUMNS, row));
+
+    // P2.4: HACCP violation alerts. The row is already written, so a failure here must not
+    // fail the submission — losing an alert is recoverable, losing the record is not.
+    try {
+      onViolationDetected(row, STORE_NAMES[row.store] || `Store ${row.store}`);
+    } catch (alertError) {
+      Logger.log(`Warning: Violation check failed for ${row.store}: ${alertError}`);
+    }
+  });
+
+  logEntry.status = 'SUCCESS';
+  return jsonResponse({ status: 'ok' });
+}
+
+function handleProductionSubmission(payload, logEntry) {
+  const sheet = requireSheet(openSpreadsheet(), 'Production Log - Live');
+  // T-027: when the server received the batch, as distinct from row.clientTimestamp.
+  const ctx = { serverTimestamp: new Date().toISOString() };
+
+  payload.rows.forEach(row => {
+    sheet.appendRow(buildSheetRow(PRODUCTION_LOG_COLUMNS, row, ctx));
+  });
+
+  logEntry.status = 'SUCCESS';
+  return jsonResponse({ status: 'ok' });
+}
+
+/**
+ * Photos arrive in a second request, after the delivery row is already written — the form
+ * submits data first so a photo failure cannot cost the HACCP record.
+ */
+function handlePhotoUpload(payload, logEntry) {
+  Logger.log('[PHOTO UPLOAD] ENTERED BRANCH - Starting photo upload handler');
+  const photos = payload.photos;
+
+  // Resolve the spreadsheet before touching Drive: a bad SPREADSHEET_ID is a configuration
+  // error, and failing here avoids orphaning files we would then fail to link.
+  const ss = openSpreadsheet();
+  const saved = savePhotosToDrive(photos);
+
+  try {
+    linkPhotosToDeliveryRow(ss, photos, saved, logEntry);
+  } catch (sheetError) {
+    // Drive write succeeded but the sheet update failed. Report success anyway — the photos
+    // exist, and a retry would duplicate them. The discrepancy goes to the execution log.
+    Logger.log(`[PHOTO UPLOAD] ERROR: Photos saved to Drive but sheet update failed. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${saved.beforeUrl}, afterUrl=${saved.afterUrl}, error=${sheetError.toString()}`);
+    logEntry.notes = `Drive OK, sheet update failed: ${sheetError.toString()}`;
+  }
+
+  logEntry.rowCount = saved.savedCount;
+  logEntry.status = 'SUCCESS';
+  return jsonResponse({ status: 'ok', savedPhotos: saved.savedCount });
+}
+
+/** Write the before/after photos into the date subfolder. Returns their URLs and a count. */
+function savePhotosToDrive(photos) {
+  // Root resolved by ID only. No name lookup, no createFolder — see getPhotoRootFolder().
+  const dateFolder = getOrCreateDateSubfolder(getPhotoRootFolder(), photos.date);
+  const saved = { beforeUrl: null, afterUrl: null, savedCount: 0 };
+
+  ['before', 'after'].forEach(which => {
+    const photo = photos[which];
+    if (!photo || !photo.data) return;
+    const blob = Utilities.newBlob(
+      Utilities.base64Decode(photo.data),
+      photo.mimeType,
+      `${photos.storeId}_${photos.date}_${which}.jpg`
+    );
+    saved[which + 'Url'] = dateFolder.createFile(blob).getUrl();
+    saved.savedCount++;
+  });
+
+  return saved;
+}
+
+/**
+ * Locate the columns this handler needs by header name.
+ *
+ * Staging and production drifted apart on whether a Server Timestamp column exists, so the
+ * positions cannot be hardcoded. Matching on headers rather than fixed indices is what
+ * survives that drift; the numeric fallbacks are the observed staging layout.
+ */
+function findDeliveryPhotoColumns(data) {
+  const headerRow = data[0];
+  const headerRow2 = data[1] || [];   // header may be on row 2 if row 1 is a banner
+
+  const findColumnIndex = (headerNames) => {
+    for (let colIdx = 0; colIdx < headerRow.length; colIdx++) {
+      const header = String(headerRow[colIdx]).toLowerCase().trim();
+      const header2 = String(headerRow2[colIdx]).toLowerCase().trim();
+      if (headerNames.some(name => header.includes(name) || header2.includes(name))) {
+        return colIdx;
+      }
+    }
+    return -1;
+  };
+
+  const storeIdCol = findColumnIndex(['store', 'strore']);  // handles the sheet's misspelling
+  const dateCol = findColumnIndex(['date']);
+  const driverCol = findColumnIndex(['driver']);
+
+  // 'photo link' phrases, not bare 'photo', so other photo columns cannot match.
+  const beforePhotoCol = findColumnIndex(['before photo link', 'photo before', 'before link']);
+  const afterPhotoCol = findColumnIndex(['after photo link', 'photo after', 'after link']);
+
+  const storeIdx = storeIdCol >= 0 ? storeIdCol : 3;   // Col D in staging
+  const dateIdx = dateCol >= 0 ? dateCol : 1;          // Col B in staging
+  const driverIdx = driverCol >= 0 ? driverCol : 2;    // Col C in staging
+
+  // If the photo headers are missing, append after the known data columns (data ends ~col P).
+  const lastDataCol = Math.max(storeIdx, dateIdx, driverIdx, 16);
+  const beforePhotoIdx = beforePhotoCol >= 0 ? beforePhotoCol : lastDataCol + 1;
+  const afterPhotoIdx = afterPhotoCol >= 0 ? afterPhotoCol : lastDataCol + 2;
+
+  return {
+    storeIdx: storeIdx,
+    dateIdx: dateIdx,
+    driverIdx: driverIdx,
+    beforeSheetCol: beforePhotoIdx + 1,   // getRange() is 1-indexed
+    afterSheetCol: afterPhotoIdx + 1,
+    beforeFound: beforePhotoCol >= 0,
+    afterFound: afterPhotoCol >= 0
+  };
+}
+
+/** Rows matching this upload's store + date + driver, as 1-indexed sheet row numbers. */
+function findMatchingDeliveryRows(data, cols, photos) {
+  // "Store 6253 – New Cumberland, PA" → "6253"
+  const extractStoreId = (fullStoreName) => {
+    const match = String(fullStoreName).match(/Store (\d+)/i);
+    return match ? match[1] : String(fullStoreName).trim();
+  };
+
+  const matchingRows = [];
+  for (let i = 2; i < data.length; i++) {   // start at 2 to clear both possible header rows
+    const row = data[i];
+    const rowStoreId = extractStoreId(String(row[cols.storeIdx]).trim());
+    const rowDate = row[cols.dateIdx];
+    const rowDriver = String(row[cols.driverIdx]).trim();
+
+    const rowDateStr = rowDate instanceof Date
+      ? Utilities.formatDate(rowDate, Session.getScriptTimeZone(), 'yyyy-MM-dd')
+      : String(rowDate);
+
+    if (rowStoreId === String(photos.storeId) &&
+        rowDateStr === photos.date &&
+        rowDriver === photos.driver) {
+      matchingRows.push(i + 1);
+    }
+  }
+  return matchingRows;
+}
+
+function linkPhotosToDeliveryRow(ss, photos, saved, logEntry) {
+  const sheet = ss.getSheetByName('Delivery Log - Live');
+  if (!sheet) {
+    Logger.log(`[PHOTO UPLOAD] WARNING: Sheet not found. Photos saved to Drive but URLs not written. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}`);
+    return;
+  }
+
+  const data = sheet.getDataRange().getValues();
+  const cols = findDeliveryPhotoColumns(data);
+  Logger.log(`[PHOTO UPLOAD] Column detection: storeIdx=${cols.storeIdx}, dateIdx=${cols.dateIdx}, driverIdx=${cols.driverIdx}, beforePhotoCol=${cols.beforeSheetCol} (found=${cols.beforeFound}), afterPhotoCol=${cols.afterSheetCol} (found=${cols.afterFound})`);
+
+  const matchingRows = findMatchingDeliveryRows(data, cols, photos);
+  const trail = `storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${saved.beforeUrl}, afterUrl=${saved.afterUrl}`;
+
+  if (matchingRows.length === 0) {
+    // Photos are in Drive but nothing points at them. Recoverable by hand from this log.
+    Logger.log(`[PHOTO UPLOAD] ORPHAN: No matching delivery row found. Photos saved to Drive but not linked. ${trail}`);
+    logEntry.notes = 'ORPHAN: No matching delivery row';
+    return;
+  }
+
+  // On multiple matches take the most recent, which is the row the driver just submitted.
+  const targetRow = matchingRows[matchingRows.length - 1];
+  if (saved.beforeUrl) sheet.getRange(targetRow, cols.beforeSheetCol).setValue(saved.beforeUrl);
+  if (saved.afterUrl) sheet.getRange(targetRow, cols.afterSheetCol).setValue(saved.afterUrl);
+
+  if (matchingRows.length === 1) {
+    Logger.log(`[PHOTO UPLOAD] SUCCESS: Linked photos to row ${targetRow} cols ${cols.beforeSheetCol}/${cols.afterSheetCol}. ${trail}`);
+    logEntry.notes = `Linked to row ${targetRow}`;
+  } else {
+    Logger.log(`[PHOTO UPLOAD] WARNING: Multiple matches found (${matchingRows.length}), wrote to most recent row ${targetRow} cols ${cols.beforeSheetCol}/${cols.afterSheetCol}. ${trail}, allMatches=[${matchingRows.join(', ')}]`);
+    logEntry.notes = `Multiple matches, linked to row ${targetRow}`;
   }
 }
 
