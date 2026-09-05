@@ -125,18 +125,11 @@ function getOrCreateDateSubfolder(rootFolder, date) {
 
 const BUG_REPORT_EMAIL = 'tech-support@kalispellconsulting.com';
 
-// Display names for violation alerts. A fourth copy of the store list — data/stores.json
-// is the one the forms read; this one needs a backend deploy to pick up a new store.
-const STORE_NAMES = {
-  '6006': 'Giant Hampden',
-  '6061': 'Giant Columbia Gateway',
-  '6253': 'Giant Columbia',
-  '6331': 'Giant Clarksville',
-  '6443': 'Giant Elkridge',
-  '6542': 'Giant Laurel',
-  '6564': 'Giant Catonsville'
-};
-
+// The store list lives in data/stores.json. This file deliberately keeps no copy of the
+// names: one was removed 2026-09-04 after it turned out to be fabricated — seven Maryland
+// Giant stores (Hampden, Laurel, Catonsville…) mapped onto Pennsylvania store numbers, so
+// a cooler violation in Carlisle alerted on "Giant Laurel". stores.json names each store
+// "Store <id>", which is exactly what `Store ${row.store}` produces at the call site.
 // 'Delivery Log - Live'. Do not reorder — position is the contract with the sheet.
 const DELIVERY_LOG_COLUMNS = [
   { col: 'A', header: 'Submitted At',      from: 'clientTimestamp' },
@@ -289,7 +282,7 @@ function handleDeliverySubmission(payload, logEntry) {
     // P2.4: HACCP violation alerts. The row is already written, so a failure here must not
     // fail the submission — losing an alert is recoverable, losing the record is not.
     try {
-      onViolationDetected(row, STORE_NAMES[row.store] || `Store ${row.store}`);
+      onViolationDetected(row, `Store ${row.store}`);
     } catch (alertError) {
       Logger.log(`Warning: Violation check failed for ${row.store}: ${alertError}`);
     }
@@ -1367,7 +1360,7 @@ function simulateViolation() {
       notes: '🧪 AUTOMATED TEST - This is a simulated violation for testing email alerts'
     };
 
-    const storeName = 'Giant Laurel';
+    const storeName = `Store ${fakeDelivery.store}`;
 
     Logger.log(`🚨 Triggering violation check for ${storeName} with cooler temp ${fakeDelivery.coolerTemp}°F`);
 
@@ -2187,15 +2180,19 @@ function doGet(e) {
       // Calculate waste from deliveries (items with qtyRemoved > 0)
       const waste = deliveries.filter(d => (parseInt(d.removed) || 0) > 0);
 
-      // Read stores from data/stores.json format (hardcoded for now)
+      // Mirror of data/stores.json, which is the source of truth — the forms read that file
+      // directly. Kept in sync by hand, so a new store needs a backend deploy to reach the
+      // dashboard's store filter. The names this replaced were invented: Maryland Giant
+      // stores paired with these Pennsylvania locations. 6112 was missing entirely.
       const stores = [
-        { id: '6006', name: 'Giant Hampden', location: 'Kline Village, Harrisburg, PA' },
-        { id: '6061', name: 'Giant Columbia Gateway', location: 'Shippensburg, PA' },
-        { id: '6253', name: 'Giant Columbia', location: 'New Cumberland, PA' },
-        { id: '6331', name: 'Giant Clarksville', location: 'Mechanicsburg, PA' },
-        { id: '6443', name: 'Giant Elkridge', location: 'Chambersburg, PA' },
-        { id: '6542', name: 'Giant Laurel', location: 'Carlisle, PA' },
-        { id: '6564', name: 'Giant Catonsville', location: 'Catonsville' }
+        { id: '6006', name: 'Store 6006', location: 'Kline Village, Harrisburg, PA' },
+        { id: '6061', name: 'Store 6061', location: 'Shippensburg, PA' },
+        { id: '6112', name: 'Store 6112', location: '255 S Spring Garden St, Carlisle, PA' },
+        { id: '6253', name: 'Store 6253', location: 'New Cumberland, PA' },
+        { id: '6331', name: 'Store 6331', location: 'Mechanicsburg, PA' },
+        { id: '6443', name: 'Store 6443', location: 'Chambersburg, PA' },
+        { id: '6542', name: 'Store 6542', location: 'Carlisle, PA' },
+        { id: '6564', name: 'Store 6564', location: 'Harrisburg (Gayson Rd), PA' }
       ];
 
       return ContentService
