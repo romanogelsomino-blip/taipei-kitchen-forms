@@ -1,59 +1,96 @@
 # Deployment
 
-Start here. This directory holds no configuration — everything is generated or lives in
-`.env`. It exists so the deployment story has an obvious front door.
+The authoritative deployment procedure. The [top-level README](../README.md#deployment) has
+the overview; configuration is covered in
+[README § Environments & Configuration](../README.md#environments--configuration).
 
-- **[../CLAUDE.md](../CLAUDE.md)** — full procedure, environment identifiers, and the two
-  failure modes that have each caused a multi-day outage
-- **[../.github/workflows/deploy.yml](../.github/workflows/deploy.yml)** — the pipeline
-- **[../README.md](../README.md#configuration)** — how configuration flows from `.env`
+There are no manual deployments. A push to `dev` or `prod`
+runs one workflow, `.github/workflows/deploy.yml`, which deploys that branch's backend and
+republishes the entire site from both branches. Both environments always match their
+branches; nothing can drift.
 
----
+## Two halves
 
-## Two halves, two mechanisms
-
-**Frontend** — forms, dashboard, `data/*.json`. Static files published to GitHub Pages by
-the workflow. `frontend/` is flattened to the site root, so served URLs contain no
+**Frontend** — forms, dashboard, `data/*.json`. Static files published to GitHub Pages.
+`frontend/` and `data/` are flattened to the site root, so served URLs contain no
 `/frontend/` segment. **Every printed QR code depends on that.**
 
-**Backend** — `backend/Code.gs`. Git and Apps Script are unconnected; `git push` does not
-deploy it. Only clasp does.
+**Backend** — `backend/Code.gs` and `appsscript.json`. A standalone Apps Script project,
+uploaded with clasp and served through a single pinned Web App deployment per environment.
 
 ## Branches
 
 ```
-dev   → staging backend  + site published under /staging/
+dev   → staging backend    + site published under /staging/
 prod  → production backend + site published at the root
 ```
 
-Backend deploys before the frontend, so a still-cached old frontend talks to a backend that
-already understands the new contract. The two platforms cannot be made atomic, so contract
-changes must stay backward-compatible for one release cycle.
+There is no `main`. `dev` is the working branch, `prod` is the release branch, and `prod`
+only ever receives merges from `dev`.
 
-## The two-step backend deploy
+## What the workflow does
 
-Uploading source is not publishing. The deployment is pinned to a version and keeps serving
-that version until a new one is cut:
+One run per push. Pages allows one publish at a time, so runs queue behind each other. Never
+cancel a run in flight, or the site can be left serving a half-assembled artifact.
+
+**Backend job**
+
+1. Restores clasp credentials from `CLASPRC_JSON` and generates `.clasp.json` from the
+   branch's `SCRIPT_ID` secret. Nothing in git names a script id.
+2. `clasp push -f` uploads `backend/` to the Apps Script project.
+3. `clasp deploy -i <DEPLOYMENT_ID>` redeploys the existing deployment in place, so the Web
+   App URL never changes. Without `-i` clasp would mint a new deployment and a new URL.
+4. Sets the `SPREADSHEET_ID` and `PHOTO_FOLDER_ID` Script Properties from the matching
+   secrets through the `setScriptProperty` admin action, so the secrets are authoritative.
+5. Pings the deployment and asserts it reports the expected spreadsheet id.
+6. On `dev` only, submits a real delivery row (driver `ZZ-CI-SMOKE`, store `0000`) and
+   requires `{"status":"ok"}`. Reads can succeed while writes fail, and a write is the only
+   thing that proves the deployment can reach its sheet. Production gets no synthetic row.
+
+**Site job** (after the backend job)
+
+1. Checks out both `prod` and `dev`. A Pages deploy replaces the whole site, so both trees
+   are rebuilt on every run regardless of which branch was pushed.
+2. Copies `prod`'s `frontend/` and `data/` to the artifact root and `dev`'s under `/staging/`.
+3. Writes `config.js` into each tree from `PROD_WEB_APP_URL` / `STAGING_WEB_APP_URL`.
+4. Fails the build if `script.google.com/macros` appears anywhere else in the artifact.
+5. Replaces every `__BUILD_ID__` with the commit SHA. Fails if no token is found or any
+   survives.
+6. Publishes the artifact to GitHub Pages.
+
+The backend deploys first so that a still-cached old frontend talks to a backend that already
+understands the new contract. The two platforms cannot be made atomic, so contract changes
+must stay backward-compatible for one release cycle.
+
+## Releasing to production
+
+Every production release is tagged.
 
 ```bash
-npm run env:production     # generates .clasp.json from PROD_SCRIPT_ID in .env
-npx clasp push -f          # uploads — NOT yet live
-npx clasp deploy -i "$DEPLOYMENT_ID" --description "what changed"
+git checkout prod
+git merge dev                       # or merge the dev → prod pull request
+git tag v2.2.0
+git push origin prod --tags         # the push to prod triggers the production deploy
 ```
 
-**Always pass `-i`.** Without it clasp mints a new deployment with a new URL, which then has
-to be chased into four frontend files. With it, the URL is a constant.
+Check the run under Actions, then confirm the live forms and dashboard load.
 
-Verify with a write, not a read — reads can succeed while writes fail. That exact
-combination took production down for three hours in August 2026.
+## Rolling back
 
-## Configuration
+Reset `prod` to the previous release tag and push. The workflow redeploys the backend and
+republishes the site from that tree.
 
-There are no config files here. `.clasp.json` is generated at the repo root — by
-`npm run env:*` locally, by the workflow from a secret in CI — and is gitignored.
+```bash
+git checkout prod
+git reset --hard v2.1.0
+git push --force-with-lease origin prod
+```
 
-The single source of truth is `.env` at the repo root, mirroring the GitHub Actions secrets
-one-for-one. See [Configuration](../README.md#configuration).
+Reset rather than revert: a revert commit on `prod` would make the next merge from `dev` skip
+the reverted changes. Fix forward on `dev`, then release normally.
+
+Spreadsheet schema changes do not roll back. A column or sheet tab added by the newer code
+stays; only the code goes back.
 
 ## Required GitHub secrets
 
@@ -63,7 +100,9 @@ PROD_SCRIPT_ID          STAGING_SCRIPT_ID
 PROD_DEPLOYMENT_ID      STAGING_DEPLOYMENT_ID
 PROD_WEB_APP_URL        STAGING_WEB_APP_URL
 PROD_ADMIN_TOKEN        STAGING_ADMIN_TOKEN
+PROD_SPREADSHEET_ID     STAGING_SPREADSHEET_ID
+PROD_PHOTO_FOLDER_ID    STAGING_PHOTO_FOLDER_ID
 ```
 
-Plus **Settings → Pages → Source → GitHub Actions**. Until that is set,
-`actions/deploy-pages` fails regardless of the secrets.
+The names match `.env` one-for-one; copy the values from there. Plus **Settings → Pages →
+Source → GitHub Actions**, or `actions/deploy-pages` fails regardless of the secrets.
