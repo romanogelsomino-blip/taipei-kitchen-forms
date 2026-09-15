@@ -1195,7 +1195,6 @@ function onViolationDetected(deliveryData, storeName) {
 
   const threshold = parseFloat(getConfig('temp_threshold') || '41');
   const coolerTemp = parseFloat(deliveryData.coolerTemp);
-  const arrivalTemp = parseFloat(deliveryData.arrivalTemp);
 
   let violations = [];
 
@@ -1203,14 +1202,6 @@ function onViolationDetected(deliveryData, storeName) {
     violations.push({
       type: 'Cooler Temperature',
       temp: coolerTemp,
-      threshold: threshold
-    });
-  }
-
-  if (!isNaN(arrivalTemp) && arrivalTemp > threshold) {
-    violations.push({
-      type: 'Delivery Temperature',
-      temp: arrivalTemp,
       threshold: threshold
     });
   }
@@ -1350,7 +1341,6 @@ function simulateViolation() {
     const fakeDelivery = {
       store: '6542',
       coolerTemp: '45',        // ⚠️ VIOLATION: Above 41°F threshold
-      arrivalTemp: '38',       // Normal temp (no violation)
       date: new Date().toLocaleDateString('en-US'),
       arrive: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       driver: 'TEST_DRIVER',

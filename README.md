@@ -12,6 +12,7 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 |---|---|
 | `frontend/taipei_production_form3.html` | Kitchen form. Logs each batch — cook times, cooling, dish counts, quality notes. |
 | `frontend/taipei_delivery_form3.html` | Driver form. Logs each store delivery — temps, photos, what was loaded, what was left, case fill levels. |
+| `frontend/forms/` | The scripts and stylesheet behind both forms: `common.js` and `styles.css` are shared, then one script per form. |
 | `frontend/dashboard/` | Live web dashboard — metrics, deliveries, production, waste analysis, HACCP compliance. |
 | `frontend/assets/` | Branding used by the forms. |
 | `backend/Code.gs` | Google Apps Script handling form submissions and serving the dashboard API. |
@@ -44,10 +45,10 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 
 To work on them:
 
-1. Edit the HTML in `frontend/`
+1. Edit the form pages in `frontend/` and their scripts and stylesheet in `frontend/forms/`
 2. Generate the local config once: `npm run env:staging`
 3. Test on a local server: `cd frontend && python3 -m http.server 8080`. `data/` is not
-   under `frontend/`, so locally the dropdowns fall back to the lists built into each form.
+   under `frontend/`, so locally the dropdowns fall back to the lists built into each form's script.
 4. Push to `dev`, check `/staging/`, then merge to `prod`
 
 ### Dashboard
@@ -63,7 +64,7 @@ To work on them:
 ## Stores
 
 The store list is `data/stores.json`. To add a store: add it there, mirror the entry into the
-hardcoded fallback in `frontend/taipei_delivery_form3.html`, and release. The store list is
+hardcoded fallback in `frontend/forms/delivery.js`, and release. The store list is
 also duplicated in `backend/Code.gs` (violation-alert names and the dashboard store filter) —
 those need a backend deploy to pick up a new store. QR codes point at
 `taipei_delivery_form3.html?store=<id>`.
@@ -77,8 +78,6 @@ The HACCP cooling rule is printed on the production form: hot food must cool fro
 
 - The production form colors total cooling time orange past 4 hours and red past 6 hours,
   and flags any recorded temperature above 41°F.
-- The delivery form flags any cooler or transit temperature above 41°F and opens a
-  corrective-action panel for it.
 - The backend emails a violation alert when a delivery's cooler temperature exceeds the
   configured threshold (default 41°F) and records it in the Violations Tracker sheet.
 - The dashboard lists violations from the tracker with their status and notes.
