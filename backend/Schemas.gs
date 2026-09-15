@@ -116,7 +116,7 @@ function executionsSchema() {
  */
 function tabLayout(tab) {
   return {
-    Production: { rows: 4000, filterThrough: 'Shift' },
+    Production: { rows: 4000, filterThrough: 'Dish' },
     Deliveries: { rows: 6000, filterThrough: 'Dish' },
     Violations: { rows: 1000, filterThrough: null },
     Executions: { rows: 4000, filterThrough: null }
