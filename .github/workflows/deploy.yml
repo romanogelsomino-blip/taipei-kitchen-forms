@@ -93,6 +93,38 @@ jobs:
       # ADMIN_TOKEN is deliberately NOT pushed: this endpoint authenticates *with* it, so it
       # cannot bootstrap itself. It stays a manual Script Property. That also means a brand
       # new environment needs its ADMIN_TOKEN set by hand before its first deploy.
+      # An in-place redeploy is not instantly live. For several minutes afterwards the exec
+      # URL can answer with Google's generic "unable to open the file" HTML page instead of
+      # running the script, and it can flap between the old and new version. Every later
+      # step calls the web app, so wait for three consecutive JSON answers first.
+      - name: Wait for the redeployed web app to serve
+        env:
+          URL: ${{ steps.env.outputs.web_app_url }}
+          TOKEN: ${{ github.ref_name == 'prod' && secrets.PROD_ADMIN_TOKEN || secrets.STAGING_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          OK=0
+          for ATTEMPT in $(seq 1 30); do
+            OUT=$(curl -sL --max-time 60 --get "$URL" \
+                    --data-urlencode "action=ping" --data-urlencode "token=$TOKEN" || true)
+            if echo "$OUT" | grep -q '"status":"ok"'; then
+              OK=$((OK + 1))
+              echo "attempt $ATTEMPT: serving ($OK/3)"
+              [ "$OK" -ge 3 ] && exit 0
+              sleep 10
+            elif echo "$OUT" | grep -q '"status":"error"'; then
+              echo "$OUT"
+              echo "::error::the web app is serving but rejected the request — is the admin token current?"
+              exit 1
+            else
+              OK=0
+              echo "attempt $ATTEMPT: not serving JSON yet, waiting 15s"
+              sleep 15
+            fi
+          done
+          echo "::error::the web app did not settle within the wait — it may still be redeploying, or the deployment is broken. Re-run once before investigating."
+          exit 1
+
       - name: Reconcile Script Properties
         env:
           URL: ${{ steps.env.outputs.web_app_url }}
@@ -117,8 +149,12 @@ jobs:
                     --data-urlencode "key=$KEY" \
                     --data-urlencode "value=$VALUE")
             if ! echo "$OUT" | grep -q '"status":"ok"'; then
-              echo "$OUT"
-              echo "::error::could not set $KEY — is the admin token current?"
+              echo "$OUT" | head -c 600; echo
+              if echo "$OUT" | grep -q '"status":"error"'; then
+                echo "::error::could not set $KEY — the web app rejected the request; is the admin token current?"
+              else
+                echo "::error::could not set $KEY — the web app did not answer with JSON."
+              fi
               exit 1
             fi
             echo "set $KEY"

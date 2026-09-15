@@ -40,10 +40,12 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
 2. `clasp push -f` uploads `backend/` to the Apps Script project.
 3. `clasp deploy -i <DEPLOYMENT_ID>` redeploys the existing deployment in place, so the Web
    App URL never changes. Without `-i` clasp would mint a new deployment and a new URL.
-4. Sets the `SPREADSHEET_ID` and `PHOTO_FOLDER_ID` Script Properties from the matching
+4. Waits until the web app answers with JSON. An in-place redeploy can serve Google's
+   "unable to open the file" page for several minutes before the new version is live.
+5. Sets the `SPREADSHEET_ID` and `PHOTO_FOLDER_ID` Script Properties from the matching
    secrets through the `setScriptProperty` admin action, so the secrets are authoritative.
-5. Pings the deployment and asserts it reports the expected spreadsheet id.
-6. On `dev` only, submits a real delivery row (driver `ZZ-CI-SMOKE`, store `0000`) and
+6. Pings the deployment and asserts it reports the expected spreadsheet id.
+7. On `dev` only, submits a real delivery row (driver `ZZ-CI-SMOKE`, store `0000`) and
    requires `{"status":"ok"}`. Reads can succeed while writes fail, and a write is the only
    thing that proves the deployment can reach its sheet. Production gets no synthetic row.
 
