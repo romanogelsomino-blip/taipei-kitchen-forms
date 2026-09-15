@@ -6,7 +6,7 @@
 
 const MAX_MONTHS_PER_REQUEST = 6;
 const OPEN_MEMO = {}; // per-execution: monthKey → { monthKey, fileId, ss }
-const TAB_STYLE = { header: '#323031', headerText: '#FFFFFF', rowA: '#FDF5E6', rowB: '#FFFBF4', border: '#DEDBD6' };
+const TAB_STYLE = { header: '#323031', headerText: '#FFFFFF', rowA: '#FDF5E6', rowB: '#FFFBF4', separator: '#9B9B9B', outline: '#1C1C1C' };
 
 function getSpreadsheetFolder() {
   const id = requireProperty('SPREADSHEET_FOLDER_ID');
@@ -123,7 +123,6 @@ function styleTab(sheet, tab) {
 
   bandRows(sheet);
   styleHeader(sheet, headers.length); // after the banding, which would otherwise repaint row 1
-  borderRange(sheet.getRange(1, 1, 1, headers.length));
   boxRows(sheet);
 
   const through = tabLayout(tab).filterThrough;
@@ -164,27 +163,58 @@ function bandRows(sheet) {
     .setSecondRowColor(TAB_STYLE.rowB);
 }
 
-/** Grid lines on a block of cells: its outer edges and every line inside it. */
-function borderRange(range) {
-  range.setBorder(true, true, true, true, true, true, TAB_STYLE.border, SpreadsheetApp.BorderStyle.SOLID);
+// Two lines and no others: one between submissions, one around the whole table. Everything
+// else is left to Sheets' own gridlines.
+
+/** Remove every line from a range, so only the two rules below draw anything. */
+function clearBorders(range) {
+  range.setBorder(false, false, false, false, false, false, null, null);
+}
+
+/** The line above one submission, separating it from whatever is above. */
+function separateSubmission(sheet, row, width) {
+  sheet.getRange(row, 1, 1, width)
+    .setBorder(true, null, null, null, null, null, TAB_STYLE.separator, SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+}
+
+/** The sheet row each submission starts on, oldest first, read from the Submission ID column. */
+function submissionStarts(sheet, tab) {
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) return [];
+  const starts = [2];
+  const col = headerIndex(values[0], schemaFor(tab)).idx.submissionId;
+  if (col === undefined || col < 0) return starts;
+  let previous = String(values[1][col] || '');
+  for (let r = 2; r < values.length; r++) {
+    const id = String(values[r][col] || '');
+    if (id === '' || id !== previous) starts.push(r + 1);
+    previous = id;
+  }
+  return starts;
 }
 
 /**
- * A heavier edge around the header and the written rows, so the table reads as one block and
- * its last row closes it. Interior lines are left alone (null), and the next append redraws
- * the shared line above its own block as an ordinary one before moving the edge down.
+ * A thick black edge around the header and the written rows, so the table reads as one block
+ * and its last row closes it. Interior lines are left alone (null), and the next append
+ * redraws the shared line above its own block as an ordinary one before the edge moves down.
  */
 function boxRows(sheet) {
   const width = sheetHeaders(sheet).length;
   const rows = Math.max(sheet.getLastRow(), 1);
   sheet.getRange(1, 1, rows, width)
-    .setBorder(true, true, true, true, null, null, TAB_STYLE.border, SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+    .setBorder(true, true, true, true, null, null, TAB_STYLE.outline, SpreadsheetApp.BorderStyle.SOLID_THICK);
 }
 
-/** Grid lines on every written row, for files formatted before the styling or edited by hand. */
+/**
+ * Redraw every line from scratch, for files written before this styling or edited by hand:
+ * wipe the lot, then one separator per submission. Reconstructing from the Submission ID is
+ * what puts the separators in the right places on rows this execution did not write.
+ */
 function borderDataRows(sheet, tab) {
   const last = sheet.getLastRow();
-  if (last >= 2) borderRange(sheet.getRange(2, 1, last - 1, sheetHeaders(sheet).length));
+  const width = sheetHeaders(sheet).length;
+  clearBorders(sheet.getRange(1, 1, Math.max(last, 1), width));
+  submissionStarts(sheet, tab).forEach(row => separateSubmission(sheet, row, width));
   boxRows(sheet);
 }
 
@@ -206,8 +236,8 @@ function ensureMonthlyTabs(ss) {
  * whose header matches, so a file whose columns predate a schema change still takes writes.
  * The block goes in under the script lock because getLastRow()+1 followed by setValues is
  * not atomic across concurrent requests. Formats are set before the values, or Sheets
- * coerces text that looks like a date or a number. Grid lines and row colours go on after,
- * so both end at the last written row and the table has a closing edge.
+ * coerces text that looks like a date or a number. Lines and row colours go on after, so both
+ * end at the last written row and the table has a closing edge.
  */
 function appendMonthlyRows(monthKey, tab, values) {
   if (!values.length) return { monthKey, fileId: null, firstRow: 0, count: 0 };
@@ -230,9 +260,10 @@ function appendMonthlyRows(monthKey, tab, values) {
     const range = sheet.getRange(start, 1, placed.length, width);
     range.setNumberFormats(placed.map(() => formats));
     range.setValues(placed);
-    borderRange(range);   // the new block, including the line it shares with the block above
-    bandRows(sheet);      // the colours end at the new last row
-    boxRows(sheet);       // and so does the outer edge
+    clearBorders(range);                      // no lines inside the submission
+    separateSubmission(sheet, start, width);  // one above it
+    bandRows(sheet);                          // the colours end at the new last row
+    boxRows(sheet);                           // and so does the outer edge
     return { monthKey, fileId: opened.fileId, firstRow: start, count: placed.length };
   });
 }
