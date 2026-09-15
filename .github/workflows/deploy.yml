@@ -129,15 +129,18 @@ jobs:
         env:
           URL: ${{ steps.env.outputs.web_app_url }}
           TOKEN: ${{ github.ref_name == 'prod' && secrets.PROD_ADMIN_TOKEN || secrets.STAGING_ADMIN_TOKEN }}
-          SPREADSHEET_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_ID || secrets.STAGING_SPREADSHEET_ID }}
+          SPREADSHEET_FOLDER_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_FOLDER_ID || secrets.STAGING_SPREADSHEET_FOLDER_ID }}
           PHOTO_FOLDER_ID: ${{ github.ref_name == 'prod' && secrets.PROD_PHOTO_FOLDER_ID || secrets.STAGING_PHOTO_FOLDER_ID }}
+          SPREADSHEET_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_ID || secrets.STAGING_SPREADSHEET_ID }}
         run: |
           set -euo pipefail
           if [ -z "$TOKEN" ]; then
             echo "::error::admin token secret is not set for ${{ steps.env.outputs.name }}."
             exit 1
           fi
-          for KEY in SPREADSHEET_ID PHOTO_FOLDER_ID; do
+          # Deployment identity only. WRITE_TARGETS is the operator's switch: set by hand,
+          # validated by the verify step, never written by CI.
+          for KEY in SPREADSHEET_FOLDER_ID PHOTO_FOLDER_ID SPREADSHEET_ID; do
             VALUE="${!KEY}"
             if [ -z "$VALUE" ]; then
               echo "::error::${{ steps.env.outputs.name }} $KEY secret is not set."
@@ -160,45 +163,105 @@ jobs:
             echo "set $KEY"
           done
 
-      - name: Verify deployment is live and bound to the right sheet
+      # Idempotent: creates the current month's operations file so the first write of a month
+      # never has to. Runs on every deploy.
+      - name: Initialise storage
+        env:
+          URL: ${{ steps.env.outputs.web_app_url }}
+          TOKEN: ${{ github.ref_name == 'prod' && secrets.PROD_ADMIN_TOKEN || secrets.STAGING_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          OUT=$(curl -sL --max-time 300 --get "$URL" \
+                  --data-urlencode "action=init" --data-urlencode "token=$TOKEN")
+          echo "$OUT" | head -c 800; echo
+          [ "$(jq -r '.status // empty' <<<"$OUT" 2>/dev/null)" = ok ] \
+            || { echo "::error::init failed — see the response above."; exit 1; }
+
+      - name: Verify deployment is live and bound to the right stores
         env:
           URL: ${{ steps.env.outputs.web_app_url }}
           TOKEN: ${{ github.ref_name == 'prod' && secrets.PROD_ADMIN_TOKEN || secrets.STAGING_ADMIN_TOKEN }}
           SPREADSHEET_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_ID || secrets.STAGING_SPREADSHEET_ID }}
+          SPREADSHEET_FOLDER_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_FOLDER_ID || secrets.STAGING_SPREADSHEET_FOLDER_ID }}
         run: |
           set -euo pipefail
           OUT=$(curl -sL --max-time 120 --get "$URL" \
                   --data-urlencode "action=ping" --data-urlencode "token=$TOKEN")
-          echo "$OUT"
-          echo "$OUT" | grep -q '"status":"ok"' \
-            || { echo "::error::ping did not return ok — deployment is not serving."; exit 1; }
-          # ping reports the sheet it actually opened. Asserting it is what makes this step
-          # match its name — without it, a deploy pointed at the wrong spreadsheet passes.
-          echo "$OUT" | grep -q "\"sheet_id\":\"$SPREADSHEET_ID\"" \
-            || { echo "::error::deployment is serving a different spreadsheet than the ${{ steps.env.outputs.name }} secret specifies."; exit 1; }
+          echo "$OUT" | head -c 1200; echo
+          jq -e . <<<"$OUT" >/dev/null 2>&1 \
+            || { echo "::error::ping did not return JSON — deployment is not serving."; exit 1; }
+          [ "$(jq -r .status <<<"$OUT")" = ok ] \
+            || { echo "::error::ping did not return ok."; exit 1; }
+
+          # The monthly store: the folder this deploy is bound to, and the current month's file.
+          [ "$(jq -r '.folder_id // empty' <<<"$OUT")" = "$SPREADSHEET_FOLDER_ID" ] \
+            || { echo "::error::deployment is bound to a different operations folder than the ${{ steps.env.outputs.name }} secret specifies ($(jq -r '.folder_error // "no folder_error"' <<<"$OUT"))."; exit 1; }
+          EXPECTED="$(TZ=America/New_York date +%Y-%m) Operations"
+          [ "$(jq -r '.current_month.name // empty' <<<"$OUT")" = "$EXPECTED" ] \
+            || { echo "::error::current month file is not '$EXPECTED'."; exit 1; }
+          [ -n "$(jq -r '.current_month.id // empty' <<<"$OUT")" ] \
+            || { echo "::error::the current month file does not exist; the init step should have created it."; exit 1; }
+
+          # WRITE_TARGETS is set by hand and never by CI: validate and report, never change.
+          TARGETS=$(jq -r '.write_targets // empty' <<<"$OUT")
+          case "$TARGETS" in
+            legacy,monthly|monthly) ;;
+            "") echo "::error::WRITE_TARGETS Script Property is not set on ${{ steps.env.outputs.name }}. Set it by hand to 'legacy,monthly' or 'monthly' (Project Settings > Script Properties)."; exit 1 ;;
+            *)  echo "::error::WRITE_TARGETS is '$TARGETS'; expected 'legacy,monthly' or 'monthly'."; exit 1 ;;
+          esac
+
+          # The legacy sheet stays asserted while it is still a write target.
+          if [[ "$TARGETS" == *legacy* ]]; then
+            [ "$(jq -r '.sheet_id // empty' <<<"$OUT")" = "$SPREADSHEET_ID" ] \
+              || { echo "::error::legacy write target is a different spreadsheet than the ${{ steps.env.outputs.name }} secret specifies."; exit 1; }
+          fi
+
+          {
+            echo "### ${{ steps.env.outputs.name }} storage"
+            echo "- write targets: \`$TARGETS\`"
+            echo "- current month: [$(jq -r .current_month.name <<<"$OUT")]($(jq -r .current_month.url <<<"$OUT"))"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # A real write is the only thing that catches the failure mode that took production
       # down in Aug 2026 (reads fine, writes denied). Staging only: production has no
       # write-then-clean endpoint, so a synthetic row there would pollute the HACCP record.
+      # The row is dated today in New York so it files into the current month, and that
+      # month's Deliveries tab must grow by exactly one row: that is what proves the write
+      # reached the monthly store and not only the legacy sheet.
       - name: Verify writes (staging only)
         if: github.ref_name == 'dev'
         env:
           URL: ${{ steps.env.outputs.web_app_url }}
+          TOKEN: ${{ secrets.STAGING_ADMIN_TOKEN }}
         run: |
-          cat > payload.json <<'JSON'
+          set -euo pipefail
+          storage_rows() {
+            curl -sL --max-time 120 --get "$URL" \
+              --data-urlencode "action=storageStatus" --data-urlencode "token=$TOKEN" \
+              | jq -r '.months[0].rows.Deliveries // 0'
+          }
+          BEFORE=$(storage_rows)
+          TODAY=$(TZ=America/New_York date +%F)
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+          ID=$(python3 -c 'import uuid; print(uuid.uuid4())')
+          cat > payload.json <<JSON
           {"formType":"delivery","rows":[{
-            "clientTimestamp":"1970-01-01T00:00:00.000Z","date":"1970-01-01",
-            "driver":"ZZ-CI-SMOKE","store":"0000","storeId":"0000","arrive":"00:00",
-            "coolerTemp":"38","coolerCond":"Good","dish":"ZZ-CI-SMOKE",
+            "submissionId":"$ID","clientTimestamp":"$NOW","date":"$TODAY",
+            "driver":"ZZ-CI-SMOKE","store":"0000","storeId":"0000","arrive":"00:00","arrivalTemp":"38",
+            "coolerTemp":"38","dish":"ZZ-CI-SMOKE",
             "casePrefillPercent":"0-25%","added":"0","before":"0","removed":"0",
-            "reason":"","after":"0","notes":"CI smoke test - safe to delete",
+            "reason":"","after":"0","notes":"CI smoke test run ${{ github.run_id }} - safe to delete",
             "receivedBy":"ZZ-CI-SMOKE","formType":"delivery"}]}
           JSON
           OUT=$(curl -sL --max-time 150 "$URL" \
                  -H 'Content-Type: text/plain;charset=utf-8' --data-binary @payload.json)
           echo "$OUT"
-          echo "$OUT" | grep -q '"status":"ok"' \
+          [ "$(jq -r '.status // empty' <<<"$OUT" 2>/dev/null)" = ok ] \
             || { echo "::error::staging write failed — backend accepted no data."; exit 1; }
+          AFTER=$(storage_rows)
+          [ "$AFTER" -eq "$((BEFORE + 1))" ] \
+            || { echo "::error::the monthly Deliveries tab did not grow by one row ($BEFORE -> $AFTER); the write did not reach the monthly store."; exit 1; }
+          echo "monthly Deliveries rows: $BEFORE -> $AFTER (submission $ID)"
 
   # ───────────────────────────────────────────────────────────────────────────────
   frontend:

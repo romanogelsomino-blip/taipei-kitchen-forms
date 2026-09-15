@@ -111,7 +111,7 @@ PROD_ADMIN_TOKEN               STAGING_ADMIN_TOKEN
 PROD_DEPLOYMENT_ID             STAGING_DEPLOYMENT_ID
 PROD_PHOTO_FOLDER_ID           STAGING_PHOTO_FOLDER_ID
 PROD_SCRIPT_ID                 STAGING_SCRIPT_ID
-PROD_SPREADSHEET_FOLDER_ID     STAGING_SPREADSHEET_FOLDER_ID   (reserved, unused)
+PROD_SPREADSHEET_FOLDER_ID     STAGING_SPREADSHEET_FOLDER_ID
 PROD_SPREADSHEET_ID            STAGING_SPREADSHEET_ID
 PROD_WEB_APP_URL               STAGING_WEB_APP_URL
 ```
@@ -119,10 +119,13 @@ PROD_WEB_APP_URL               STAGING_WEB_APP_URL
 Nothing reads `.env` at runtime. It is the reference copy everything else is populated from:
 
 - **GitHub Actions secrets** — the same keys, pasted by hand.
-- **Apps Script Script Properties** — `SPREADSHEET_ID` and `PHOTO_FOLDER_ID` are pushed by
-  the deploy workflow on every deploy. `ADMIN_TOKEN` is set by hand in Project Settings,
-  because the endpoint that sets properties authenticates with it. None have defaults: an
-  unset property throws instead of falling back.
+- **Apps Script Script Properties** — `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID` and
+  `SPREADSHEET_ID` are pushed by the deploy workflow on every deploy. `ADMIN_TOKEN` and
+  `WRITE_TARGETS` are set by hand in Project Settings: the first because the endpoint that
+  sets properties authenticates with it, the second because it is the operator's switch
+  between writing the legacy sheet alongside the monthly files or the monthly files alone
+  (see `deployment/README.md`). None have defaults: an unset property throws instead of
+  falling back.
 - **`frontend/config.js`** — the only place a Web App URL exists. The forms and dashboard
   are static files with no environment to read, so the URL is written into this gitignored
   file at build time: by `npm run env:staging|production` locally, by the workflow per

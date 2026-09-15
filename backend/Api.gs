@@ -29,50 +29,39 @@ function requireSheet(ss, name) {
 }
 
 function doPost(e) {
-  const startTime = new Date();
-  const logEntry = {
-    timestamp: startTime.toISOString(),
-    formType: 'unknown',
-    rowCount: 0,
-    photoSizeKB: 0,
-    status: 'STARTED',
-    errorMessage: '',
-    durationMs: 0
-  };
+  const ctx = newRequestContext(new Date());
 
   try {
     const payload = JSON.parse(e.postData.contents);
     Logger.log(`[DEBUG] Received payload - formType: ${payload.formType}, type: ${payload.type}, has photos: ${!!payload.photos}, has rows: ${!!payload.rows}`);
 
-    if (payload.type === 'bugReport') return handleBugReport(payload, logEntry);
+    if (payload.type === 'bugReport') return handleBugReport(payload, ctx);
 
-    logEntry.formType = payload.formType || 'unknown';
-    logEntry.rowCount = payload.rows ? payload.rows.length : 0;
-    logEntry.photoSizeKB = photoPayloadSizeKB(payload.photos);
+    ctx.logEntry.formType = payload.formType || 'unknown';
+    ctx.logEntry.rowCount = payload.rows ? payload.rows.length : 0;
+    ctx.logEntry.photoSizeKB = photoPayloadSizeKB(payload.photos);
 
     switch (payload.formType) {
-      case 'delivery':    return handleDeliverySubmission(payload, logEntry);
-      case 'production':  return handleProductionSubmission(payload, logEntry);
-      case 'photos_only': return handlePhotoUpload(payload, logEntry);
+      case 'production':  return handleProductionSubmission(payload, ctx);
+      case 'delivery':    return handleDeliverySubmission(payload, ctx);
+      case 'photos_only': return handlePhotoUpload(payload, ctx);
       default:
         // This used to fall through to {"status":"ok"} having written nothing. The forms
         // submit with mode:'no-cors' and cannot read the response, so a silent no-op was
-        // indistinguishable from a successful save. Now it lands in the execution log.
+        // indistinguishable from a successful save. Now it lands in the execution record.
         throw new Error(`Unknown formType: ${JSON.stringify(payload.formType)}`);
     }
 
   } catch(err) {
-    logEntry.status = 'ERROR';
-    logEntry.errorMessage = err.toString();
+    ctx.logEntry.status = 'ERROR';
+    ctx.logEntry.errorMessage = err.toString();
     return jsonResponse({ status: 'error', message: err.toString() });
   } finally {
-    // Always write execution log, even if logging itself fails
+    // Always write the execution record, even if that itself fails.
     try {
-      logEntry.durationMs = new Date() - startTime;
-      writeExecutionLog(logEntry);
+      writeExecutionRecord(ctx);
     } catch (logError) {
-      Logger.log('[Execution Log] Failed to write log: ' + logError);
-      // Don't throw - logging failure should not break submissions
+      Logger.log('[Executions] Failed to write the execution record: ' + logError);
     }
   }
 }
@@ -120,23 +109,24 @@ function action_rotateAdminToken(e) {
   }
 }
 
+/** Idempotent set-up: the legacy control tabs, and the current month's file so the first write of the month never has to create it. */
 function action_init(e) {
   try {
     initializeConfigSheet();
     initializeAlertLogSheet();
     initializeViolationsTrackerSheet();
 
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        status: 'ok',
-        message: 'Initialization complete',
-        sheets_created: ['Config', 'Alert Log', 'Violations Tracker']
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
+    const monthKey = monthKeyOfInstant(new Date());
+    const opened = openMonthly(monthKey, true);
+
+    return jsonResponse({
+      status: 'ok',
+      message: 'Initialization complete',
+      sheets_created: ['Config', 'Alert Log', 'Violations Tracker'],
+      current_month: { key: monthKey, name: monthlyFileName(monthKey), id: opened.fileId, url: monthlyFileUrl(opened.fileId) }
+    });
   } catch (error) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return jsonResponse({ status: 'error', message: error.toString() });
   }
 }
 
@@ -153,18 +143,47 @@ function action_test(e) {
   }
 }
 
+/**
+ * Health check. Reports both stores while the legacy sheet is a write target, and reports
+ * WRITE_TARGETS raw rather than validating it, so CI can name what is wrong.
+ */
 function action_ping(e) {
-  const SPREADSHEET_ID = getSpreadsheetId();
+  const now = new Date();
+  const sheetId = getSpreadsheetId();
+  const ss = SpreadsheetApp.openById(sheetId);
+  const writeTargets = PropertiesService.getScriptProperties().getProperty('WRITE_TARGETS') || null;
 
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  return ContentService
-    .createTextOutput(JSON.stringify({
-      status: 'ok',
-      environment: ss.getName(),
-      sheet_id: SPREADSHEET_ID,
-      timestamp: new Date().toISOString()
-    }))
-    .setMimeType(ContentService.MimeType.JSON);
+  let folder = null;
+  let folderError = null;
+  try {
+    const f = getSpreadsheetFolder();
+    folder = { id: f.getId(), name: f.getName() };
+  } catch (err) {
+    folderError = err.toString();
+  }
+
+  const monthKey = monthKeyOfInstant(now);
+  const current = { key: monthKey, name: monthlyFileName(monthKey), id: null, url: null };
+  if (folder) {
+    try {
+      const id = resolveMonthlyFileId(monthKey, false);
+      if (id) { current.id = id; current.url = monthlyFileUrl(id); }
+    } catch (err) {
+      current.error = err.toString();
+    }
+  }
+
+  return jsonResponse({
+    status: 'ok',
+    environment: ss.getName(),
+    sheet_id: sheetId,
+    folder_id: folder ? folder.id : null,
+    folder_name: folder ? folder.name : null,
+    folder_error: folderError,
+    current_month: current,
+    write_targets: writeTargets,
+    timestamp: formatInstant(now)
+  });
 }
 
 function action_setScriptProperty(e) {
@@ -283,6 +302,36 @@ function action_deleteTrigger(e) {
   }
 }
 
+/** The monthly store as it stands: folder, targets, and the current and previous month files with row counts per tab. */
+function action_storageStatus(e) {
+  try {
+    const now = new Date();
+    const folder = getSpreadsheetFolder();
+    const current = monthKeyOfInstant(now);
+    const months = [current, previousMonthKey(current)].map(monthKey => {
+      const opened = openMonthly(monthKey, false);
+      if (!opened) return { month: monthKey, file: null };
+      const rows = {};
+      tabNames().forEach(tab => {
+        const sheet = opened.ss.getSheetByName(tab);
+        rows[tab] = sheet ? Math.max(0, sheet.getLastRow() - 1) : null;
+      });
+      return { month: monthKey, file: { name: monthlyFileName(monthKey), id: opened.fileId, url: monthlyFileUrl(opened.fileId) }, rows: rows };
+    });
+    let writeTargets = null;
+    try { writeTargets = getWriteTargets().raw; } catch (err) { writeTargets = null; }
+    return jsonResponse({
+      status: 'ok',
+      folder: { id: folder.getId(), name: folder.getName() },
+      write_targets: writeTargets,
+      months: months,
+      timestamp: formatInstant(now)
+    });
+  } catch (error) {
+    return jsonResponse({ status: 'error', message: error.toString() });
+  }
+}
+
 /** The action table: name → { fn, admin }. Built in a function so file load order cannot matter. */
 function actions() {
   return {
@@ -300,6 +349,7 @@ function actions() {
     createTrigger:         { fn: action_createTrigger,         admin: true },
     deleteTrigger:         { fn: action_deleteTrigger,         admin: true },
     queryDeliveries:       { fn: action_queryDeliveries,       admin: true },
+    storageStatus:         { fn: action_storageStatus,         admin: true },
     // Public
     getConfig:             { fn: action_getConfig,             admin: false },
     setConfig:             { fn: action_setConfig,             admin: false },
@@ -319,7 +369,7 @@ function doGet(e) {
     return ContentService
       .createTextOutput(JSON.stringify({
         status: 'error',
-        message: 'Unknown action. Admin actions (require token): init, test, ping, debugConfig, resetConfig, setScriptProperty, rotateAdminToken, sendDailySummary, getExecutionLog, queryDeliveries, listTriggers, createTrigger, deleteTrigger. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
+        message: 'Unknown action. Admin actions (require token): init, test, ping, debugConfig, resetConfig, setScriptProperty, rotateAdminToken, sendDailySummary, getExecutionLog, queryDeliveries, storageStatus, listTriggers, createTrigger, deleteTrigger. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
       }))
       .setMimeType(ContentService.MimeType.JSON);
   }

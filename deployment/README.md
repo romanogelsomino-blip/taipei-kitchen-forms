@@ -42,12 +42,16 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
    App URL never changes. Without `-i` clasp would mint a new deployment and a new URL.
 4. Waits until the web app answers with JSON. An in-place redeploy can serve Google's
    "unable to open the file" page for several minutes before the new version is live.
-5. Sets the `SPREADSHEET_ID` and `PHOTO_FOLDER_ID` Script Properties from the matching
-   secrets through the `setScriptProperty` admin action, so the secrets are authoritative.
-6. Pings the deployment and asserts it reports the expected spreadsheet id.
-7. On `dev` only, submits a real delivery row (driver `ZZ-CI-SMOKE`, store `0000`) and
-   requires `{"status":"ok"}`. Reads can succeed while writes fail, and a write is the only
-   thing that proves the deployment can reach its sheet. Production gets no synthetic row.
+5. Sets the `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID` and `SPREADSHEET_ID` Script
+   Properties from the matching secrets through the `setScriptProperty` admin action, so
+   the secrets are authoritative. `WRITE_TARGETS` is never set here.
+6. Runs `init`, which creates the current month's operations file if it does not exist.
+7. Pings the deployment and asserts the operations folder id, the current month file, a
+   valid `WRITE_TARGETS`, and, while `legacy` is a target, the legacy spreadsheet id.
+8. On `dev` only, submits a real delivery row dated today (driver `ZZ-CI-SMOKE`, store
+   `0000`) and requires the current month file's Deliveries tab to grow by one row. Reads
+   can succeed while writes fail, and a write is the only thing that proves the deployment
+   can reach its store. Production gets no synthetic row.
 
 **Site job** (after the backend job)
 
@@ -92,7 +96,9 @@ Reset rather than revert: a revert commit on `prod` would make the next merge fr
 the reverted changes. Fix forward on `dev`, then release normally.
 
 Spreadsheet schema changes do not roll back. A column or sheet tab added by the newer code
-stays; only the code goes back.
+stays; only the code goes back. Monthly operations files and Script Properties stay too. A
+backend from before the monthly store reads and writes the legacy sheet only; rows written
+after `WRITE_TARGETS` is `monthly` are invisible to it.
 
 ## Required GitHub secrets
 
@@ -104,6 +110,7 @@ PROD_WEB_APP_URL        STAGING_WEB_APP_URL
 PROD_ADMIN_TOKEN        STAGING_ADMIN_TOKEN
 PROD_SPREADSHEET_ID     STAGING_SPREADSHEET_ID
 PROD_PHOTO_FOLDER_ID    STAGING_PHOTO_FOLDER_ID
+PROD_SPREADSHEET_FOLDER_ID  STAGING_SPREADSHEET_FOLDER_ID
 ```
 
 The names match `.env` one-for-one; copy the values from there. Plus **Settings → Pages →
@@ -113,3 +120,11 @@ Source → GitHub Actions**, or `actions/deploy-pages` fails regardless of the s
 Workspace organizational unit must exempt the clasp OAuth client from Google Cloud session
 control, or the token expires within a day of each `clasp login` and the backend job fails
 at `clasp push` with `invalid_grant`.
+
+### Write targets
+
+`WRITE_TARGETS` is a Script Property set by hand in Project Settings → Script Properties.
+CI validates it and never sets it. Values: `legacy,monthly` while the legacy sheet is still
+written, `monthly` once it is retired. Unset or anything else fails the deploy at the verify
+step and every form submission until it is fixed. Set it on production before the first
+production deploy of the monthly store. Changing it needs no deploy.

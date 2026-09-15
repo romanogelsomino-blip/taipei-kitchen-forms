@@ -81,7 +81,23 @@ const PRODUCTION_LOG_COLUMNS = [
 
 /** Build one sheet row from a schema. `ctx` carries per-request values like serverTimestamp. */
 function buildSheetRow(schema, row, ctx) {
-  return schema.map(column => (column.value ? column.value(row, ctx) : row[column.from]));
+  return schema.map(column => {
+    const value = column.value ? column.value(row, ctx) : row[column.from];
+    return value === undefined || value === null ? '' : value;
+  });
+}
+
+/** Legacy writers, called by Records.gs while WRITE_TARGETS includes `legacy`. */
+function legacyAppendProduction(rows, ctx) {
+  const sheet = requireSheet(openSpreadsheet(), 'Production Log - Live');
+  // T-027: the legacy sheet keeps its UTC server timestamp.
+  const legacyCtx = { serverTimestamp: ctx.startTime.toISOString() };
+  rows.forEach(row => sheet.appendRow(buildSheetRow(PRODUCTION_LOG_COLUMNS, row, legacyCtx)));
+}
+
+function legacyAppendDeliveries(rows) {
+  const sheet = requireSheet(openSpreadsheet(), 'Delivery Log - Live');
+  rows.forEach(row => sheet.appendRow(buildSheetRow(DELIVERY_LOG_COLUMNS, row)));
 }
 
 /**

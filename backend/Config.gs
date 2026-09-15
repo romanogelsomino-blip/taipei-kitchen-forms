@@ -17,6 +17,22 @@ function requireProperty(name) {
 }
 
 /**
+ * Where records are written, from the hand-set WRITE_TARGETS property: `legacy,monthly`
+ * during the side-by-side period, `monthly` once the legacy sheet is retired. Unset or
+ * anything else throws: reads come from the monthly files only, so `legacy` alone would
+ * make every new record invisible.
+ */
+function getWriteTargets() {
+  const raw = requireProperty('WRITE_TARGETS');
+  const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+  const bad = parts.filter(p => p !== 'legacy' && p !== 'monthly');
+  if (bad.length || !parts.includes('monthly')) {
+    throw new Error('WRITE_TARGETS is "' + raw + '"; expected "legacy,monthly" or "monthly".');
+  }
+  return { raw: raw, monthly: true, legacy: parts.includes('legacy') };
+}
+
+/**
  * Initialize Config sheet if it doesn't exist
  * Run this once manually after deploying to create the Config tab
  */

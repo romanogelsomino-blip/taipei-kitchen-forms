@@ -30,6 +30,8 @@
     "trigger:delete:production": "node scripts/admin-action.js production deleteTrigger sendDailySummary",
     "ping:staging": "node scripts/admin-action.js staging ping",
     "ping:production": "node scripts/admin-action.js production ping",
+    "storage:staging": "node scripts/admin-action.js staging storageStatus",
+    "storage:production": "node scripts/admin-action.js production storageStatus",
     "config:reset:staging": "node scripts/admin-action.js staging resetConfig",
     "config:reset:production": "node scripts/admin-action.js production resetConfig",
     "watch": "clasp push --watch",
