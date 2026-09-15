@@ -1,8 +1,7 @@
 // forms/delivery.js — the driver's per-store delivery form. Loads after forms/common.js.
 
-// ─── Fallback lists (used when data/stores.json cannot be fetched) ───────────
-let DISHES = ["General Tso Chicken Bento", "Sesame Chicken Bento", "Bento Chicken Lo Mein", "Bento Shrimp Lo Mein", "Bento Smoked Pork Lo Mein", "Bento Sweet & Sour Chicken", "Bourbon Chicken Bento", "Broccoli Chicken Bento", "Hot Spicy Chicken Bento", "Bento Steamed Dumplings", "Chicken Egg Roll", "Pork Egg Roll", "Shrimp Egg Roll"];
-let STORES = [{"id": "6006", "name": "Store 6006", "location": "Kline Village, Harrisburg, PA"}, {"id": "6061", "name": "Store 6061", "location": "Shippensburg, PA"}, {"id": "6112", "name": "Store 6112", "location": "255 S Spring Garden St, Carlisle, PA"}, {"id": "6253", "name": "Store 6253", "location": "New Cumberland, PA"}, {"id": "6331", "name": "Store 6331", "location": "Mechanicsburg, PA"}, {"id": "6443", "name": "Store 6443", "location": "Chambersburg, PA"}, {"id": "6542", "name": "Store 6542", "location": "Carlisle, PA"}, {"id": "6564", "name": "Store 6564", "location": "Harrisburg (Gayson Rd), PA"}];
+let DISHES = FALLBACK_DATA.dishes;
+let STORES = FALLBACK_DATA.stores;
 
 // The QR code at each store opens this page with ?store=<id>.
 const params = new URLSearchParams(window.location.search);
@@ -154,10 +153,7 @@ function recalcModal() {
 // ═══════════════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
   const data = await loadStoresData();
-  if (data && data.stores) {
-    STORES = data.stores.filter(s => s.active);
-    console.log('[Stores] Loaded ' + STORES.length + ' active stores from JSON');
-  }
+  STORES = activeEntries(data, 'stores', STORES);
   DISHES = activeDishNames(data, DISHES);
 
   storeData = STORES.find(s => s.id === storeId);

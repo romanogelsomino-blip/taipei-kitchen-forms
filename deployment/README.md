@@ -106,3 +106,8 @@ PROD_PHOTO_FOLDER_ID    STAGING_PHOTO_FOLDER_ID
 
 The names match `.env` one-for-one; copy the values from there. Plus **Settings → Pages →
 Source → GitHub Actions**, or `actions/deploy-pages` fails regardless of the secrets.
+
+`CLASPRC_JSON` is a refresh token for the deploying Google account. That account's
+Workspace organizational unit must exempt the clasp OAuth client from Google Cloud session
+control, or the token expires within a day of each `clasp login` and the backend job fails
+at `clasp push` with `invalid_grant`.

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "lastUpdated": "2026-08-27",
+  "lastUpdated": "2026-09-14",
   "stores": [
     {
       "id": "6006",
@@ -129,6 +129,23 @@
       "name": "Shrimp Egg Roll",
       "active": true,
       "sortOrder": 13
+    }
+  ],
+  "kitchens": [
+    {
+      "id": "legacy-park",
+      "name": "Legacy Park",
+      "active": true
+    },
+    {
+      "id": "6112",
+      "name": "Store 6112",
+      "active": true
+    },
+    {
+      "id": "other",
+      "name": "Other",
+      "active": true
     }
   ]
 }

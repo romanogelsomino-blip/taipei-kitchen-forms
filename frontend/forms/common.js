@@ -8,9 +8,36 @@
 // never hardcoded here. See scripts/write-frontend-config.js.
 const GOOGLE_SCRIPT_URL = (window.APP_CONFIG && window.APP_CONFIG.webAppUrl) || null;
 
-// ─── Stores & dishes ─────────────────────────────────────────────────────────
-// data/stores.json holds the store and dish lists. Cached in localStorage for an hour so a
-// phone on store Wi-Fi is not refetching it at every stop.
+// ─── Stores, kitchens & dishes ───────────────────────────────────────────────
+// data/stores.json holds the store, kitchen and dish lists. Cached in localStorage for an
+// hour so a phone on store Wi-Fi is not refetching it at every stop.
+
+// Used when stores.json cannot be fetched: offline, or a local server started from
+// frontend/ where data/ is not reachable. Keep in step with data/stores.json.
+const FALLBACK_DATA = {
+  stores: [
+    { id: '6006', name: 'Store 6006', location: 'Kline Village, Harrisburg, PA' },
+    { id: '6061', name: 'Store 6061', location: 'Shippensburg, PA' },
+    { id: '6112', name: 'Store 6112', location: '255 S Spring Garden St, Carlisle, PA' },
+    { id: '6253', name: 'Store 6253', location: 'New Cumberland, PA' },
+    { id: '6331', name: 'Store 6331', location: 'Mechanicsburg, PA' },
+    { id: '6443', name: 'Store 6443', location: 'Chambersburg, PA' },
+    { id: '6542', name: 'Store 6542', location: 'Carlisle, PA' },
+    { id: '6564', name: 'Store 6564', location: 'Harrisburg (Gayson Rd), PA' }
+  ],
+  kitchens: [
+    { id: 'legacy-park', name: 'Legacy Park' },
+    { id: '6112',        name: 'Store 6112' },
+    { id: 'other',       name: 'Other' }
+  ],
+  dishes: [
+    'General Tso Chicken Bento', 'Sesame Chicken Bento', 'Bento Chicken Lo Mein',
+    'Bento Shrimp Lo Mein', 'Bento Smoked Pork Lo Mein', 'Bento Sweet & Sour Chicken',
+    'Bourbon Chicken Bento', 'Broccoli Chicken Bento', 'Hot Spicy Chicken Bento',
+    'Bento Steamed Dumplings', 'Chicken Egg Roll', 'Pork Egg Roll', 'Shrimp Egg Roll'
+  ]
+};
+
 async function loadStoresData() {
   const CACHE_KEY = 'tk_stores_data';
   const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
@@ -39,6 +66,14 @@ async function loadStoresData() {
     console.warn('[Stores] Could not fetch stores.json. Using fallback hardcoded list. Error:', e.message);
     return null;
   }
+}
+
+/** Active entries of one stores.json list (stores, kitchens), or `fallback` when unavailable. */
+function activeEntries(storesData, key, fallback) {
+  if (!storesData || !storesData[key]) return fallback;
+  const entries = storesData[key].filter(e => e.active);
+  console.log('[Stores] Loaded ' + entries.length + ' active ' + key + ' from JSON');
+  return entries;
 }
 
 /** Active dish names in display order, or `fallback` when stores.json was unavailable. */

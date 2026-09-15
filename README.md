@@ -10,13 +10,14 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 
 | Path | What it does |
 |---|---|
+| `frontend/index.html` | Landing page. What the system is, a location picker that opens the right form, and a link to the dashboard. |
 | `frontend/taipei_production_form3.html` | Kitchen form. Logs each batch — cook times, cooling, dish counts, quality notes. |
 | `frontend/taipei_delivery_form3.html` | Driver form. Logs each store delivery — temps, photos, what was loaded, what was left, case fill levels. |
 | `frontend/forms/` | The scripts and stylesheet behind both forms: `common.js` and `styles.css` are shared, then one script per form. |
 | `frontend/dashboard/` | Live web dashboard — metrics, deliveries, production, waste analysis, HACCP compliance. |
 | `frontend/assets/` | Branding used by the forms. |
 | `backend/Code.gs` | Google Apps Script handling form submissions and serving the dashboard API. |
-| `data/` | JSON for drivers, supervisors, stores, and dishes — fetched at form load. |
+| `data/` | JSON for drivers, supervisors, stores, kitchens, and dishes — fetched at page load. |
 | `deployment/` | Deployment guide — start here for how either half reaches production. |
 | `scripts/` | Admin-endpoint helpers, driven by the single root `.env`. |
 
@@ -25,6 +26,7 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 **`frontend/` and `data/` publish to the site root**, so the served URLs contain no
 `frontend/` segment. The QR codes depend on that.
 
+**Home:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/
 **Live Dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
 
 ---
@@ -63,11 +65,12 @@ To work on them:
 
 ## Stores
 
-The store list is `data/stores.json`. To add a store: add it there, mirror the entry into the
-hardcoded fallback in `frontend/forms/delivery.js`, and release. The store list is
+The store and kitchen lists are in `data/stores.json`. To add one: add it there, mirror the
+entry into the fallback in `frontend/forms/common.js`, and release. The store list is
 also duplicated in `backend/Code.gs` (violation-alert names and the dashboard store filter) —
 those need a backend deploy to pick up a new store. QR codes point at
-`taipei_delivery_form3.html?store=<id>`.
+`taipei_delivery_form3.html?store=<id>`. The landing page opens the production form the same
+way, with `taipei_production_form3.html?kitchen=<id>`.
 
 ---
 

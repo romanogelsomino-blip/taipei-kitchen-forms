@@ -1,7 +1,7 @@
 // forms/production.js — the kitchen's per-batch production log. Loads after forms/common.js.
 
-// ─── Fallback dish list (used when data/stores.json cannot be fetched) ───────
-let DISHES = ['General Tso Chicken Bento', 'Sesame Chicken Bento', 'Bento Chicken Lo Mein', 'Bento Shrimp Lo Mein', 'Bento Smoked Pork Lo Mein', 'Bento Sweet & Sour Chicken', 'Bourbon Chicken Bento', 'Broccoli Chicken Bento', 'Hot Spicy Chicken Bento', 'Bento Steamed Dumplings', 'Chicken Egg Roll', 'Pork Egg Roll', 'Shrimp Egg Roll'];
+let DISHES   = FALLBACK_DATA.dishes;
+let KITCHENS = FALLBACK_DATA.kitchens;
 
 const supervisorPicker = createPeoplePicker({
   selectId: 'f-supervisor',
@@ -56,7 +56,11 @@ const dishEntry = createDishEntry({
 // Page load
 // ═══════════════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
-  DISHES = activeDishNames(await loadStoresData(), DISHES);
+  const data = await loadStoresData();
+  DISHES   = activeDishNames(data, DISHES);
+  KITCHENS = activeEntries(data, 'kitchens', KITCHENS);
+  populateKitchens();
+  applyKitchenParam();
 
   document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
   dishEntry.buildList();
@@ -64,6 +68,27 @@ window.addEventListener('DOMContentLoaded', async () => {
   supervisorPicker.load();
   lastSubmission.offerIfRecent();
 });
+
+// ─── Production kitchen ───────────────────────────────────
+// The sheet's Kitchen column holds the display name, so option values are names, not ids.
+function populateKitchens() {
+  const select = document.getElementById('f-kitchen');
+  while (select.options.length > 1) select.remove(1);
+  KITCHENS.forEach(kitchen => {
+    const option = document.createElement('option');
+    option.value = kitchen.name;
+    option.textContent = kitchen.name;
+    select.appendChild(option);
+  });
+}
+
+// The landing page opens this form with ?kitchen=<id>, the way QR codes open the delivery
+// form with ?store=<id>. Unknown ids leave the dropdown on "— Select —".
+function applyKitchenParam() {
+  const id = new URLSearchParams(window.location.search).get('kitchen');
+  const kitchen = id && KITCHENS.find(k => k.id === id);
+  if (kitchen) document.getElementById('f-kitchen').value = kitchen.name;
+}
 
 // ─── Batch ID management ─────────────────────────────────
 let batchCounter = 1;
