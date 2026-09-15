@@ -45,13 +45,18 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
 5. Sets the `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID`, `SPREADSHEET_ID` and
    `WRITE_TARGETS` Script Properties from the matching secrets through the
    `setScriptProperty` admin action, so the secrets are authoritative.
-6. Runs `init`, which creates the current month's operations file if it does not exist.
-7. Pings the deployment and asserts the operations folder id, the current month file, a
-   valid `WRITE_TARGETS`, and, while `legacy` is a target, the legacy spreadsheet id.
-8. On `dev` only, submits a real delivery row dated today (driver `ZZ-CI-SMOKE`, store
+6. Pings the deployment and asserts the operations folder id, the current month's file
+   name, a valid `WRITE_TARGETS`, and, while `legacy` is a target, the legacy spreadsheet
+   id. The month file itself is created by the first record written in the month, never
+   by the workflow.
+7. On `dev` only, submits a real delivery row dated today (driver `ZZ-CI-SMOKE`, store
    `0000`) and requires the current month file's Deliveries tab to grow by one row. Reads
    can succeed while writes fail, and a write is the only thing that proves the deployment
    can reach its store. Production gets no synthetic row.
+
+Every call to the web app after the redeploy retries while Google's error page comes back
+instead of JSON. The smoke write is the exception: it is sent once, and the row count
+decides whether it landed.
 
 **Site job** (after the backend job)
 
