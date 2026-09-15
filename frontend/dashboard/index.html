@@ -41,7 +41,15 @@
 <div class="main-layout">
   <!-- Side Navigation (Desktop) -->
   <nav class="side-nav" id="side-nav">
-    <a href="#overview" class="nav-link active" data-panel="overview">
+    <a href="#home" class="nav-link active" data-panel="home">
+      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 11l9-8 9 8"></path>
+        <path d="M5 10v10h14V10"></path>
+        <path d="M10 20v-6h4v6"></path>
+      </svg>
+      <span class="nav-label">Home</span>
+    </a>
+    <a href="#overview" class="nav-link" data-panel="overview">
       <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="3" width="7" height="7"></rect>
         <rect x="14" y="3" width="7" height="7"></rect>
@@ -49,15 +57,6 @@
         <rect x="3" y="14" width="7" height="7"></rect>
       </svg>
       <span class="nav-label">Overview</span>
-    </a>
-    <a href="#deliveries" class="nav-link" data-panel="deliveries">
-      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="1" y="3" width="15" height="13"></rect>
-        <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-        <circle cx="5.5" cy="18.5" r="2.5"></circle>
-        <circle cx="18.5" cy="18.5" r="2.5"></circle>
-      </svg>
-      <span class="nav-label">Deliveries</span>
     </a>
     <a href="#production" class="nav-link" data-panel="production">
       <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -67,6 +66,15 @@
         <path d="M18 20v-6"></path>
       </svg>
       <span class="nav-label">Production</span>
+    </a>
+    <a href="#deliveries" class="nav-link" data-panel="deliveries">
+      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="1" y="3" width="15" height="13"></rect>
+        <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+        <circle cx="5.5" cy="18.5" r="2.5"></circle>
+        <circle cx="18.5" cy="18.5" r="2.5"></circle>
+      </svg>
+      <span class="nav-label">Deliveries</span>
     </a>
     <a href="#shrink" class="nav-link" data-panel="shrink">
       <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -100,14 +108,17 @@
 
   <!-- Mobile Bottom Navigation -->
   <nav class="mobile-nav">
-    <a href="#overview" class="mobile-nav-link active" data-panel="overview">
+    <a href="#home" class="mobile-nav-link active" data-panel="home">
       <span class="mobile-nav-label">Home</span>
     </a>
-    <a href="#deliveries" class="mobile-nav-link" data-panel="deliveries">
-      <span class="mobile-nav-label">Trucks</span>
+    <a href="#overview" class="mobile-nav-link" data-panel="overview">
+      <span class="mobile-nav-label">Overview</span>
     </a>
     <a href="#production" class="mobile-nav-link" data-panel="production">
       <span class="mobile-nav-label">Kitchen</span>
+    </a>
+    <a href="#deliveries" class="mobile-nav-link" data-panel="deliveries">
+      <span class="mobile-nav-label">Trucks</span>
     </a>
     <a href="#food-safety" class="mobile-nav-link" data-panel="food-safety">
       <span class="mobile-nav-label">Safety</span>
@@ -139,12 +150,50 @@
       </div>
     </div>
 
+    <!-- Home Panel -->
+    <section id="panel-home" class="panel active">
+      <h1 class="panel-title">Taipei Kitchen Bento Operations</h1>
+      <p class="panel-subtitle">Production and delivery logging for the Giant bento program</p>
+
+      <div class="section-card">
+        <h2 class="section-title">What this system does</h2>
+        <p style="line-height:1.6;max-width:72ch;">Taipei Kitchen cooks ready-to-eat bento for Giant supermarkets across central Pennsylvania. Every batch is logged from kitchen to shelf: cook and cooling times when the food is made, then cooler temperatures, stock counts, and case photos at each store delivery.</p>
+        <p style="line-height:1.6;max-width:72ch;margin-top:10px;">Every entry lands in the operations spreadsheet, where it backs HACCP food-safety compliance and feeds this dashboard. The sections in the menu show what has been logged.</p>
+      </div>
+
+      <div class="home-launchers">
+        <div class="section-card">
+          <h2 class="section-title">Production Log</h2>
+          <p class="home-launcher-blurb">Kitchen staff record each batch: cook and cooling times, dish counts, and QA.</p>
+          <div class="filter-field">
+            <label for="home-kitchen">Production kitchen</label>
+            <select id="home-kitchen" onchange="homeUpdateLaunchers()">
+              <option value="">— Select a kitchen —</option>
+            </select>
+          </div>
+          <button class="btn-apply-filters home-launch" id="home-open-production" onclick="homeOpen('production')" disabled>Select a kitchen</button>
+        </div>
+        <div class="section-card">
+          <h2 class="section-title">Delivery Form</h2>
+          <p class="home-launcher-blurb">Drivers record each store drop: cooler temperature, what was stocked and pulled, and case photos.</p>
+          <div class="filter-field">
+            <label for="home-store">Store</label>
+            <select id="home-store" onchange="homeUpdateLaunchers()">
+              <option value="">— Select a store —</option>
+            </select>
+          </div>
+          <button class="btn-apply-filters home-launch" id="home-open-delivery" onclick="homeOpen('delivery')" disabled>Select a store</button>
+        </div>
+      </div>
+      <p id="home-locations-status" class="home-status"></p>
+    </section>
+
     <!-- Overview Panel -->
-    <section id="panel-overview" class="panel active">
+    <section id="panel-overview" class="panel">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <div>
           <h1 class="panel-title" style="margin-bottom:4px;">Live Operations Dashboard</h1>
-          <p class="panel-subtitle" style="margin-bottom:0;">Real-time insights from delivery, production, and food safety operations</p>
+          <p class="panel-subtitle" style="margin-bottom:0;">Real-time insights from production, delivery, and food safety operations</p>
         </div>
         <div style="display:flex;gap:8px;">
           <button onclick="toggleHACCPPolicy()" style="background:var(--dark);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:0.8rem;cursor:pointer;font-weight:600;font-family:'DM Mono',monospace;">HACCP Policy</button>

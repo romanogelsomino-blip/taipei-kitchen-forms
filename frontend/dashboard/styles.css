@@ -1716,3 +1716,38 @@ body {
     width: 100%;
   }
 }
+
+/* ── Home panel ── */
+.home-launchers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+.home-launcher-blurb {
+  color: var(--mid);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+.home-launch {
+  margin-top: 14px;
+  margin-right: 0;
+  width: 100%;
+}
+.btn-apply-filters:disabled {
+  background: var(--border);
+  color: var(--soft);
+  cursor: not-allowed;
+}
+.home-status {
+  margin-top: 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--soft);
+}
+
+/* Eight sections share a phone-width bar: compact labels, and scroll rather than clip if
+   a screen is narrower still. */
+.mobile-nav { overflow-x: auto; }
+.mobile-nav-link { flex: 1 0 auto; padding: 12px 3px; }
+.mobile-nav-label { font-size: 0.6rem; letter-spacing: 0; }

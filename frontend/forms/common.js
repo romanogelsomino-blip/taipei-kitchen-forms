@@ -9,12 +9,17 @@
 const GOOGLE_SCRIPT_URL = (window.APP_CONFIG && window.APP_CONFIG.webAppUrl) || null;
 
 // ─── Stores, kitchens & dishes ───────────────────────────────────────────────
-// data/stores.json holds the store, kitchen and dish lists. Cached in localStorage for an
+// data/stores.json holds the kitchen, store and dish lists. Cached in localStorage for an
 // hour so a phone on store Wi-Fi is not refetching it at every stop.
 
 // Used when stores.json cannot be fetched: offline, or a local server started from
 // frontend/ where data/ is not reachable. Keep in step with data/stores.json.
 const FALLBACK_DATA = {
+  kitchens: [
+    { id: 'legacy-park', name: 'Legacy Park' },
+    { id: '6112',        name: 'Store 6112' },
+    { id: 'other',       name: 'Other' }
+  ],
   stores: [
     { id: '6006', name: 'Store 6006', location: 'Kline Village, Harrisburg, PA' },
     { id: '6061', name: 'Store 6061', location: 'Shippensburg, PA' },
@@ -24,11 +29,6 @@ const FALLBACK_DATA = {
     { id: '6443', name: 'Store 6443', location: 'Chambersburg, PA' },
     { id: '6542', name: 'Store 6542', location: 'Carlisle, PA' },
     { id: '6564', name: 'Store 6564', location: 'Harrisburg (Gayson Rd), PA' }
-  ],
-  kitchens: [
-    { id: 'legacy-park', name: 'Legacy Park' },
-    { id: '6112',        name: 'Store 6112' },
-    { id: 'other',       name: 'Other' }
   ],
   dishes: [
     'General Tso Chicken Bento', 'Sesame Chicken Bento', 'Bento Chicken Lo Mein',
@@ -68,7 +68,7 @@ async function loadStoresData() {
   }
 }
 
-/** Active entries of one stores.json list (stores, kitchens), or `fallback` when unavailable. */
+/** Active entries of one stores.json list (kitchens, stores), or `fallback` when unavailable. */
 function activeEntries(storesData, key, fallback) {
   if (!storesData || !storesData[key]) return fallback;
   const entries = storesData[key].filter(e => e.active);

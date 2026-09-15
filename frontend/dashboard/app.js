@@ -167,6 +167,7 @@ function createMultiSelect(containerId, options, placeholder, onChange) {
 window.addEventListener('DOMContentLoaded', async () => {
   loadConfig();
   setupNavigation();
+  loadHomeLocations();
   updateCurrentDate();
 
   // Check if we should use demo data or real API
@@ -447,6 +448,67 @@ function showPanel(panelName) {
   if (window.innerWidth <= 768) {
     window.scrollTo(0, 0);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Home panel: form launchers
+// ═══════════════════════════════════════════════════════════════════════════
+// One launcher per form so the two cannot be confused. A kitchen opens the production
+// log with ?kitchen=<id>; a store opens the delivery form with ?store=<id>. The lists come
+// from data/stores.json, the same file the forms read.
+
+const HOME_FORMS = {
+  production: { page: '../taipei_production_form3.html', param: 'kitchen', selectId: 'home-kitchen', buttonId: 'home-open-production', label: 'Open Production Log', prompt: 'Select a kitchen' },
+  delivery:   { page: '../taipei_delivery_form3.html',   param: 'store',   selectId: 'home-store',   buttonId: 'home-open-delivery',   label: 'Open Delivery Form',   prompt: 'Select a store' }
+};
+
+async function loadHomeLocations() {
+  const status = document.getElementById('home-locations-status');
+  try {
+    const response = await fetch('../data/stores.json');
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
+    fillHomeSelect('home-kitchen', (data.kitchens || []).filter(k => k.active), k => k.name);
+    fillHomeSelect('home-store',   (data.stores   || []).filter(s => s.active), s => s.location ? `${s.name} · ${s.location}` : s.name);
+    status.textContent = '';
+  } catch (e) {
+    console.error('[Home] Could not load data/stores.json:', e);
+    status.textContent = 'The kitchen and store lists could not be loaded. Reload to try again.';
+  }
+  homeUpdateLaunchers();
+}
+
+function fillHomeSelect(id, entries, text) {
+  const select = document.getElementById(id);
+  while (select.options.length > 1) select.remove(1);
+  entries.forEach(entry => {
+    const option = document.createElement('option');
+    option.value = entry.id;
+    option.textContent = text(entry);
+    select.appendChild(option);
+  });
+}
+
+/** Where a launcher will go, or null while nothing is selected. */
+function homeTarget(kind) {
+  const form = HOME_FORMS[kind];
+  const id = document.getElementById(form.selectId).value;
+  return id ? `${form.page}?${form.param}=${encodeURIComponent(id)}` : null;
+}
+
+function homeUpdateLaunchers() {
+  Object.keys(HOME_FORMS).forEach(kind => {
+    const form = HOME_FORMS[kind];
+    const button = document.getElementById(form.buttonId);
+    const ready = homeTarget(kind) !== null;
+    button.disabled = !ready;
+    button.textContent = ready ? form.label : form.prompt;
+  });
+}
+
+function homeOpen(kind) {
+  const url = homeTarget(kind);
+  if (url) window.location.href = url;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
