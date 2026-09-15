@@ -15,7 +15,7 @@ branches; nothing can drift.
 `frontend/` and `data/` are flattened to the site root, so served URLs contain no
 `/frontend/` segment. **Every printed QR code depends on that.**
 
-**Backend** — `backend/Code.gs` and `appsscript.json`. A standalone Apps Script project,
+**Backend** — `backend/*.gs` and `appsscript.json`. A standalone Apps Script project,
 uploaded with clasp and served through a single pinned Web App deployment per environment.
 
 ## Branches

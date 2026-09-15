@@ -5,6 +5,9 @@
   "scripts": {
     "env:staging": "node scripts/set-clasp-env.js staging && node scripts/write-frontend-config.js staging",
     "env:production": "node scripts/set-clasp-env.js production && node scripts/write-frontend-config.js production",
+    "site:build": "rm -rf _site && mkdir -p _site && cp -r frontend/. _site/ && cp -r data _site/data",
+    "serve": "npm run -s site:build && echo 'Serving http://localhost:8080/dashboard/' && python3 -m http.server 8080 -d _site",
+    "serve:demo": "npm run -s site:build && rm -f _site/config.js && echo 'Serving http://localhost:8080/dashboard/ with sample data, no backend' && python3 -m http.server 8080 -d _site",
     "init:staging": "node scripts/admin-action.js staging init",
     "init:production": "node scripts/admin-action.js production init",
     "test:violation:staging": "node scripts/admin-action.js staging test",

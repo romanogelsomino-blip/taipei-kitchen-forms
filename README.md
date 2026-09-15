@@ -15,7 +15,7 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 | `frontend/forms/` | The scripts and stylesheet behind both forms: `common.js` and `styles.css` are shared, then one script per form. |
 | `frontend/dashboard/` | Live web dashboard. Opens on a home page that explains the system and launches either form; then metrics, production, deliveries, waste analysis, HACCP compliance. |
 | `frontend/assets/` | Branding used by the forms. |
-| `backend/Code.gs` | Google Apps Script handling form submissions and serving the dashboard API. |
+| `backend/` | Google Apps Script handling form submissions and serving the dashboard API. One script, several files split by domain; `Api.gs` holds the two entry points. |
 | `data/` | JSON for drivers, supervisors, stores, kitchens, and dishes — fetched at page load. |
 | `deployment/` | Deployment guide — start here for how either half reaches production. |
 | `scripts/` | Admin-endpoint helpers, driven by the single root `.env`. |
@@ -43,13 +43,8 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 - **Production form:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_production_form3.html
 - **Delivery form:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_delivery_form3.html
 
-To work on them:
-
-1. Edit the form pages in `frontend/` and their scripts and stylesheet in `frontend/forms/`
-2. Generate the local config once: `npm run env:staging`
-3. Test on a local server: `cd frontend && python3 -m http.server 8080`. `data/` is not
-   under `frontend/`, so locally the dropdowns fall back to the lists built into each form's script.
-4. Push to `dev`, check `/staging/`, then merge to `prod`
+The pages live in `frontend/`, their scripts and stylesheet in `frontend/forms/`. See
+[Running locally](#running-locally) to try a change before pushing it.
 
 ### Dashboard
 1. Google Apps Script `doGet` endpoint serves JSON data from the sheet.
@@ -59,13 +54,27 @@ To work on them:
 5. Waste analysis with charts showing patterns by store and reason.
 6. Weekly food safety summary suitable for regulator/corporate review.
 
+### Running locally
+
+`npm run serve:demo` assembles the site the way CI publishes it, `frontend/` at the root
+with `data/` beside it, into a gitignored `_site/` and serves it at http://localhost:8080/
+with no backend. The dashboard shows sample data and the forms render but do not submit.
+Open `/dashboard/`, or a form such as `/taipei_production_form3.html?kitchen=legacy-park`.
+
+To run against the staging backend instead, write the staging config once with
+`npm run env:staging`, then use `npm run serve`. The dashboard reads live staging data, and
+a form submission writes a real row to the staging sheet.
+
+The server serves the copy in `_site/`, so stop it and run the command again after editing.
+Push to `dev` to check `/staging/`, then merge to `prod`.
+
 ---
 
 ## Stores
 
 The store and kitchen lists are in `data/stores.json`. To add one: add it there, mirror the
 entry into the fallback in `frontend/forms/common.js`, and release. The store list is
-also duplicated in `backend/Code.gs` (violation-alert names and the dashboard store filter) —
+also duplicated in `backend/Reads.gs` (the dashboard store filter) —
 those need a backend deploy to pick up a new store. QR codes point at
 `taipei_delivery_form3.html?store=<id>`. The dashboard's home page opens the production form the
 same way, with `taipei_production_form3.html?kitchen=<id>`.
@@ -120,7 +129,8 @@ Nothing reads `.env` at runtime. It is the reference copy everything else is pop
   tree in CI. A CI guard fails the build if an Apps Script URL appears anywhere else.
 - **`.clasp.json`** — the clasp target, generated the same way from `SCRIPT_ID`.
 
-Run `npm run env:staging` once after cloning, or the forms show "Not Configured".
+Run `npm run env:staging` before `npm run serve`, or the forms show "Not Configured".
+`npm run serve:demo` needs no config.
 
 ---
 
