@@ -132,15 +132,20 @@ jobs:
           SPREADSHEET_FOLDER_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_FOLDER_ID || secrets.STAGING_SPREADSHEET_FOLDER_ID }}
           PHOTO_FOLDER_ID: ${{ github.ref_name == 'prod' && secrets.PROD_PHOTO_FOLDER_ID || secrets.STAGING_PHOTO_FOLDER_ID }}
           SPREADSHEET_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_ID || secrets.STAGING_SPREADSHEET_ID }}
+          WRITE_TARGETS: ${{ github.ref_name == 'prod' && secrets.PROD_WRITE_TARGETS || secrets.STAGING_WRITE_TARGETS }}
         run: |
           set -euo pipefail
           if [ -z "$TOKEN" ]; then
             echo "::error::admin token secret is not set for ${{ steps.env.outputs.name }}."
             exit 1
           fi
-          # Deployment identity only. WRITE_TARGETS is the operator's switch: set by hand,
-          # validated by the verify step, never written by CI.
-          for KEY in SPREADSHEET_FOLDER_ID PHOTO_FOLDER_ID SPREADSHEET_ID; do
+          # Checked before anything is pushed, so a bad secret cannot take the forms down.
+          case "$WRITE_TARGETS" in
+            legacy,monthly|monthly) ;;
+            "") echo "::error::${{ steps.env.outputs.name }} WRITE_TARGETS secret is not set. Expected 'legacy,monthly' or 'monthly'."; exit 1 ;;
+            *)  echo "::error::${{ steps.env.outputs.name }} WRITE_TARGETS secret is '$WRITE_TARGETS'; expected 'legacy,monthly' or 'monthly'."; exit 1 ;;
+          esac
+          for KEY in SPREADSHEET_FOLDER_ID PHOTO_FOLDER_ID SPREADSHEET_ID WRITE_TARGETS; do
             VALUE="${!KEY}"
             if [ -z "$VALUE" ]; then
               echo "::error::${{ steps.env.outputs.name }} $KEY secret is not set."
@@ -202,12 +207,12 @@ jobs:
           [ -n "$(jq -r '.current_month.id // empty' <<<"$OUT")" ] \
             || { echo "::error::the current month file does not exist; the init step should have created it."; exit 1; }
 
-          # WRITE_TARGETS is set by hand and never by CI: validate and report, never change.
+          # The reconcile step pushed WRITE_TARGETS from the secret; the backend must now see it.
           TARGETS=$(jq -r '.write_targets // empty' <<<"$OUT")
           case "$TARGETS" in
             legacy,monthly|monthly) ;;
-            "") echo "::error::WRITE_TARGETS Script Property is not set on ${{ steps.env.outputs.name }}. Set it by hand to 'legacy,monthly' or 'monthly' (Project Settings > Script Properties)."; exit 1 ;;
-            *)  echo "::error::WRITE_TARGETS is '$TARGETS'; expected 'legacy,monthly' or 'monthly'."; exit 1 ;;
+            "") echo "::error::the backend reports no WRITE_TARGETS although the reconcile step set it; check the ${{ steps.env.outputs.name }} WRITE_TARGETS secret."; exit 1 ;;
+            *)  echo "::error::the backend reports WRITE_TARGETS '$TARGETS'; expected 'legacy,monthly' or 'monthly'."; exit 1 ;;
           esac
 
           # The legacy sheet stays asserted while it is still a write target.

@@ -42,9 +42,9 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
    App URL never changes. Without `-i` clasp would mint a new deployment and a new URL.
 4. Waits until the web app answers with JSON. An in-place redeploy can serve Google's
    "unable to open the file" page for several minutes before the new version is live.
-5. Sets the `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID` and `SPREADSHEET_ID` Script
-   Properties from the matching secrets through the `setScriptProperty` admin action, so
-   the secrets are authoritative. `WRITE_TARGETS` is never set here.
+5. Sets the `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID`, `SPREADSHEET_ID` and
+   `WRITE_TARGETS` Script Properties from the matching secrets through the
+   `setScriptProperty` admin action, so the secrets are authoritative.
 6. Runs `init`, which creates the current month's operations file if it does not exist.
 7. Pings the deployment and asserts the operations folder id, the current month file, a
    valid `WRITE_TARGETS`, and, while `legacy` is a target, the legacy spreadsheet id.
@@ -104,13 +104,14 @@ after `WRITE_TARGETS` is `monthly` are invisible to it.
 
 ```
 CLASPRC_JSON
-PROD_SCRIPT_ID          STAGING_SCRIPT_ID
-PROD_DEPLOYMENT_ID      STAGING_DEPLOYMENT_ID
-PROD_WEB_APP_URL        STAGING_WEB_APP_URL
-PROD_ADMIN_TOKEN        STAGING_ADMIN_TOKEN
-PROD_SPREADSHEET_ID     STAGING_SPREADSHEET_ID
-PROD_PHOTO_FOLDER_ID    STAGING_PHOTO_FOLDER_ID
+PROD_SCRIPT_ID              STAGING_SCRIPT_ID
+PROD_DEPLOYMENT_ID          STAGING_DEPLOYMENT_ID
+PROD_WEB_APP_URL            STAGING_WEB_APP_URL
+PROD_ADMIN_TOKEN            STAGING_ADMIN_TOKEN
+PROD_SPREADSHEET_ID         STAGING_SPREADSHEET_ID
+PROD_PHOTO_FOLDER_ID        STAGING_PHOTO_FOLDER_ID
 PROD_SPREADSHEET_FOLDER_ID  STAGING_SPREADSHEET_FOLDER_ID
+PROD_WRITE_TARGETS          STAGING_WRITE_TARGETS
 ```
 
 The names match `.env` one-for-one; copy the values from there. Plus **Settings → Pages →
@@ -123,8 +124,7 @@ at `clasp push` with `invalid_grant`.
 
 ### Write targets
 
-`WRITE_TARGETS` is a Script Property set by hand in Project Settings → Script Properties.
-CI validates it and never sets it. Values: `legacy,monthly` while the legacy sheet is still
-written, `monthly` once it is retired. Unset or anything else fails the deploy at the verify
-step and every form submission until it is fixed. Set it on production before the first
-production deploy of the monthly store. Changing it needs no deploy.
+The `WRITE_TARGETS` secret selects where records are written: `legacy,monthly` writes the
+legacy sheet alongside the monthly files, `monthly` writes the monthly files alone. CI
+pushes it to the Script Property on every deploy and rejects any other value before pushing
+anything. Changing it is a secret change followed by a deploy; no code changes.
