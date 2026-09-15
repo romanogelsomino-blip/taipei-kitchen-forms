@@ -9,7 +9,7 @@ const { readPrefix, requireKeys } = require('./env');
 const webapp = require('./webapp');
 
 const USAGE = 'Usage: node scripts/admin-action.js <staging|production> <action> [key=value ...]\n' +
-  'Actions: ping, storageStatus, init, test, getExecutionLog, queryDeliveries, listTriggers, createTrigger, deleteTrigger, checkPhotoDrift, sendDailySummary, setScriptProperty, resetConfig, debugConfig, rotateAdminToken';
+  'Actions: ping, storageStatus, init, test, getExecutionLog, queryDeliveries, listTriggers, createTrigger, deleteTrigger, checkPhotoDrift, formatStorage, sendDailySummary, setScriptProperty, resetConfig, debugConfig, rotateAdminToken';
 const [,, environment, action, ...params] = process.argv;
 if (!environment || !action) {
   console.error(USAGE);

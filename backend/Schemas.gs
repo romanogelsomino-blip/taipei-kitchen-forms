@@ -1,8 +1,8 @@
 // Schemas.gs — the four tabs of a monthly file: headers, keys, and how rows are built and read.
 //
 // Header text is the read contract; column position is not. A column entry is
-// { header, key, type, value? }: `key` is the payload field on write and the output key on
-// read; `value(row, ctx)` overrides the payload for server-derived cells; `type` is one of
+// { header, key, type, width?, value? }: `key` is the payload field on write and the output key
+// on read; `width` is the column's pixel width; `value(row, ctx)` overrides the payload for server-derived cells; `type` is one of
 // date | time | text | number | instant and drives cell handling both ways. Renaming a
 // header requires adding the old text to `aliases` so old files still read.
 
@@ -28,22 +28,22 @@ function submissionIdOf(row, ctx) {
 function productionSchema() {
   return [
     { header: 'Date',                key: 'date',            type: 'date' },
-    { header: 'Production Kitchen',  key: 'kitchen',         type: 'text' },
-    { header: 'Supervisor',          key: 'supervisor',      type: 'text' },
-    { header: 'Shift',               key: 'shift',           type: 'text' },
-    { header: 'Dish',                key: 'dish',            type: 'text' },
-    { header: 'Qty Produced',        key: 'qtyProduced',     type: 'number' },
-    { header: 'Qty Discarded',       key: 'qtyDiscarded',    type: 'number' },
-    { header: 'Discard Reason',      key: 'discardReason',   type: 'text' },
-    { header: 'Cook Temp °F',        key: 'cookTemp',        type: 'number' },
+    { header: 'Production Kitchen',  key: 'kitchen',         type: 'text',    width: 170 },
+    { header: 'Supervisor',          key: 'supervisor',      type: 'text',    width: 140 },
+    { header: 'Shift',               key: 'shift',           type: 'text',    width: 80 },
+    { header: 'Dish',                key: 'dish',            type: 'text',    width: 220 },
+    { header: 'Qty Produced',        key: 'qtyProduced',     type: 'number',  width: 110 },
+    { header: 'Qty Discarded',       key: 'qtyDiscarded',    type: 'number',  width: 110 },
+    { header: 'Discard Reason',      key: 'discardReason',   type: 'text',    width: 200 },
+    { header: 'Cook Temp °F',        key: 'cookTemp',        type: 'number',  width: 110 },
     { header: 'Cook Start',          key: 'cookStart',       type: 'time' },
     { header: 'Cook End',            key: 'cookEnd',         type: 'time' },
-    { header: 'Cook Time (min)',     key: 'cookTime',        type: 'number' },
+    { header: 'Cook Time (min)',     key: 'cookTime',        type: 'number',  width: 120 },
     { header: 'Cool Start',          key: 'coolStart',       type: 'time' },
-    { header: 'Cool End',            key: 'coolEnd',         type: 'time' },      // or 'Next Morning'
-    { header: 'Cool Time (min)',     key: 'coolTime',        type: 'number' },    // or 'Overnight'
-    { header: 'Final Batch Temp °F', key: 'finalTemp',       type: 'number' },
-    { header: 'Submission ID',       key: 'submissionId',    type: 'text',    value: submissionIdOf },
+    { header: 'Cool End',            key: 'coolEnd',         type: 'time',    width: 110 },  // or 'Next Morning'
+    { header: 'Cool Time (min)',     key: 'coolTime',        type: 'number',  width: 120 },  // or 'Overnight'
+    { header: 'Final Batch Temp °F', key: 'finalTemp',       type: 'number',  width: 150 },
+    { header: 'Submission ID',       key: 'submissionId',    type: 'text',    width: 290, value: submissionIdOf },
     { header: 'Submitted At',        key: 'clientTimestamp', type: 'instant' },
     { header: 'Received At',         key: 'serverTimestamp', type: 'instant', value: (row, ctx) => ctx.serverTimestamp }
   ];
@@ -53,23 +53,23 @@ function productionSchema() {
 function deliveriesSchema() {
   return [
     { header: 'Date',                      key: 'date',               type: 'date' },
-    { header: 'Store',                     key: 'storeId',            type: 'text',    value: row => row.storeId || row.store || '' },
+    { header: 'Store',                     key: 'storeId',            type: 'text',    width: 80, value: row => row.storeId || row.store || '' },
     { header: 'Driver',                    key: 'driver',             type: 'text' },
-    { header: 'Arrival Time',              key: 'arrive',             type: 'time' },
-    { header: 'Arrival Temp °F',           key: 'arrivalTemp',        type: 'number' },
-    { header: 'Dish',                      key: 'dish',               type: 'text' },
-    { header: 'Added to Shelf',            key: 'added',              type: 'number' },
-    { header: 'On Shelf Before',           key: 'before',             type: 'number' },
+    { header: 'Dish',                      key: 'dish',               type: 'text',    width: 220 },
+    { header: 'Arrival Time',              key: 'arrive',             type: 'time',    width: 110 },
+    { header: 'Arrival Temp °F',           key: 'arrivalTemp',        type: 'number',  width: 130 },
+    { header: 'Added to Shelf',            key: 'added',              type: 'number',  width: 120 },
+    { header: 'On Shelf Before',           key: 'before',             type: 'number',  width: 130 },
     { header: 'Removed',                   key: 'removed',            type: 'number' },
-    { header: 'Removal Reason',            key: 'reason',             type: 'text' },
-    { header: 'Shelf Total After',         key: 'after',              type: 'number' },   // or '—' / '⚠ Check'
-    { header: 'Case Fill Before Stocking', key: 'casePrefillPercent', type: 'text' },
-    { header: 'Store Cooler Temp °F',      key: 'coolerTemp',         type: 'number' },
-    { header: 'Received By',               key: 'receivedBy',         type: 'text' },
-    { header: 'Store Notes',               key: 'notes',              type: 'text' },
-    { header: 'Before Photo',              key: 'beforePhotoLink',    type: 'text' },     // filled by the photo upload
-    { header: 'After Photo',               key: 'afterPhotoLink',     type: 'text' },     // filled by the photo upload
-    { header: 'Submission ID',             key: 'submissionId',       type: 'text',    value: submissionIdOf },
+    { header: 'Removal Reason',            key: 'reason',             type: 'text',    width: 180 },
+    { header: 'Shelf Total After',         key: 'after',              type: 'number',  width: 140 },  // or '—' / '⚠ Check'
+    { header: 'Case Fill Before Stocking', key: 'casePrefillPercent', type: 'text',    width: 190 },
+    { header: 'Store Cooler Temp °F',      key: 'coolerTemp',         type: 'number',  width: 160 },
+    { header: 'Received By',               key: 'receivedBy',         type: 'text',    width: 140 },
+    { header: 'Store Notes',               key: 'notes',              type: 'text',    width: 260 },
+    { header: 'Before Photo',              key: 'beforePhotoLink',    type: 'text',    width: 220 },  // filled by the photo upload
+    { header: 'After Photo',               key: 'afterPhotoLink',     type: 'text',    width: 220 },  // filled by the photo upload
+    { header: 'Submission ID',             key: 'submissionId',       type: 'text',    width: 290, value: submissionIdOf },
     { header: 'Submitted At',              key: 'clientTimestamp',    type: 'instant' },
     { header: 'Received At',               key: 'serverTimestamp',    type: 'instant', value: (row, ctx) => ctx.serverTimestamp }
   ];
@@ -79,35 +79,53 @@ function deliveriesSchema() {
 function violationsSchema() {
   return [
     { header: 'Date',          key: 'date',          type: 'date' },
-    { header: 'Store',         key: 'storeId',       type: 'text' },
+    { header: 'Store',         key: 'storeId',       type: 'text',    width: 80 },
     { header: 'Driver',        key: 'driver',        type: 'text' },
-    { header: 'Type',          key: 'violationType', type: 'text' },
+    { header: 'Type',          key: 'violationType', type: 'text',    width: 170 },
     { header: 'Temp °F',       key: 'value',         type: 'number' },
-    { header: 'Resolved By',   key: 'resolvedBy',    type: 'text' },
+    { header: 'Resolved By',   key: 'resolvedBy',    type: 'text',    width: 140 },
     { header: 'Resolved At',   key: 'resolvedAt',    type: 'instant' },
-    { header: 'Alert Sent To', key: 'recipients',    type: 'text' },
-    { header: 'Alert Status',  key: 'emailStatus',   type: 'text' },
-    { header: 'Alert Error',   key: 'errorMessage',  type: 'text' },
+    { header: 'Alert Sent To', key: 'recipients',    type: 'text',    width: 240 },
+    { header: 'Alert Status',  key: 'emailStatus',   type: 'text',    width: 110 },
+    { header: 'Alert Error',   key: 'errorMessage',  type: 'text',    width: 260 },
     { header: 'Detected At',   key: 'timestamp',     type: 'instant' },
-    { header: 'Submission ID', key: 'submissionId',  type: 'text' },
-    { header: 'Violation ID',  key: 'violationId',   type: 'text' }
+    { header: 'Submission ID', key: 'submissionId',  type: 'text',    width: 290 },
+    { header: 'Violation ID',  key: 'violationId',   type: 'text',    width: 180 }
   ];
 }
 
 /** One row per request the backend handled. */
 function executionsSchema() {
   return [
-    { header: 'Form Type',       key: 'formType',     type: 'text' },
-    { header: 'Status',          key: 'status',       type: 'text' },
-    { header: 'Row Count',       key: 'rowCount',     type: 'number' },
-    { header: 'Photo Size (KB)', key: 'photoSizeKB',  type: 'number' },
-    { header: 'Duration (ms)',   key: 'durationMs',   type: 'number' },
-    { header: 'Error Message',   key: 'errorMessage', type: 'text' },
-    { header: 'Notes',           key: 'notes',        type: 'text' },
-    { header: 'Write Targets',   key: 'writeTargets', type: 'text' },
-    { header: 'Submission ID',   key: 'submissionId', type: 'text' },
+    { header: 'Form Type',       key: 'formType',     type: 'text',    width: 110 },
+    { header: 'Status',          key: 'status',       type: 'text',    width: 100 },
+    { header: 'Row Count',       key: 'rowCount',     type: 'number',  width: 100 },
+    { header: 'Photo Size (KB)', key: 'photoSizeKB',  type: 'number',  width: 120 },
+    { header: 'Duration (ms)',   key: 'durationMs',   type: 'number',  width: 110 },
+    { header: 'Error Message',   key: 'errorMessage', type: 'text',    width: 340 },
+    { header: 'Notes',           key: 'notes',        type: 'text',    width: 340 },
+    { header: 'Write Targets',   key: 'writeTargets', type: 'text',    width: 120 },
+    { header: 'Submission ID',   key: 'submissionId', type: 'text',    width: 290 },
     { header: 'Timestamp',       key: 'timestamp',    type: 'instant' }
   ];
+}
+
+/**
+ * Sheet size at creation and the last column of the basic filter. A basic filter is one
+ * rectangle from column A, so every column up to `filterThrough` gets a dropdown.
+ */
+function tabLayout(tab) {
+  return {
+    Production: { rows: 4000, filterThrough: 'Shift' },
+    Deliveries: { rows: 6000, filterThrough: 'Dish' },
+    Violations: { rows: 1000, filterThrough: null },
+    Executions: { rows: 4000, filterThrough: null }
+  }[tab];
+}
+
+/** Pixel width for a column: its own, else a default for its type. */
+function columnWidth(col) {
+  return col.width || { date: 100, time: 90, number: 90, instant: 175, text: 130 }[col.type] || 130;
 }
 
 // ─── Writing ─────────────────────────────────────────────────────────────────

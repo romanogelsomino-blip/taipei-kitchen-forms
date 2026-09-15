@@ -322,6 +322,28 @@ function action_deleteTrigger(e) {
 }
 
 /** The monthly store as it stands: folder, targets, and the current and previous month files with row counts per tab. */
+/** Re-apply the tab styling to the current and previous month files. Idempotent. */
+function action_formatStorage(e) {
+  try {
+    const current = monthKeyOfInstant(new Date());
+    const formatted = [];
+    [current, previousMonthKey(current)].forEach(monthKey => {
+      const opened = openMonthly(monthKey, false);
+      if (!opened) return;
+      tabNames().forEach(tab => {
+        const sheet = opened.ss.getSheetByName(tab);
+        if (!sheet) return;
+        styleTab(sheet, tab);
+        borderDataRows(sheet, tab);
+      });
+      formatted.push({ month: monthKey, url: monthlyFileUrl(opened.fileId) });
+    });
+    return jsonResponse({ status: 'ok', formatted: formatted });
+  } catch (error) {
+    return jsonResponse({ status: 'error', message: error.toString() });
+  }
+}
+
 function action_storageStatus(e) {
   try {
     const now = new Date();
@@ -368,6 +390,7 @@ function actions() {
     createTrigger:         { fn: action_createTrigger,         admin: true },
     deleteTrigger:         { fn: action_deleteTrigger,         admin: true },
     checkPhotoDrift:       { fn: action_checkPhotoDrift,       admin: true },
+    formatStorage:         { fn: action_formatStorage,         admin: true },
     queryDeliveries:       { fn: action_queryDeliveries,       admin: true },
     storageStatus:         { fn: action_storageStatus,         admin: true },
     // Public
@@ -389,7 +412,7 @@ function doGet(e) {
     return ContentService
       .createTextOutput(JSON.stringify({
         status: 'error',
-        message: 'Unknown action. Admin actions (require token): init, test, ping, debugConfig, resetConfig, setScriptProperty, rotateAdminToken, sendDailySummary, getExecutionLog, queryDeliveries, storageStatus, listTriggers, createTrigger, deleteTrigger, checkPhotoDrift. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
+        message: 'Unknown action. Admin actions (require token): init, test, ping, debugConfig, resetConfig, setScriptProperty, rotateAdminToken, sendDailySummary, getExecutionLog, queryDeliveries, storageStatus, listTriggers, createTrigger, deleteTrigger, checkPhotoDrift, formatStorage. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
       }))
       .setMimeType(ContentService.MimeType.JSON);
   }
