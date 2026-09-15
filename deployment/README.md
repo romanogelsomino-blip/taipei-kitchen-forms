@@ -49,10 +49,11 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
    name, a valid `WRITE_TARGETS`, and, while `legacy` is a target, the legacy spreadsheet
    id. The month file itself is created by the first record written in the month, never
    by the workflow.
-7. On `dev` only, submits a real delivery row dated today (driver `ZZ-CI-SMOKE`, store
-   `0000`) and requires the current month file's Deliveries tab to grow by one row. Reads
-   can succeed while writes fail, and a write is the only thing that proves the deployment
-   can reach its store. Production gets no synthetic row.
+7. On `dev` only, submits a real production row and then a real delivery row, both dated
+   today and marked `ZZ-CI-SMOKE` (store `0000`), and requires the current month file's
+   Production and Deliveries tabs to each grow by one row. Reads can succeed while writes
+   fail, and a write is the only thing that proves the deployment can reach its stores.
+   Production gets no synthetic row.
 
 Every call to the web app after the redeploy retries while Google's error page comes back
 instead of JSON. The smoke write is the exception: it is sent once, and the row count

@@ -210,13 +210,14 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # A real write is the only thing that catches the failure mode that took production
-      # down in Aug 2026 (reads fine, writes denied). Staging only: production has no
+      # Reads can succeed while writes fail, so only real writes prove the deployment can
+      # reach its stores: one production row, then one delivery row. The two kinds share the
+      # dispatch but not the schema, tab or legacy writer. Staging only: production has no
       # write-then-clean endpoint, so a synthetic row there would pollute the HACCP record.
-      # The row is dated today in New York so it files into the current month, and that
-      # month's Deliveries tab must grow by exactly one row: that is what proves the write
-      # reached the monthly store and not only the legacy sheet. The write is sent once; if
-      # its reply is Google's error page, the row count decides whether it landed.
+      # Rows are dated today in New York so they file into the current month, and each tab
+      # must grow by exactly one row: that is what proves the write reached the monthly store
+      # and not only the legacy sheet. Each write is sent once; if its reply is Google's
+      # error page, the row count decides whether it landed.
       - name: Verify writes (staging only)
         if: github.ref_name == 'dev'
         env:
@@ -225,17 +226,47 @@ jobs:
         run: |
           set -euo pipefail
           source .github/scripts/webapp.sh
-          deliveries_rows() {
+          tab_rows() {
             local out
             out=$(webapp_get storageStatus) || return 1
-            jq -r '.months[0].rows.Deliveries // 0' <<<"$out"
+            jq -r --arg tab "$1" '.months[0].rows[$tab] // 0' <<<"$out"
           }
-          BEFORE=$(deliveries_rows) \
-            || { echo "::error::storageStatus never answered with JSON."; exit 1; }
+          # smoke_write <tab> <payload file>: one write, after which the tab has exactly one more row.
+          smoke_write() {
+            local tab=$1 file=$2 before after out
+            before=$(tab_rows "$tab") \
+              || { echo "::error::storageStatus never answered with JSON."; return 1; }
+            if out=$(webapp_post "$file"); then
+              echo "$out"
+              [ "$(webapp_field "$out" .status)" = ok ] \
+                || { echo "::error::staging $tab write failed — backend accepted no data."; return 1; }
+            else
+              echo "::warning::the $tab write's reply was not JSON; the row count decides whether it landed."
+            fi
+            after=$(tab_rows "$tab") \
+              || { echo "::error::storageStatus never answered with JSON after the $tab write."; return 1; }
+            [ "$after" -eq "$((before + 1))" ] \
+              || { echo "::error::the monthly $tab tab went $before -> $after instead of growing by one; the write did not reach the monthly store."; return 1; }
+            echo "monthly $tab rows: $before -> $after"
+          }
           TODAY=$(TZ=America/New_York date +%F)
           NOW=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+
           ID=$(python3 -c 'import uuid; print(uuid.uuid4())')
-          cat > payload.json <<JSON
+          cat > production.json <<JSON
+          {"formType":"production","rows":[{
+            "submissionId":"$ID","clientTimestamp":"$NOW","date":"$TODAY","shift":"AM",
+            "kitchen":"ZZ-CI-SMOKE","supervisor":"ZZ-CI-SMOKE","dish":"ZZ-CI-SMOKE",
+            "cookTemp":"200","cookStart":"00:00","cookEnd":"00:01","cookTime":"1",
+            "qtyProduced":"0","qtyDiscarded":"0","discardReason":"",
+            "coolStart":"00:01","coolEnd":"00:02","coolTime":"1","finalTemp":"38",
+            "formType":"production"}]}
+          JSON
+          smoke_write Production production.json
+          echo "production submission $ID"
+
+          ID=$(python3 -c 'import uuid; print(uuid.uuid4())')
+          cat > delivery.json <<JSON
           {"formType":"delivery","rows":[{
             "submissionId":"$ID","clientTimestamp":"$NOW","date":"$TODAY",
             "driver":"ZZ-CI-SMOKE","store":"0000","storeId":"0000","arrive":"00:00","arrivalTemp":"38",
@@ -244,18 +275,8 @@ jobs:
             "reason":"","after":"0","notes":"CI smoke test run ${{ github.run_id }} - safe to delete",
             "receivedBy":"ZZ-CI-SMOKE","formType":"delivery"}]}
           JSON
-          if OUT=$(webapp_post payload.json); then
-            echo "$OUT"
-            [ "$(webapp_field "$OUT" .status)" = ok ] \
-              || { echo "::error::staging write failed — backend accepted no data."; exit 1; }
-          else
-            echo "::warning::the write's reply was not JSON; the row count decides whether it landed."
-          fi
-          AFTER=$(deliveries_rows) \
-            || { echo "::error::storageStatus never answered with JSON after the write."; exit 1; }
-          [ "$AFTER" -eq "$((BEFORE + 1))" ] \
-            || { echo "::error::the monthly Deliveries tab went $BEFORE -> $AFTER instead of growing by one; the write did not reach the monthly store."; exit 1; }
-          echo "monthly Deliveries rows: $BEFORE -> $AFTER (submission $ID)"
+          smoke_write Deliveries delivery.json
+          echo "delivery submission $ID"
 
   # ───────────────────────────────────────────────────────────────────────────────
   frontend:
