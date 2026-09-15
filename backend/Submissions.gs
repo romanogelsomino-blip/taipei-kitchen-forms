@@ -64,30 +64,39 @@ function handleDeliverySubmission(payload, ctx) {
 }
 
 /**
- * Photos arrive in a second request, after the delivery rows are already written — the form
- * submits data first so a photo failure cannot cost the HACCP record. Linking still targets
- * the legacy sheet until the photos rebuild.
+ * Photos arrive in a second request, after the delivery rows are written: the form submits
+ * data first so a photo failure cannot cost the HACCP record. The files are saved once and
+ * the links written to every row of the delivery. A linking failure is noted, never thrown:
+ * the photos exist, and a retry would duplicate them.
  */
 function handlePhotoUpload(payload, ctx) {
-  Logger.log('[PHOTO UPLOAD] ENTERED BRANCH - Starting photo upload handler');
-  const photos = payload.photos;
-  ctx.submissionId = (photos && photos.submissionId) || null;
+  const photos = payload.photos || {};
+  const targets = getWriteTargets();
+  ctx.submissionId = photos.submissionId || null;
+  if (!photos.submissionId) note(ctx, 'photo_match=store_date_driver');
 
-  // Resolve the spreadsheet before touching Drive: a bad SPREADSHEET_ID is a configuration
-  // error, and failing here avoids orphaning files we would then fail to link.
-  const ss = openSpreadsheet();
-  const saved = savePhotosToDrive(photos);
+  const saved = savePhotosToDrive(photos, ctx);
+  ctx.logEntry.rowCount = saved.savedCount;
 
-  try {
-    linkPhotosToDeliveryRow(ss, photos, saved, ctx.logEntry);
-  } catch (sheetError) {
-    // Drive write succeeded but the sheet update failed. Report success anyway — the photos
-    // exist, and a retry would duplicate them. The discrepancy goes to the execution record.
-    Logger.log(`[PHOTO UPLOAD] ERROR: Photos saved to Drive but sheet update failed. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${saved.beforeUrl}, afterUrl=${saved.afterUrl}, error=${sheetError.toString()}`);
-    ctx.logEntry.notes = `Drive OK, sheet update failed: ${sheetError.toString()}`;
+  let linked = 0;
+  if (!saved.savedCount) {
+    note(ctx, 'photos_none');
+  } else {
+    try {
+      linked = linkPhotosMonthly(photos, saved);
+      note(ctx, linked ? 'photo_rows=' + linked : 'photo_orphan=' + photos.storeId + '/' + photos.date + '/' + photos.driver);
+    } catch (e) {
+      note(ctx, 'photo_link_failed=' + e.message);
+    }
+    if (targets.legacy) {
+      try {
+        note(ctx, 'legacy_photo_rows=' + legacyLinkPhotos(photos, saved));
+      } catch (e) {
+        note(ctx, 'legacy_photo_failed=' + e.message);
+      }
+    }
   }
 
-  ctx.logEntry.rowCount = saved.savedCount;
   ctx.logEntry.status = 'SUCCESS';
-  return jsonResponse({ status: 'ok', savedPhotos: saved.savedCount });
+  return jsonResponse({ status: 'ok', savedPhotos: saved.savedCount, linkedRows: linked });
 }

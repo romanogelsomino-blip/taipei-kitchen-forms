@@ -46,7 +46,7 @@ const DELIVERY_LOG_COLUMNS = [
   { col: 'N', header: 'Shelf Total After', from: 'after' },
   { col: 'O', header: 'Store Notes',       from: 'notes' },
   { col: 'P', header: 'Received By',       from: 'receivedBy' },
-  { col: 'Q', header: 'Before Photo Link', value: () => '' },  // filled later by handlePhotoUpload
+  { col: 'Q', header: 'Before Photo Link', value: () => '' },  // filled later by legacyLinkPhotos
   { col: 'R', header: 'After Photo Link',  value: () => '' }
 ];
 
@@ -414,39 +414,15 @@ function findMatchingDeliveryRows(data, cols, photos) {
   return matchingRows;
 }
 
-function linkPhotosToDeliveryRow(ss, photos, saved, logEntry) {
-  const sheet = ss.getSheetByName('Delivery Log - Live');
-  if (!sheet) {
-    Logger.log(`[PHOTO UPLOAD] WARNING: Sheet not found. Photos saved to Drive but URLs not written. storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}`);
-    return;
-  }
-
+/** Legacy link-back: every row matching the upload's store, date and driver gets the links. Returns the row count. */
+function legacyLinkPhotos(photos, saved) {
+  const sheet = requireSheet(openSpreadsheet(), 'Delivery Log - Live');
   const data = sheet.getDataRange().getValues();
   const cols = findDeliveryPhotoColumns(data);
-  Logger.log(`[PHOTO UPLOAD] Column detection: storeIdx=${cols.storeIdx}, dateIdx=${cols.dateIdx}, driverIdx=${cols.driverIdx}, beforePhotoCol=${cols.beforeSheetCol} (found=${cols.beforeFound}), afterPhotoCol=${cols.afterSheetCol} (found=${cols.afterFound})`);
-
-  const matchingRows = findMatchingDeliveryRows(data, cols, photos);
-  const trail = `storeId=${photos.storeId}, date=${photos.date}, driver=${photos.driver}, beforeUrl=${saved.beforeUrl}, afterUrl=${saved.afterUrl}`;
-
-  if (matchingRows.length === 0) {
-    // Photos are in Drive but nothing points at them. Recoverable by hand from this log.
-    Logger.log(`[PHOTO UPLOAD] ORPHAN: No matching delivery row found. Photos saved to Drive but not linked. ${trail}`);
-    logEntry.notes = 'ORPHAN: No matching delivery row';
-    return;
-  }
-
-  // On multiple matches take the most recent, which is the row the driver just submitted.
-  const targetRow = matchingRows[matchingRows.length - 1];
-  if (saved.beforeUrl) sheet.getRange(targetRow, cols.beforeSheetCol).setValue(saved.beforeUrl);
-  if (saved.afterUrl) sheet.getRange(targetRow, cols.afterSheetCol).setValue(saved.afterUrl);
-
-  if (matchingRows.length === 1) {
-    Logger.log(`[PHOTO UPLOAD] SUCCESS: Linked photos to row ${targetRow} cols ${cols.beforeSheetCol}/${cols.afterSheetCol}. ${trail}`);
-    logEntry.notes = `Linked to row ${targetRow}`;
-  } else {
-    Logger.log(`[PHOTO UPLOAD] WARNING: Multiple matches found (${matchingRows.length}), wrote to most recent row ${targetRow} cols ${cols.beforeSheetCol}/${cols.afterSheetCol}. ${trail}, allMatches=[${matchingRows.join(', ')}]`);
-    logEntry.notes = `Multiple matches, linked to row ${targetRow}`;
-  }
+  const rows = findMatchingDeliveryRows(data, cols, photos);
+  if (saved.beforeUrl) fillColumnRows(sheet, cols.beforeSheetCol, rows, saved.beforeUrl);
+  if (saved.afterUrl) fillColumnRows(sheet, cols.afterSheetCol, rows, saved.afterUrl);
+  return rows.length;
 }
 
 // Test function — run this manually in the editor to verify your Sheet ID is correct

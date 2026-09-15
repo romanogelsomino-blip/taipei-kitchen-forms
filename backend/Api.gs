@@ -253,22 +253,41 @@ function action_listTriggers(e) {
   }
 }
 
+/** Functions the admin endpoint may schedule daily, with the default hour (project time zone). */
+function schedulableFunctions() {
+  return { sendDailySummary: 9, checkPhotoDrift: 2 };
+}
+
+/** Replace any trigger for `functionName` with one daily trigger at `hour`. */
+function createDailyTrigger(functionName, hour) {
+  ScriptApp.getProjectTriggers().forEach(trigger => {
+    if (trigger.getHandlerFunction() === functionName) ScriptApp.deleteTrigger(trigger);
+  });
+  ScriptApp.newTrigger(functionName).timeBased().atHour(hour).everyDays(1).create();
+}
+
+/** ?function=<name>&hour=<0-23>; defaults to the daily summary at its default hour. */
 function action_createTrigger(e) {
   try {
-    createDailySummaryTrigger();
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        status: 'ok',
-        message: 'Daily summary trigger created successfully (9am daily)'
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
+    const functionName = e.parameter.function || 'sendDailySummary';
+    const defaults = schedulableFunctions();
+    if (!(functionName in defaults)) {
+      throw new Error('Unknown function "' + functionName + '"; schedulable: ' + Object.keys(defaults).join(', '));
+    }
+    const hour = e.parameter.hour === undefined ? defaults[functionName] : parseInt(e.parameter.hour, 10);
+    if (isNaN(hour) || hour < 0 || hour > 23) throw new Error('hour must be 0-23');
+    createDailyTrigger(functionName, hour);
+    return jsonResponse({ status: 'ok', message: 'Daily trigger for ' + functionName + ' at hour ' + hour, function: functionName, hour: hour });
   } catch (error) {
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        status: 'error',
-        message: error.toString()
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return jsonResponse({ status: 'error', message: error.toString() });
+  }
+}
+
+function action_checkPhotoDrift(e) {
+  try {
+    return jsonResponse(Object.assign({ status: 'ok' }, checkPhotoDrift()));
+  } catch (error) {
+    return jsonResponse({ status: 'error', message: error.toString() });
   }
 }
 
@@ -348,6 +367,7 @@ function actions() {
     listTriggers:          { fn: action_listTriggers,          admin: true },
     createTrigger:         { fn: action_createTrigger,         admin: true },
     deleteTrigger:         { fn: action_deleteTrigger,         admin: true },
+    checkPhotoDrift:       { fn: action_checkPhotoDrift,       admin: true },
     queryDeliveries:       { fn: action_queryDeliveries,       admin: true },
     storageStatus:         { fn: action_storageStatus,         admin: true },
     // Public
@@ -369,7 +389,7 @@ function doGet(e) {
     return ContentService
       .createTextOutput(JSON.stringify({
         status: 'error',
-        message: 'Unknown action. Admin actions (require token): init, test, ping, debugConfig, resetConfig, setScriptProperty, rotateAdminToken, sendDailySummary, getExecutionLog, queryDeliveries, storageStatus, listTriggers, createTrigger, deleteTrigger. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
+        message: 'Unknown action. Admin actions (require token): init, test, ping, debugConfig, resetConfig, setScriptProperty, rotateAdminToken, sendDailySummary, getExecutionLog, queryDeliveries, storageStatus, listTriggers, createTrigger, deleteTrigger, checkPhotoDrift. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
       }))
       .setMimeType(ContentService.MimeType.JSON);
   }

@@ -1,123 +1,39 @@
 #!/usr/bin/env node
 /**
- * Helper script to call admin actions on Apps Script Web App
- * Usage: node scripts/admin-action.js <env> <action>
- * Example: node scripts/admin-action.js staging init
+ * Call an admin action on the web app and print its JSON.
+ * Usage: node scripts/admin-action.js <staging|production> <action> [key=value ...]
+ * A bare word is sent as key=true; for deleteTrigger and getExecutionLog a bare first word
+ * is the function name or the limit.
  */
-
-const https = require('https');
-const http = require('http');
-const url = require('url');
 const { readPrefix, requireKeys } = require('./env');
+const webapp = require('./webapp');
 
-// Parse command line args
-const [,, environment, action, ...additionalParams] = process.argv;
-
+const USAGE = 'Usage: node scripts/admin-action.js <staging|production> <action> [key=value ...]\n' +
+  'Actions: ping, storageStatus, init, test, getExecutionLog, queryDeliveries, listTriggers, createTrigger, deleteTrigger, checkPhotoDrift, sendDailySummary, setScriptProperty, resetConfig, debugConfig, rotateAdminToken';
+const [,, environment, action, ...params] = process.argv;
 if (!environment || !action) {
-  console.error('Usage: node scripts/admin-action.js <staging|production> <action> [params...]');
-  console.error('Actions: init, test, ping, sendDailySummary, getExecutionLog, listTriggers, createTrigger, deleteTrigger');
-  console.error('Example: node scripts/admin-action.js staging deleteTrigger sendDailySummary');
+  console.error(USAGE);
   process.exit(1);
 }
+const { prefix } = readPrefix(environment, USAGE);
+const { WEB_APP_URL, ADMIN_TOKEN } = requireKeys(prefix, ['WEB_APP_URL', 'ADMIN_TOKEN']);
 
-const { prefix: PREFIX } = readPrefix(
-  environment,
-  'Usage: node scripts/admin-action.js <staging|production> <action> [params...]'
-);
-const { WEB_APP_URL, ADMIN_TOKEN } = requireKeys(PREFIX, ['WEB_APP_URL', 'ADMIN_TOKEN']);
+const query = { action, token: ADMIN_TOKEN };
+params.forEach((p, i) => {
+  const eq = p.indexOf('=');
+  if (eq > 0) query[p.slice(0, eq)] = p.slice(eq + 1);
+  else if (i === 0 && action === 'deleteTrigger') query.function = p;
+  else if (i === 0 && action === 'getExecutionLog') query.limit = p;
+  else query[p] = 'true';
+});
 
-const env = { WEB_APP_URL, ADMIN_TOKEN };
-
-// Build request URL with optional parameters
-let requestUrl = `${env.WEB_APP_URL}?action=${action}&token=${encodeURIComponent(env.ADMIN_TOKEN)}`;
-
-// Handle special cases that need extra parameters
-if (action === 'deleteTrigger' && additionalParams.length > 0) {
-  requestUrl += `&function=${encodeURIComponent(additionalParams[0])}`;
-}
-
-if (action === 'getExecutionLog' && additionalParams.length > 0) {
-  requestUrl += `&limit=${encodeURIComponent(additionalParams[0])}`;
-}
-
-if (action === 'queryDeliveries') {
-  // Parse additional params as key=value pairs
-  additionalParams.forEach(param => {
-    if (param.includes('=')) {
-      const [key, value] = param.split('=');
-      if (key && value !== undefined) {
-        requestUrl += `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-      }
-    } else {
-      // Handle flag parameters like "debug"
-      requestUrl += `&${encodeURIComponent(param)}=true`;
-    }
-  });
-}
-
-console.log(`🔧 Calling ${action} on ${environment}...`);
-
-// Make HTTP request (follow redirects manually)
-function makeRequest(urlString, redirectCount = 0) {
-  if (redirectCount > 5) {
-    console.error('Error: Too many redirects');
-    process.exit(1);
-  }
-
-  const parsedUrl = url.parse(urlString);
-  const protocol = parsedUrl.protocol === 'https:' ? https : http;
-
-  const options = {
-    hostname: parsedUrl.hostname,
-    port: parsedUrl.port,
-    path: parsedUrl.path,
-    method: 'GET',
-    headers: {
-      'User-Agent': 'taipei-kitchen-automation/1.0'
-    }
-  };
-
-  const req = protocol.request(options, (res) => {
-    // Handle redirects
-    if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
-      const location = res.headers.location;
-      if (location) {
-        makeRequest(location, redirectCount + 1);
-        return;
-      }
-    }
-
-    let data = '';
-    res.on('data', (chunk) => {
-      data += chunk;
-    });
-
-    res.on('end', () => {
-      try {
-        const json = JSON.parse(data);
-        console.log('✅ Response:');
-        console.log(JSON.stringify(json, null, 2));
-
-        if (json.status === 'ok' || json.status === 'SUCCESS') {
-          process.exit(0);
-        } else {
-          console.error('⚠️  Action completed with non-OK status');
-          process.exit(1);
-        }
-      } catch (e) {
-        console.error('❌ Error parsing response as JSON:');
-        console.error(data.substring(0, 500));
-        process.exit(1);
-      }
-    });
-  });
-
-  req.on('error', (e) => {
-    console.error(`❌ Request failed: ${e.message}`);
+console.log(`Calling ${action} on ${environment}...`);
+webapp.get(WEB_APP_URL, query)
+  .then(json => {
+    console.log(JSON.stringify(json, null, 2));
+    process.exit(json.status === 'ok' || json.status === 'SUCCESS' ? 0 : 1);
+  })
+  .catch(e => {
+    console.error(e.message);
     process.exit(1);
   });
-
-  req.end();
-}
-
-makeRequest(requestUrl);

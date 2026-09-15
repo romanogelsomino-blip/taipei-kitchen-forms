@@ -355,25 +355,6 @@ function formatDate(date) {
  * Create time-driven trigger for daily summary at 9am
  * Run this once manually after deployment
  */
-function createDailySummaryTrigger() {
-  // Delete existing trigger if any
-  const triggers = ScriptApp.getProjectTriggers();
-  triggers.forEach(trigger => {
-    if (trigger.getHandlerFunction() === 'sendDailySummary') {
-      ScriptApp.deleteTrigger(trigger);
-    }
-  });
-
-  // Create new trigger for 9am daily
-  ScriptApp.newTrigger('sendDailySummary')
-    .timeBased()
-    .atHour(9)
-    .everyDays(1)
-    .create();
-
-  Logger.log('Daily summary trigger created - will run at 9am every day');
-}
-
 function action_getViolations(e) {
   const SPREADSHEET_ID = getSpreadsheetId();
 

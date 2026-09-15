@@ -38,7 +38,8 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 4. Photos are compressed client-side before upload.
 5. If offline, submissions queue in localStorage and retry when connection returns.
 6. The information lands in the master Google Sheet (`TaipeiKitchen_BentoOps_v2`).
-7. Delivery photos land in a Google Drive folder.
+7. Delivery photos land in the Drive photo folder under year, month and day, and every
+   row of the delivery links to them.
 
 - **Production form:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_production_form3.html
 - **Delivery form:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_delivery_form3.html

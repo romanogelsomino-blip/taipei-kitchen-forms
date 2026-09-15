@@ -249,34 +249,15 @@ jobs:
               || { echo "::error::the monthly $tab tab went $before -> $after instead of growing by one; the write did not reach the monthly store."; return 1; }
             echo "monthly $tab rows: $before -> $after"
           }
-          TODAY=$(TZ=America/New_York date +%F)
-          NOW=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
-
-          ID=$(python3 -c 'import uuid; print(uuid.uuid4())')
-          cat > production.json <<JSON
-          {"formType":"production","rows":[{
-            "submissionId":"$ID","clientTimestamp":"$NOW","date":"$TODAY","shift":"AM",
-            "kitchen":"ZZ-CI-SMOKE","supervisor":"ZZ-CI-SMOKE","dish":"ZZ-CI-SMOKE",
-            "cookTemp":"200","cookStart":"00:00","cookEnd":"00:01","cookTime":"1",
-            "qtyProduced":"0","qtyDiscarded":"0","discardReason":"",
-            "coolStart":"00:01","coolEnd":"00:02","coolTime":"1","finalTemp":"38",
-            "formType":"production"}]}
-          JSON
+          # Payloads come from the same builders the test scripts use, mirroring the forms.
+          node scripts/smoke-payload.js production tag=ZZ-CI-SMOKE > production.json
           smoke_write Production production.json
-          echo "production submission $ID"
+          echo "production submission $(jq -r '.rows[0].submissionId' production.json)"
 
-          ID=$(python3 -c 'import uuid; print(uuid.uuid4())')
-          cat > delivery.json <<JSON
-          {"formType":"delivery","rows":[{
-            "submissionId":"$ID","clientTimestamp":"$NOW","date":"$TODAY",
-            "driver":"ZZ-CI-SMOKE","store":"0000","storeId":"0000","arrive":"00:00","arrivalTemp":"38",
-            "coolerTemp":"38","dish":"ZZ-CI-SMOKE",
-            "casePrefillPercent":"0-25%","added":"0","before":"0","removed":"0",
-            "reason":"","after":"0","notes":"CI smoke test run ${{ github.run_id }} - safe to delete",
-            "receivedBy":"ZZ-CI-SMOKE","formType":"delivery"}]}
-          JSON
+          node scripts/smoke-payload.js delivery tag=ZZ-CI-SMOKE store=0000 \
+            "note=CI smoke test run ${{ github.run_id }} - safe to delete" > delivery.json
           smoke_write Deliveries delivery.json
-          echo "delivery submission $ID"
+          echo "delivery submission $(jq -r '.rows[0].submissionId' delivery.json)"
 
   # ───────────────────────────────────────────────────────────────────────────────
   frontend:

@@ -72,7 +72,6 @@ function writeExecutionRecord(ctx) {
   entry.durationMs = new Date() - ctx.startTime;
 
   const notes = ctx.notes.slice();
-  if (entry.notes) notes.push(String(entry.notes)); // string notes from the legacy photo path
 
   let targets = null;
   try {

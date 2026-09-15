@@ -54,9 +54,12 @@ function postMalformedData() {
         try {
           const json = JSON.parse(data);
           console.log('📤 POST Response:', json);
-          if (json.status === 'error') {
-            console.log('✅ Server correctly returned error status');
+          if (json.status === 'error' && /formType/.test(json.message || '')) {
+            console.log('✅ Server returned an error naming formType');
             resolve(json);
+          } else if (json.status === 'error') {
+            console.error('❌ Error message does not mention formType:', json.message);
+            reject(new Error('error message does not mention formType'));
           } else {
             console.log('⚠️  Expected error status, got:', json.status);
             resolve(json);
