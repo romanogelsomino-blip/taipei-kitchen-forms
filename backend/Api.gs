@@ -254,6 +254,28 @@ function action_storageStatus(e) {
   }
 }
 
+/**
+ * Run once from the Apps Script editor, as the deploying account, after any change to the
+ * scopes in appsscript.json. It touches each service the project declares, so approving the
+ * prompt grants the whole set, and it reports what it reached so a half-granted state is
+ * obvious rather than silent. Takes no arguments and writes nothing.
+ */
+function authorize() {
+  const report = {};
+  const check = (name, fn) => {
+    try { report[name] = fn(); } catch (e) { report[name] = 'FAILED: ' + e.toString(); }
+  };
+  check('properties', () => Object.keys(PropertiesService.getScriptProperties().getProperties()).sort().join(', '));
+  check('operations folder', () => getSpreadsheetFolder().getName());
+  check('photo folder', () => getPhotoRootFolder().getName());
+  check('legacy spreadsheet', () => SpreadsheetApp.openById(getSpreadsheetId()).getName());
+  check('mail quota remaining', () => MailApp.getRemainingDailyQuota());
+  check('sending account', () => Session.getEffectiveUser().getEmail());
+  check('verified aliases', () => (GmailApp.getAliases() || []).join(', ') || '(none)');
+  Object.keys(report).forEach(key => Logger.log(key + ': ' + report[key]));
+  return report;
+}
+
 /** The action table: name → { fn, admin }. Built in a function so file load order cannot matter. */
 function actions() {
   return {

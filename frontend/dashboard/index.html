@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="styles.css">
 <!-- Chart.js via CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <!-- Driver.js for Dashboard Tour -->
 </head>
 <body>
@@ -140,7 +141,7 @@
       <div class="home-launchers">
         <div class="section-card">
           <h2 class="section-title">Production Log</h2>
-          <p class="home-launcher-blurb">Kitchen staff record each batch: cook and cooling times, dish counts, and QA.</p>
+          <p class="home-launcher-blurb">Kitchen staff record each batch: cook and cooling times, the final temperature, and how much of each dish was made or discarded.</p>
           <div class="filter-field">
             <label for="home-kitchen">Production kitchen</label>
             <select id="home-kitchen" onchange="homeUpdateLaunchers()">
@@ -151,7 +152,7 @@
         </div>
         <div class="section-card">
           <h2 class="section-title">Delivery Form</h2>
-          <p class="home-launcher-blurb">Drivers record each store drop: cooler temperature, what was stocked and pulled, and case photos.</p>
+          <p class="home-launcher-blurb">Drivers record each store drop: product and cooler temperatures, what was stocked and pulled, and case photos.</p>
           <div class="filter-field">
             <label for="home-store">Store</label>
             <select id="home-store" onchange="homeUpdateLaunchers()">
@@ -161,6 +162,33 @@
           <button class="btn-apply-filters home-launch" id="home-open-delivery" onclick="homeOpen('delivery')" disabled>Select a store</button>
         </div>
       </div>
+      <div class="section-card">
+        <h2 class="section-title">Store QR codes</h2>
+        <p class="home-launcher-blurb">
+          The code posted at a store opens the delivery form with that store already filled
+          in. Generate one here to replace a code that has been damaged or lost.
+        </p>
+        <div class="filter-field">
+          <label for="home-qr-store">Store</label>
+          <select id="home-qr-store" onchange="homeQrUpdate()">
+            <option value="">— Select a store —</option>
+          </select>
+        </div>
+        <button class="btn-apply-filters" id="home-qr-generate" onclick="homeGenerateQr()" disabled>Select a store</button>
+        <div id="home-qr-output" class="home-qr-output" hidden>
+          <canvas id="home-qr-canvas" class="home-qr-canvas"></canvas>
+          <div class="home-qr-meta">
+            <p class="home-qr-label" id="home-qr-label"></p>
+            <p class="home-qr-url" id="home-qr-url"></p>
+            <div class="home-qr-actions">
+              <a class="btn-apply-filters" id="home-qr-download" download>Download PNG</a>
+              <button class="btn-apply-filters" onclick="homePrintQr()">Print</button>
+            </div>
+          </div>
+        </div>
+        <p id="home-qr-status" class="home-status"></p>
+      </div>
+
       <p id="home-locations-status" class="home-status"></p>
     </section>
 

@@ -132,6 +132,30 @@ Workspace organizational unit must exempt the clasp OAuth client from Google Clo
 control, or the token expires within a day of each `clasp login` and the backend job fails
 at `clasp push` with `invalid_grant`.
 
+### OAuth scopes
+
+`backend/appsscript.json` lists the scopes explicitly, so the project gets exactly those and
+nothing more. A change to that list takes effect on the next push, but the deploying account
+must then approve the new set before the web app serves again. Until it does, every request
+returns an authorisation error, so make scope changes when someone can finish the approval.
+
+Re-authorising, once per environment:
+
+1. Push first, so the project holds the new scope list. Merge to `dev` or `prod`, or run the
+   workflow by hand; the backend job pushes before anything else.
+2. Open the project as the deploying account: `npm run open:staging` or
+   `npm run open:production`. Sign in as that account if the browser opens as someone else,
+   or the approval will be recorded against the wrong one.
+3. Pick `authorize` from the function dropdown and press Run.
+4. Approve the prompt. It lists the whole declared scope set, not just what changed. The
+   unverified-app warning is expected: choose Advanced, then go to the project.
+5. Read the execution log. `authorize` names each folder, spreadsheet, mail quota, sending
+   account and verified alias it reached, and marks anything it could not as FAILED.
+6. Confirm from outside with `npm run ping:<env>` and `npm run mail:<env>`.
+
+If requests still fail after that, re-run the deploy workflow. The redeploy picks up the
+refreshed grant.
+
 ### Alert email
 
 `ALERT_RECIPIENTS` is who HACCP violation alerts go to, comma separated. `SUPPORT_RECIPIENTS`

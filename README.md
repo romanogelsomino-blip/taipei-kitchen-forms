@@ -25,7 +25,9 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 **`frontend/` and `data/` publish to the site root**, so the served URLs contain no
 `frontend/` segment. The QR codes depend on that.
 
-**Live Dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
+**Live dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
+
+**Staging dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/staging/dashboard/
 
 ---
 
@@ -41,8 +43,10 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 7. Delivery photos land in the Drive photo folder under year, month and day, and every
    row of the delivery links to them.
 
-- **Production form:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_production_form3.html
-- **Delivery form:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_delivery_form3.html
+Neither form is linked here on purpose. Both need a location to be any use: the delivery form
+opens from a store's QR code as `?store=<id>`, and the dashboard's home page opens the
+production form as `?kitchen=<id>`. Opening one bare gives a form with no location chosen,
+which is how a delivery gets logged against the wrong store.
 
 The pages live in `frontend/`, their scripts and stylesheet in `frontend/forms/`. See
 [Running locally](#running-locally) to try a change before pushing it.

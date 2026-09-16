@@ -544,7 +544,7 @@ function showPanel(panelName) {
 
 const HOME_FORMS = {
   production: { page: '../taipei_production_form3.html', param: 'kitchen', selectId: 'home-kitchen', buttonId: 'home-open-production', label: 'Open Production Log', prompt: 'Select a kitchen' },
-  delivery:   { page: '../taipei_delivery_form3.html',   param: 'store',   selectId: 'home-store',   buttonId: 'home-open-delivery',   label: 'Open Delivery Form',   prompt: 'Select a store' }
+  delivery:   { page: '../taipei_delivery_form3.html',   param: 'store',   selectId: 'home-store',   buttonId: 'home-open-delivery',   label: 'Open Delivery Form',   prompt: 'Select a store',   qrLabel: 'Store QR code',   qrCaption: 'Delivery Form' }
 };
 
 async function loadHomeLocations() {
@@ -553,14 +553,20 @@ async function loadHomeLocations() {
     const response = await fetch('../data/stores.json');
     if (!response.ok) throw new Error('HTTP ' + response.status);
     const data = await response.json();
-    fillHomeSelect('home-kitchen', (data.kitchens || []).filter(k => k.active), k => k.name);
-    fillHomeSelect('home-store',   (data.stores   || []).filter(s => s.active), s => s.location ? `${s.name} · ${s.location}` : s.name);
+    const kitchens = (data.kitchens || []).filter(k => k.active);
+    const stores = (data.stores || []).filter(s => s.active);
+    const storeText = s => s.location ? `${s.name} · ${s.location}` : s.name;
+
+    fillHomeSelect('home-kitchen', kitchens, k => k.name);
+    fillHomeSelect('home-store', stores, storeText);
+    fillHomeSelect('home-qr-store', stores, storeText);
     status.textContent = '';
   } catch (e) {
     console.error('[Home] Could not load data/stores.json:', e);
     status.textContent = 'The kitchen and store lists could not be loaded. Reload to try again.';
   }
   homeUpdateLaunchers();
+  homeQrUpdate();
 }
 
 function fillHomeSelect(id, entries, text) {
@@ -584,11 +590,106 @@ function homeTarget(kind) {
 function homeUpdateLaunchers() {
   Object.keys(HOME_FORMS).forEach(kind => {
     const form = HOME_FORMS[kind];
-    const button = document.getElementById(form.buttonId);
     const ready = homeTarget(kind) !== null;
+
+    const button = document.getElementById(form.buttonId);
     button.disabled = !ready;
     button.textContent = ready ? form.label : form.prompt;
+
   });
+}
+
+/** The QR card carries its own store picker, so it does not depend on a choice made above. */
+function homeQrUpdate() {
+  const chosen = document.getElementById('home-qr-store').value;
+  const button = document.getElementById('home-qr-generate');
+  button.disabled = !chosen;
+  button.textContent = chosen ? 'Generate QR code' : 'Select a store';
+}
+
+/**
+ * The absolute address a QR code has to carry. `homeTarget` is relative to this page, which
+ * is what a link needs and what a phone camera cannot use. Resolving against the current
+ * location also means a code generated on the staging dashboard points at the staging form.
+ */
+function homeQrUrl(storeId) {
+  const form = HOME_FORMS.delivery;
+  const target = `${form.page}?${form.param}=${encodeURIComponent(storeId)}`;
+  return new URL(target, window.location.href).href;
+}
+
+/** Draw the QR for the chosen location, at a size worth printing. */
+function homeGenerateQr() {
+  const status = document.getElementById('home-qr-status');
+  const output = document.getElementById('home-qr-output');
+  const select = document.getElementById('home-qr-store');
+  if (!select.value) return;
+  const url = homeQrUrl(select.value);
+
+  if (typeof qrcode !== 'function') {
+    output.hidden = true;
+    status.textContent = 'The QR code library could not be loaded. Check the connection and reload.';
+    return;
+  }
+
+  const code = qrcode(0, 'M');   // smallest symbol that fits, medium error correction
+  code.addData(url);
+  code.make();
+
+  const modules = code.getModuleCount();
+  const scale = 12;              // large enough that a printed code scans from a metre away
+  const quiet = 4;               // the quiet zone the spec requires around the symbol
+  const size = (modules + quiet * 2) * scale;
+
+  const canvas = document.getElementById('home-qr-canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = '#1C1C1C';
+  for (let row = 0; row < modules; row++) {
+    for (let col = 0; col < modules; col++) {
+      if (code.isDark(row, col)) {
+        ctx.fillRect((col + quiet) * scale, (row + quiet) * scale, scale, scale);
+      }
+    }
+  }
+
+  document.getElementById('home-qr-label').textContent =
+    'Delivery Form — ' + select.options[select.selectedIndex].textContent;
+  document.getElementById('home-qr-url').textContent = url;
+
+  const download = document.getElementById('home-qr-download');
+  download.href = canvas.toDataURL('image/png');
+  download.download = 'taipei-delivery-' + select.value + '.png';
+
+  output.hidden = false;
+  status.textContent = '';
+}
+
+/** Print the code on its own page, captioned, so it can go straight on a wall. */
+function homePrintQr() {
+  const canvas = document.getElementById('home-qr-canvas');
+  const label = document.getElementById('home-qr-label').textContent;
+  const url = document.getElementById('home-qr-url').textContent;
+  const sheet = window.open('', '_blank', 'width=700,height=800');
+  if (!sheet) {
+    document.getElementById('home-qr-status').textContent =
+      'The print window was blocked. Download the PNG and print that instead.';
+    return;
+  }
+  sheet.document.write(
+    '<title>' + label + '</title>' +
+    '<style>body{font-family:system-ui,sans-serif;text-align:center;padding:40px}' +
+    'img{width:380px;height:380px}h1{font-size:1.2rem;margin:20px 0 6px}' +
+    'p{font-size:0.7rem;color:#555;word-break:break-all;margin:0 auto;max-width:60ch}</style>' +
+    '<img src="' + canvas.toDataURL('image/png') + '">' +
+    '<h1>' + label + '</h1><p>' + url + '</p>'
+  );
+  sheet.document.close();
+  sheet.focus();
+  sheet.print();
 }
 
 function homeOpen(kind) {

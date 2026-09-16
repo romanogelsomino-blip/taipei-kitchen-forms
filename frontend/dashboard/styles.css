@@ -1734,3 +1734,39 @@ body {
 .mobile-nav { overflow-x: auto; }
 .mobile-nav-link { flex: 1 0 auto; padding: 12px 3px; }
 .mobile-nav-label { font-size: 0.6rem; letter-spacing: 0; }
+
+/* ── Home QR codes ─────────────────────────────────────────────────────── */
+.home-qr-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.home-qr-actions .btn-apply-filters { text-decoration: none; text-align: center; }
+/* `display: flex` on a class beats the hidden attribute's own rule, so restate it. */
+.home-qr-output[hidden] { display: none; }
+.home-qr-output {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.home-qr-canvas {
+  width: 220px;
+  height: 220px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+.home-qr-meta { flex: 1; min-width: 240px; }
+.home-qr-label { font-weight: 600; color: var(--dark); margin-bottom: 6px; }
+.home-qr-url {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--mid);
+  word-break: break-all;
+  margin-bottom: 14px;
+}
