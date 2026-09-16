@@ -208,86 +208,50 @@ function simulateViolation() {
  * Scheduled to run at 9am daily via time-driven trigger
  */
 function sendDailySummary() {
-  const scriptProperties = PropertiesService.getScriptProperties();
-  const SPREADSHEET_ID = getSpreadsheetId();
   const SUMMARY_EMAIL = 'tech-support@kalispellconsulting.com';
 
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const logSheet = ss.getSheetByName('Execution Log');
+    const day = addDays(todayNY(), -1);
+    const label = formatDate(new Date(day + 'T12:00:00Z'));
+    const read = readMonthlyRows([monthKeyOfDate(day)], 'Executions');
+    const entries = read.records.filter(record => String(record.timestamp).slice(0, 10) === day);
 
-    if (!logSheet) {
-      Logger.log('[Daily Summary] Execution Log sheet not found');
-      return;
-    }
-
-    // Get yesterday's date range
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(0, 0, 0, 0);
-    const yesterdayEnd = new Date(yesterday);
-    yesterdayEnd.setHours(23, 59, 59, 999);
-
-    // Read all log entries
-    const data = logSheet.getDataRange().getValues();
-    const headers = data[0];
-    const rows = data.slice(1); // Skip header
-
-    // Filter for yesterday's entries
-    const yesterdayEntries = rows.filter(row => {
-      const timestamp = new Date(row[0]); // Column A: Timestamp
-      return timestamp >= yesterday && timestamp <= yesterdayEnd;
-    });
-
-    if (yesterdayEntries.length === 0) {
-      // No submissions yesterday - send notification
+    if (entries.length === 0) {
       MailApp.sendEmail({
         to: SUMMARY_EMAIL,
-        subject: `Taipei Kitchen Daily Summary - ${formatDate(yesterday)} - NO ACTIVITY`,
-        body: `No form submissions were recorded on ${formatDate(yesterday)}.\n\nThis could indicate:\n- No operations on that day\n- Form submission failures\n- Network connectivity issues\n\nPlease verify with operations team.`
+        subject: `Taipei Kitchen Daily Summary - ${label} - NO ACTIVITY`,
+        body: `No form submissions were recorded on ${label}.\n\nThis could indicate:\n- No operations on that day\n- Form submission failures\n- Network connectivity issues\n\nPlease verify with operations team.`
       });
       return;
     }
 
-    // Aggregate statistics
-    let deliveryCount = 0;
-    let productionCount = 0;
-    let bugReportCount = 0;
-    let errorCount = 0;
-    let photoUploads = 0;
-    let totalDuration = 0;
-    let maxDuration = 0;
+    let deliveryCount = 0, productionCount = 0, bugReportCount = 0, photoUploads = 0;
+    let errorCount = 0, totalDuration = 0, maxDuration = 0;
     const errors = [];
+    const notes = [];
 
-    yesterdayEntries.forEach(row => {
-      const formType = row[1];
-      const rowCount = row[2];
-      const photoSize = row[3];
-      const status = row[4];
-      const errorMsg = row[5];
-      const duration = row[6];
+    entries.forEach(entry => {
+      if (entry.formType === 'delivery') deliveryCount++;
+      else if (entry.formType === 'production') productionCount++;
+      else if (entry.formType === 'bugReport') bugReportCount++;
 
-      if (formType === 'delivery') deliveryCount++;
-      else if (formType === 'production') productionCount++;
-      else if (formType === 'bugReport') bugReportCount++;
-
-      if (status === 'ERROR') {
+      if (entry.status === 'ERROR') {
         errorCount++;
-        errors.push(`${row[0]}: ${errorMsg}`);
+        errors.push(`${entry.timestamp}: ${entry.errorMessage}`);
       }
+      if (entry.notes) notes.push(`${entry.timestamp}: ${entry.notes}`);
+      if ((parseInt(entry.photoSizeKB, 10) || 0) > 0) photoUploads++;
 
-      if (photoSize > 0) photoUploads++;
-
+      const duration = parseInt(entry.durationMs, 10) || 0;
       totalDuration += duration;
       if (duration > maxDuration) maxDuration = duration;
     });
 
-    const avgDuration = yesterdayEntries.length > 0 ? Math.round(totalDuration / yesterdayEntries.length) : 0;
+    const avgDuration = Math.round(totalDuration / entries.length);
+    const monthFile = (read.files[0] || {}).fileId;
 
-    // Build email body
     const emailBody = `
-Daily Operations Summary for ${formatDate(yesterday)}
+Daily Operations Summary for ${label}
 
 ═══════════════════════════════════════
 SUBMISSIONS
@@ -295,12 +259,17 @@ SUBMISSIONS
 • Delivery Forms: ${deliveryCount} submissions
 • Production Forms: ${productionCount} submissions
 • Bug Reports: ${bugReportCount}
-• Total: ${yesterdayEntries.length} requests
+• Total: ${entries.length} requests
 
 ═══════════════════════════════════════
 ERRORS
 ═══════════════════════════════════════
 ${errorCount === 0 ? '✅ No errors reported' : `❌ ${errorCount} error(s) occurred:\n\n${errors.join('\n\n')}`}
+
+═══════════════════════════════════════
+NOTES
+═══════════════════════════════════════
+${notes.length === 0 ? 'None' : notes.join('\n')}
 
 ═══════════════════════════════════════
 PHOTOS
@@ -313,8 +282,7 @@ PERFORMANCE
 • Average response time: ${avgDuration}ms
 • Slowest submission: ${maxDuration}ms
 
-View full execution log:
-https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=${logSheet.getSheetId()}
+${monthFile ? 'View the month\'s operations file:\n' + monthlyFileUrl(monthFile) : ''}
 
 ---
 🤖 Automated daily summary from Taipei Kitchen Operations System
@@ -322,7 +290,7 @@ https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=${logSheet.get
 
     MailApp.sendEmail({
       to: SUMMARY_EMAIL,
-      subject: `Taipei Kitchen Daily Summary - ${formatDate(yesterday)}${errorCount > 0 ? ' ⚠️ ERRORS' : ''}`,
+      subject: `Taipei Kitchen Daily Summary - ${label}${errorCount > 0 ? ' ⚠️ ERRORS' : ''}`,
       body: emailBody
     });
 
@@ -330,7 +298,6 @@ https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit#gid=${logSheet.get
 
   } catch (error) {
     Logger.log('[Daily Summary] Failed: ' + error);
-    // Try to send error notification
     try {
       MailApp.sendEmail({
         to: SUMMARY_EMAIL,
@@ -466,62 +433,6 @@ function action_updateViolationStatus(e) {
 
     return ContentService
       .createTextOutput(JSON.stringify({ status: 'ok', message: 'Status updated', violationId: violationId, newStatus: newStatus }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function action_addViolationNote(e) {
-  const SPREADSHEET_ID = getSpreadsheetId();
-
-  try {
-    const violationId = e.parameter.violationId;
-    const note = e.parameter.note;
-    const author = e.parameter.author || 'User';
-
-    if (!violationId || !note) {
-      return ContentService
-        .createTextOutput(JSON.stringify({ status: 'error', message: 'Missing violationId or note parameter' }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const violationsSheet = ss.getSheetByName('Violations Tracker');
-
-    if (!violationsSheet) {
-      return ContentService
-        .createTextOutput(JSON.stringify({ status: 'error', message: 'Violations Tracker sheet not found' }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    const data = violationsSheet.getDataRange().getValues();
-    let found = false;
-
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] === violationId) {
-        // Get existing notes (column J, index 9)
-        const existingNotes = data[i][9] || '';
-        const timestamp = new Date().toISOString();
-        const newNote = `[${timestamp}] ${author}: ${note}`;
-        const updatedNotes = existingNotes ? `${existingNotes}\n${newNote}` : newNote;
-
-        violationsSheet.getRange(i + 1, 10).setValue(updatedNotes);
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
-      return ContentService
-        .createTextOutput(JSON.stringify({ status: 'error', message: 'Violation not found' }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    return ContentService
-      .createTextOutput(JSON.stringify({ status: 'ok', message: 'Note added', violationId: violationId }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
     return ContentService

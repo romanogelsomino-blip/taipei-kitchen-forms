@@ -32,6 +32,8 @@
     "ping:production": "node scripts/admin-action.js production ping",
     "storage:staging": "node scripts/admin-action.js staging storageStatus",
     "storage:production": "node scripts/admin-action.js production storageStatus",
+    "query:staging": "node scripts/admin-action.js staging queryDeliveries",
+    "query:production": "node scripts/admin-action.js production queryDeliveries",
     "format:staging": "node scripts/admin-action.js staging formatStorage",
     "format:production": "node scripts/admin-action.js production formatStorage",
     "admin:staging": "node scripts/admin-action.js staging",

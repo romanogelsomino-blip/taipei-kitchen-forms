@@ -114,6 +114,11 @@ order: Production, Deliveries, Violations, Executions.
 
 Photos live under `PHOTO_FOLDER_ID` as `<YYYY>/<MM>/<DD>/`.
 
+Reads take a date window, `from` and `to` as `YYYY-MM-DD`, defaulting to the first of last
+month through today and capped at six months because that is six files to open. A month with
+no file contributes nothing rather than failing, which is what the first day of a month looks
+like before anything has been written to it.
+
 Never rename or move a monthly file. The backend finds it by exact name and would create a
 second one alongside it.
 

@@ -257,7 +257,15 @@ jobs:
           node scripts/smoke-payload.js delivery tag=ZZ-CI-SMOKE store=0000 \
             "note=CI smoke test run ${{ github.run_id }} - safe to delete" > delivery.json
           smoke_write Deliveries delivery.json
-          echo "delivery submission $(jq -r '.rows[0].submissionId' delivery.json)"
+          DELIVERY_ID=$(jq -r '.rows[0].submissionId' delivery.json)
+          echo "delivery submission $DELIVERY_ID"
+
+          # Read it back: growth proves the write landed, the read-back proves it is findable.
+          BACK=$(webapp_get queryDeliveries "submissionId=$DELIVERY_ID") \
+            || { echo "::error::queryDeliveries never answered with JSON."; exit 1; }
+          [ "$(webapp_field "$BACK" .matched)" = 1 ] \
+            || { echo "::error::the smoke row is not readable back by its submission id ($(webapp_field "$BACK" .matched) matched)."; exit 1; }
+          echo "read back 1 row for $DELIVERY_ID"
 
   # ───────────────────────────────────────────────────────────────────────────────
   frontend:

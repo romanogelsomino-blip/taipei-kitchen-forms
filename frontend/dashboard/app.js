@@ -385,6 +385,7 @@ async function fetchData(opts) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const data = await response.json();
+    if (data.status === 'error') throw new Error(data.message || 'backend returned an error');
 
     // Merge properties instead of replacing to preserve violations array
     DATA.deliveries = data.deliveries || [];
@@ -409,7 +410,7 @@ async function fetchData(opts) {
     renderWaste();
   } catch (e) {
     console.error('[Data] Fetch failed:', e);
-    updateStatus('error', 'Fetch failed');
+    updateStatus('error', `Fetch failed: ${e.message}`);
   }
 }
 

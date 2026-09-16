@@ -397,9 +397,7 @@ function actions() {
     getConfig:             { fn: action_getConfig,             admin: false },
     setConfig:             { fn: action_setConfig,             admin: false },
     getViolations:         { fn: action_getViolations,         admin: false },
-    updateViolationStatus: { fn: action_updateViolationStatus, admin: false },
-    addViolationNote:      { fn: action_addViolationNote,      admin: false },
-    debug:                 { fn: action_debug,                 admin: false }
+    updateViolationStatus: { fn: action_updateViolationStatus, admin: false }
   };
 }
 
@@ -412,7 +410,7 @@ function doGet(e) {
     return ContentService
       .createTextOutput(JSON.stringify({
         status: 'error',
-        message: 'Unknown action. Admin actions (require token): init, test, ping, debugConfig, resetConfig, setScriptProperty, rotateAdminToken, sendDailySummary, getExecutionLog, queryDeliveries, storageStatus, listTriggers, createTrigger, deleteTrigger, checkPhotoDrift, formatStorage. Public actions: getConfig, setConfig, getViolations, updateViolationStatus, addViolationNote'
+        message: 'Unknown action. Admin actions (require token): init, test, ping, debugConfig, resetConfig, setScriptProperty, rotateAdminToken, sendDailySummary, getExecutionLog, queryDeliveries, storageStatus, listTriggers, createTrigger, deleteTrigger, checkPhotoDrift, formatStorage. Public actions: getConfig, setConfig, getViolations, updateViolationStatus'
       }))
       .setMimeType(ContentService.MimeType.JSON);
   }

@@ -35,14 +35,14 @@ function fail(what, detail) {
   const ping = await webapp.get(WEB_APP_URL, { action: 'ping', token: ADMIN_TOKEN });
   console.log(`  month file: ${ping.current_month ? ping.current_month.url : '(none)'}`);
 
-  // The legacy sheet, while it is still a write target, through its own reader.
-  if (String(ping.write_targets || '').includes('legacy')) {
-    const q = await webapp.get(WEB_APP_URL, { action: 'queryDeliveries', token: ADMIN_TOKEN, date: over.date, driver: over.tag, limit: 200 });
-    const rows = (q.deliveries || []).filter(r => r.driver === over.tag);
-    const linked = rows.filter(r => r.beforePhotoLink && r.afterPhotoLink);
-    console.log(`  legacy: ${rows.length} rows for ${over.tag} today, ${linked.length} with both links`);
-    if (linked.length < delivery.rows.length) fail('legacy rows missing links', rows.slice(-delivery.rows.length));
-  }
+  // Read the rows back out of the month file by submission id.
+  const q = await webapp.get(WEB_APP_URL, { action: 'queryDeliveries', token: ADMIN_TOKEN, submissionId: over.id, limit: 200 });
+  if (q.status !== 'ok') fail('queryDeliveries', q);
+  const rows = q.deliveries || [];
+  const linked = rows.filter(r => r.beforePhotoLink && r.afterPhotoLink);
+  console.log(`  month file: ${rows.length} rows for this submission, ${linked.length} with both links`);
+  if (rows.length !== delivery.rows.length) fail(`expected ${delivery.rows.length} rows back`, rows.map(r => r.dish));
+  if (linked.length !== rows.length) fail('rows missing photo links', rows.map(r => ({ dish: r.dish, before: r.beforePhotoLink, after: r.afterPhotoLink })));
 
   console.log('PASS');
 })().catch(e => fail(e.message));
