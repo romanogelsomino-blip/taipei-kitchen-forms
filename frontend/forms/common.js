@@ -8,6 +8,45 @@
 // never hardcoded here. See scripts/write-frontend-config.js.
 const GOOGLE_SCRIPT_URL = (window.APP_CONFIG && window.APP_CONFIG.webAppUrl) || null;
 
+// ─── Submissions, dates and temperatures ────────────────────────────────────
+
+const NY_TZ = 'America/New_York';
+const TEMP_LIMIT_F = 41;   // HACCP cold-holding limit; the dashboard uses the same number
+
+/**
+ * One id for a whole submission: every row of it and, on the delivery form, the photos that
+ * follow in a second request. It is how the backend links the photos to the right rows.
+ */
+function newSubmissionId() {
+  const c = window.crypto;
+  if (c && c.randomUUID) return c.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (c && c.getRandomValues) c.getRandomValues(bytes);
+  else for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;   // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;   // variant
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+}
+
+/**
+ * Today in New York as `YYYY-MM-DD`. A UTC date would read as tomorrow after 8pm Eastern,
+ * which is inside the evening shift, and the backend files each record under this date.
+ */
+function localDateISO() {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: NY_TZ, year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(new Date());
+  const part = type => parts.find(p => p.type === type).value;
+  return part('year') + '-' + part('month') + '-' + part('day');
+}
+
+/** Colour a temperature input: red above the cold-holding limit, green below it. */
+function flagTemp(el) {
+  const value = parseFloat(el.value);
+  el.style.borderColor = value > TEMP_LIMIT_F ? 'var(--red)' : (value > 0 ? 'var(--green)' : '');
+  el.style.background  = value > TEMP_LIMIT_F ? 'var(--red-lt)' : '';
+}
+
 // ─── Stores, kitchens & dishes ───────────────────────────────────────────────
 // data/stores.json holds the kitchen, store and dish lists. Cached in localStorage for an
 // hour so a phone on store Wi-Fi is not refetching it at every stop.

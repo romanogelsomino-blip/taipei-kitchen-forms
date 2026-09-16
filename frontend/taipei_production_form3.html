@@ -46,7 +46,7 @@
     <div class="field-group fg-4">
       <div class="field">
         <label>Date</label>
-        <input type="date" id="f-date" onchange="updateBatchId()">
+        <input type="date" id="f-date">
       </div>
       <div class="field">
         <label>Shift</label>
@@ -77,19 +77,6 @@
       <button id="recall-btn" onclick="lastSubmission.recall()" style="background:var(--green);color:#fff;border:none;border-radius:6px;padding:10px 16px;font-family:'DM Mono',monospace;font-size:.78rem;cursor:pointer;display:none;transition:background .15s;">
         ⚡ Use Last Values
       </button>
-    </div>
-
-    <!-- Batch ID row -->
-    <div style="padding:12px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--row-alt);">
-      <div style="display:flex;flex-direction:column;gap:4px;">
-        <label style="font-family:'DM Mono',monospace;font-size:.68rem;color:var(--soft);letter-spacing:.1em;text-transform:uppercase;">Batch ID</label>
-        <div style="display:flex;align-items:center;gap:12px;">
-          <div id="batch-id-display" style="font-family:'DM Mono',monospace;font-size:1rem;font-weight:500;color:var(--dark);background:#fff;border:1.5px solid var(--border);border-radius:5px;padding:7px 14px;min-width:180px;text-align:center;"></div>
-          <button onclick="changeBatch(-1)" style="background:var(--border);border:none;border-radius:6px;min-width:44px;min-height:44px;cursor:pointer;font-size:1.2rem;display:flex;align-items:center;justify-content:center;">−</button>
-          <button onclick="changeBatch(1)"  style="background:var(--red);color:#fff;border:none;border-radius:6px;min-width:44px;min-height:44px;cursor:pointer;font-size:1.2rem;display:flex;align-items:center;justify-content:center;">+</button>
-        </div>
-        <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--soft);">Auto-set from date · + to start a second batch same day</span>
-      </div>
     </div>
 
     <!-- Cook times row -->
@@ -137,7 +124,7 @@
         </div>
         <div class="field">
           <label>Final Batch Temp °F</label>
-          <input type="number" id="b-final-temp" min="30" max="212" placeholder="°F" oninput="flagBatchTemp(this)">
+          <input type="number" id="b-final-temp" min="30" max="212" placeholder="°F" oninput="flagTemp(this)">
         </div>
       </div>
     </div>
@@ -157,23 +144,6 @@
     <div style="padding:16px 20px;border-top:2px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
       <div style="font-family:'DM Mono',monospace;font-size:.78rem;color:var(--soft);">
         Totals: <strong style="color:var(--dark)"><span id="total-produced">0</span> produced</strong> · <strong style="color:var(--dark)"><span id="total-discarded">0</span> discarded</strong>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── BATCH NOTES ── -->
-  <div class="form-card">
-    <div class="card-header">
-      <h2>Batch-Level Notes</h2>
-    </div>
-    <div class="notes-grid">
-      <div class="field">
-        <label>General Production Notes</label>
-        <textarea id="f-general-notes" placeholder="Equipment issues, ingredient substitutions, timing delays, supplier problems…"></textarea>
-      </div>
-      <div class="field">
-        <label>Quality Issues / Hold Items</label>
-        <textarea id="f-quality-notes" placeholder="Any items held, rejected, or escalated to supervisor — include dish name and batch number…"></textarea>
       </div>
     </div>
   </div>
@@ -215,22 +185,6 @@
       <div class="modal-field">
         <label>Discard Reason</label>
         <input type="text" id="modal-discard-reason" placeholder="Reason if any…">
-      </div>
-      <div class="modal-field">
-        <label>QA</label>
-        <select id="modal-qa">
-          <option value="pass" selected>✓ Pass</option>
-          <option value="fail">✗ Fail</option>
-          <option value="na">N/A</option>
-        </select>
-      </div>
-      <div class="modal-field">
-        <label>QA / Quality Notes</label>
-        <textarea id="modal-qa-notes" placeholder="Notes…"></textarea>
-      </div>
-      <div class="modal-field">
-        <label>Initials</label>
-        <input type="text" id="modal-initials" placeholder="Init" maxlength="4" style="text-transform:uppercase;">
       </div>
     </div>
     <div class="dish-modal-footer">

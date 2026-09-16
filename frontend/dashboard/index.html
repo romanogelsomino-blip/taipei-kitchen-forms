@@ -309,14 +309,15 @@
       <!-- Quick Stats -->
       <div class="section-card">
         <h2 class="section-title">System Overview</h2>
+        <p style="font-size:0.78rem;color:var(--soft);margin:-6px 0 14px;">Counts for <span id="system-stats-window">the loaded range</span></p>
         <div id="system-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
           <div style="text-align:center;">
-            <div style="font-family:'DM Mono',monospace;font-size:1.8rem;font-weight:700;color:var(--green);" id="stat-total-deliveries">—</div>
-            <div style="font-size:0.8rem;color:var(--mid);margin-top:4px;">Total Deliveries</div>
+            <div style="font-family:'DM Mono',monospace;font-size:1.8rem;font-weight:700;color:#3498DB;" id="stat-total-production">—</div>
+            <div style="font-size:0.8rem;color:var(--mid);margin-top:4px;">Production Rows</div>
           </div>
           <div style="text-align:center;">
-            <div style="font-family:'DM Mono',monospace;font-size:1.8rem;font-weight:700;color:#3498DB;" id="stat-total-production">—</div>
-            <div style="font-size:0.8rem;color:var(--mid);margin-top:4px;">Total Production Batches</div>
+            <div style="font-family:'DM Mono',monospace;font-size:1.8rem;font-weight:700;color:var(--green);" id="stat-total-deliveries">—</div>
+            <div style="font-size:0.8rem;color:var(--mid);margin-top:4px;">Delivery Rows</div>
           </div>
           <div style="text-align:center;">
             <div style="font-family:'DM Mono',monospace;font-size:1.8rem;font-weight:700;color:var(--soft);" id="stat-total-stores">—</div>
@@ -458,7 +459,6 @@
         <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
           <button class="violation-filter-btn active" onclick="setViolationFilter('all')">All</button>
           <button class="violation-filter-btn" onclick="setViolationFilter('open')">Open</button>
-          <button class="violation-filter-btn" onclick="setViolationFilter('in_progress')">In Progress</button>
           <button class="violation-filter-btn" onclick="setViolationFilter('resolved')">Resolved</button>
         </div>
 
@@ -534,12 +534,6 @@
             <label>Dish</label>
             <select id="production-dish-filter">
               <option value="">All Dishes</option>
-            </select>
-          </div>
-          <div class="filter-field">
-            <label>QA Result</label>
-            <select id="production-qa-filter">
-              <option value="">All Results</option>
             </select>
           </div>
           <div class="filter-field">

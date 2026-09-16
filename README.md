@@ -10,8 +10,8 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 
 | Path | What it does |
 |---|---|
-| `frontend/taipei_production_form3.html` | Kitchen form. Logs each batch — cook times, cooling, dish counts, quality notes. |
-| `frontend/taipei_delivery_form3.html` | Driver form. Logs each store delivery — temps, photos, what was loaded, what was left, case fill levels. |
+| `frontend/taipei_production_form3.html` | Kitchen form. Logs each batch — cook and cooling times, final temperature, per-dish counts produced and discarded. |
+| `frontend/taipei_delivery_form3.html` | Driver form. Logs each store delivery — product temperature on arrival, store cooler temperature, photos, what was loaded, what was left, case fill levels. |
 | `frontend/forms/` | The scripts and stylesheet behind both forms: `common.js` and `styles.css` are shared, then one script per form. |
 | `frontend/dashboard/` | Live web dashboard. Opens on a home page that explains the system and launches either form; then metrics, production, deliveries, waste analysis, HACCP compliance. |
 | `frontend/assets/` | Branding used by the forms. |
@@ -37,7 +37,7 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 3. They fill it out with dropdowns for drivers, supervisors, stores, and standard options.
 4. Photos are compressed client-side before upload.
 5. If offline, submissions queue in localStorage and retry when connection returns.
-6. The information lands in the master Google Sheet (`TaipeiKitchen_BentoOps_v2`).
+6. The rows land in the month's operations spreadsheet (see [Data store](#data-store)).
 7. Delivery photos land in the Drive photo folder under year, month and day, and every
    row of the delivery links to them.
 
@@ -49,7 +49,7 @@ The pages live in `frontend/`, their scripts and stylesheet in `frontend/forms/`
 
 ### Dashboard
 1. Google Apps Script `doGet` endpoint serves JSON data from the sheet.
-2. Dashboard polls the API every 10 seconds for updates.
+2. The dashboard asks for a date window and polls it every 30 seconds.
 3. Real-time metrics display: production batches, deliveries today, HACCP violations, waste.
 4. Interactive filters by date range, driver, store, dish.
 5. Waste analysis with charts showing patterns by store and reason.
@@ -89,9 +89,33 @@ The HACCP cooling rule is printed on the production form: hot food must cool fro
 
 - The production form colors total cooling time orange past 4 hours and red past 6 hours,
   and flags any recorded temperature above 41°F.
-- The backend emails a violation alert when a delivery's cooler temperature exceeds the
-  configured threshold (default 41°F) and records it in the Violations Tracker sheet.
-- The dashboard lists violations from the tracker with their status and notes.
+- The delivery form flags both temperatures it records, the product temperature on arrival
+  and the store cooler temperature, above 41°F.
+- The backend emails an alert when either exceeds the configured threshold (default 41°F)
+  and writes a row on the month's Violations tab.
+- The dashboard lists those violations. One is open until someone resolves it.
+
+---
+
+## Data store
+
+Records live in one spreadsheet per month, in a folder per year, under
+`SPREADSHEET_FOLDER_ID`: `<YYYY>/<YYYY-MM> Operations`. Each file has four tabs in this
+order: Production, Deliveries, Violations, Executions.
+
+- Headers come from the schemas in `backend/Schemas.gs` and are the read contract. Column
+  order is not: readers match on header text, so a tab may be reordered by hand.
+- A record is filed under its own date, read in New York. A submission spanning midnight at
+  a month boundary therefore lands in two files.
+- Every row of one submission shares a submission id, which is also how a delivery's photos
+  find their rows.
+- `WRITE_TARGETS` selects the stores that are written. There is no backfill: the legacy
+  spreadsheet holds everything logged before the cutover and nothing after it.
+
+Photos live under `PHOTO_FOLDER_ID` as `<YYYY>/<MM>/<DD>/`.
+
+Never rename or move a monthly file. The backend finds it by exact name and would create a
+second one alongside it.
 
 ---
 

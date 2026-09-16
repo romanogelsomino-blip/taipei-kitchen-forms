@@ -16,8 +16,14 @@ let DATA = {
   waste: [],
   stores: [],
   violations: [],
+  window: null,
   lastUpdated: null
 };
+
+// The dashboard asks the backend for a date window rather than the whole store. The backend
+// reads one spreadsheet per month and caps a request at six of them.
+const WINDOW_MAX_MONTHS = 6;
+let REQUESTED_FROM = null;
 let REFRESH_INTERVAL = null;
 const POLL_INTERVAL_MS = 30000; // Changed from 10s to 30s for better UX
 const DEMO_MODE = true; // Enable demo data for local development
@@ -27,27 +33,60 @@ const DEMO_MODE = true; // Enable demo data for local development
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Normalize date to YYYY-MM-DD format in local timezone
- * Handles various date formats and edge cases
- * @param {string|Date|null} dateInput - Date to normalize
- * @returns {string} YYYY-MM-DD string or empty string if invalid
+ * Any date the API sends as `YYYY-MM-DD`. A leading calendar date is taken as written, which
+ * is what the backend means by it; parsing one into a Date would read it as UTC midnight and
+ * land on the day before in New York.
  */
 function normalizeDate(dateInput) {
   if (!dateInput) return '';
+  if (typeof dateInput === 'string') {
+    const leading = dateInput.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (leading) return leading[1];
+  }
   try {
     const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
-    return date.toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
+    return isNaN(date.getTime()) ? '' : date.toLocaleDateString('en-CA');
   } catch {
     return '';
   }
 }
 
-/**
- * Get today's date in YYYY-MM-DD format (local timezone)
- * @returns {string} YYYY-MM-DD string
- */
+/** Today in New York as `YYYY-MM-DD`. The kitchens and stores are all in that zone. */
 function getTodayDate() {
-  return new Date().toLocaleDateString('en-CA');
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(new Date());
+  const part = type => parts.find(p => p.type === type).value;
+  return part('year') + '-' + part('month') + '-' + part('day');
+}
+
+/** `YYYY-MM-DD` shifted by whole days. Calendar arithmetic, no time zone involved. */
+function addDaysISO(iso, days) {
+  const date = new Date(iso + 'T12:00:00Z');
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** First day of the month `iso` falls in. */
+function firstOfMonthISO(iso) {
+  return iso.slice(0, 7) + '-01';
+}
+
+/** First day of the month `months` before the one `iso` falls in. */
+function monthsBackISO(iso, months) {
+  const [year, month] = iso.slice(0, 7).split('-').map(Number);
+  const index = year * 12 + (month - 1) - months;
+  return Math.floor(index / 12) + '-' + String((index % 12) + 1).padStart(2, '0') + '-01';
+}
+
+/** The Sunday that starts the week `iso` falls in. */
+function weekStartISO(iso) {
+  return addDaysISO(iso, -localDate(iso).getDay());
+}
+
+/** A `YYYY-MM-DD` as a local Date at midday, for day-of-week and label formatting only. */
+function localDate(iso) {
+  const [year, month, day] = String(iso).slice(0, 10).split('-').map(Number);
+  return new Date(year, month - 1, day, 12);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -180,8 +219,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     loadDemoData();
     updateStatus('demo', 'Demo Mode (sample data)');
     renderOverview();
-    renderDeliveries();
     renderProduction();
+    renderDeliveries();
     renderFoodSafety();
     renderWaste();
   }
@@ -220,9 +259,13 @@ function loadConfig() {
     console.log('[Config] Loaded:', CONFIG);
     return;
   }
-  console.error('[Config] config.js missing or has no webAppUrl');
-  updateStatus('error', 'Config file missing');
-  showConfigInstructions();
+  console.warn('[Config] config.js missing or has no webAppUrl');
+  // Without a backend the dashboard falls back to sample data further down, and the panels
+  // must survive to show it. Replacing them with instructions is only right when it cannot.
+  if (!DEMO_MODE) {
+    updateStatus('error', 'Config file missing');
+    showConfigInstructions();
+  }
 }
 
 function showConfigInstructions() {
@@ -269,17 +312,17 @@ function loadDemoData() {
       { submittedAt: `${yesterday}T09:20:55.000Z`, date: yesterday, driver: 'Sam Blumenthal', store: '6564', arrivalTime: '09:15', coolerTemp: 39, dish: 'Spring Roll (Veg)', qtyAdded: 25, removed: 0, reason: '', receivedBy: 'Emily' }
     ],
     production: [
-      { submittedAt: `${today}T06:15:33.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Spring Roll (Veg)', batch: 'B-2024-001', qtyProduced: 120, qtyDiscarded: 2, discardReason: 'Quality Issue', qa: 'Pass', initials: 'L' },
-      { submittedAt: `${today}T06:45:10.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Shrimp Egg Roll', batch: 'B-2024-002', qtyProduced: 96, qtyDiscarded: 0, discardReason: '', qa: 'Pass', initials: 'L' },
-      { submittedAt: `${today}T07:20:47.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Anna', dish: 'Chicken Lo Mein', batch: 'B-2024-003', qtyProduced: 48, qtyDiscarded: 1, discardReason: 'Temperature', qa: 'Pass', initials: 'A' },
-      { submittedAt: `${yesterday}T06:30:12.000Z`, date: yesterday, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Beef Chow Fun', batch: 'B-2024-004', qtyProduced: 36, qtyDiscarded: 0, discardReason: '', qa: 'Pass', initials: 'J' },
-      { submittedAt: `${yesterday}T07:05:28.000Z`, date: yesterday, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Pork Dumpling', batch: 'B-2024-005', qtyProduced: 72, qtyDiscarded: 1, discardReason: 'Out of date', qa: 'Pass', initials: 'J' }
+      { submittedAt: `${today}T06:15:33.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Spring Roll (Veg)', qtyProduced: 120, qtyDiscarded: 2, discardReason: 'Quality Issue' },
+      { submittedAt: `${today}T06:45:10.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Shrimp Egg Roll', qtyProduced: 96, qtyDiscarded: 0, discardReason: '' },
+      { submittedAt: `${today}T07:20:47.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Anna', dish: 'Chicken Lo Mein', qtyProduced: 48, qtyDiscarded: 1, discardReason: 'Temperature' },
+      { submittedAt: `${yesterday}T06:30:12.000Z`, date: yesterday, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Beef Chow Fun', qtyProduced: 36, qtyDiscarded: 0, discardReason: '' },
+      { submittedAt: `${yesterday}T07:05:28.000Z`, date: yesterday, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Pork Dumpling', qtyProduced: 72, qtyDiscarded: 1, discardReason: 'Out of date' }
     ],
     waste: [
-      { date: today, store: '6006', dish: 'Spring Roll (Veg)', qtyRemoved: 2, reason: 'Out of date' },
-      { date: today, store: '6253', dish: 'Chicken Lo Mein', qtyRemoved: 1, reason: 'Damaged' },
-      { date: today, store: '6443', dish: 'Beef Chow Fun', qtyRemoved: 3, reason: 'Quality Issue' },
-      { date: yesterday, store: '6542', dish: 'Pork Dumpling', qtyRemoved: 1, reason: 'Out of date' }
+      { date: today, store: '6006', dish: 'Spring Roll (Veg)', removed: 2, qtyRemoved: 2, reason: 'Out of date' },
+      { date: today, store: '6253', dish: 'Chicken Lo Mein', removed: 1, qtyRemoved: 1, reason: 'Damaged' },
+      { date: today, store: '6443', dish: 'Beef Chow Fun', removed: 3, qtyRemoved: 3, reason: 'Quality Issue' },
+      { date: yesterday, store: '6542', dish: 'Pork Dumpling', removed: 1, qtyRemoved: 1, reason: 'Out of date' }
     ],
     lastUpdated: new Date().toISOString()
   };
@@ -291,13 +334,49 @@ function loadDemoData() {
 // Data Fetching (T-049 integration)
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function fetchData() {
+/** The window loaded by default: the month containing today minus 30 days, through today. */
+function defaultWindow() {
+  const to = getTodayDate();
+  return { from: firstOfMonthISO(addDaysISO(to, -30)), to: to };
+}
+
+/** The earliest `from` the backend will serve in one request. */
+function earliestWindowFrom() {
+  return monthsBackISO(getTodayDate(), WINDOW_MAX_MONTHS - 1);
+}
+
+/**
+ * Widen the loaded window when a panel asks for dates before it. Narrowing never refetches:
+ * the data is already in hand and filtering it is instant.
+ */
+async function ensureWindow(from) {
+  if (!from || !CONFIG.webAppUrl) return;
+  if (REQUESTED_FROM && from >= REQUESTED_FROM) return;
+  const earliest = earliestWindowFrom();
+  await fetchData({ from: from < earliest ? earliest : from, to: getTodayDate() });
+}
+
+/** `Updated 10:32`, plus the window once the backend reports which one it served. */
+function statusText() {
+  const at = new Date(DATA.lastUpdated || Date.now()).toLocaleTimeString();
+  const win = DATA.window;
+  if (!win || !win.from || !win.to) return `Updated ${at}`;
+  const label = iso => localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `Updated ${at} · ${label(win.from)} – ${label(win.to)}`;
+}
+
+async function fetchData(opts) {
   if (!CONFIG.webAppUrl) return;
+
+  const win = (opts && opts.from) ? { from: opts.from, to: opts.to || getTodayDate() }
+            : REQUESTED_FROM ? { from: REQUESTED_FROM, to: getTodayDate() }
+            : defaultWindow();
+  REQUESTED_FROM = win.from;
 
   updateStatus('loading', 'Fetching data...');
 
   try {
-    const url = CONFIG.webAppUrl;
+    const url = `${CONFIG.webAppUrl}?from=${encodeURIComponent(win.from)}&to=${encodeURIComponent(win.to)}`;
     const response = await fetch(url, {
       method: 'GET',
       mode: 'cors'
@@ -312,18 +391,20 @@ async function fetchData() {
     DATA.production = data.production || [];
     DATA.waste = data.waste || [];
     DATA.stores = data.stores || [];
+    DATA.window = data.window || null;   // absent until the backend serves windows
     DATA.lastUpdated = data.lastUpdated || null;
 
     console.log('[Data] Fetched:', DATA);
 
     // Fetch violations tracker data (await to prevent race condition)
-    await fetchViolations();
+    await fetchViolations(win);
 
-    updateStatus('connected', `Updated ${new Date(DATA.lastUpdated).toLocaleTimeString()}`);
+    updateStatus('connected', statusText());
 
+    // Production precedes delivery: food is cooked before it is delivered.
     renderOverview();
-    renderDeliveries();
     renderProduction();
+    renderDeliveries();
     renderFoodSafety();
     renderWaste();
   } catch (e) {
@@ -333,14 +414,15 @@ async function fetchData() {
 }
 
 // Fetch violations from tracker
-async function fetchViolations() {
+async function fetchViolations(win) {
   if (!CONFIG.webAppUrl) {
     DATA.violations = [];
     return;
   }
 
   try {
-    const url = `${CONFIG.webAppUrl}?action=getViolations`;
+    const range = win || defaultWindow();
+    const url = `${CONFIG.webAppUrl}?action=getViolations&from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
     const response = await fetch(url, {
       method: 'GET',
       mode: 'cors'
@@ -518,7 +600,7 @@ function homeOpen(kind) {
 function renderOverview() {
   // FIX: Use local timezone instead of UTC to correctly identify "today"
   const today = getTodayDate();
-  const weekStart = getWeekStart(new Date());
+  const weekStart = weekStartISO(today);
 
   // Today's Metrics
   const deliveriesToday = DATA.deliveries.filter(d => normalizeDate(d.date) === today).length;
@@ -527,10 +609,9 @@ function renderOverview() {
   const wasteThisWeek = DATA.waste
     .filter(w => {
       const wDate = normalizeDate(w.date);
-      if (!wDate) return false;
-      return new Date(wDate) >= weekStart;
+      return wDate && wDate >= weekStart;
     })
-    .reduce((sum, w) => sum + (parseInt(w.qtyRemoved) || 0), 0);
+    .reduce((sum, w) => sum + (parseInt(w.removed !== undefined ? w.removed : w.qtyRemoved) || 0), 0);
 
   document.getElementById('metric-deliveries').textContent = deliveriesToday;
   document.getElementById('metric-production').textContent = productionToday;
@@ -545,14 +626,12 @@ function renderOverview() {
     violationCard.classList.remove('critical');
   }
 
-  // System Overview Stats
-  const totalDeliveries = DATA.deliveries.length;
-  const totalProduction = DATA.production.length;
-  const activeStores = new Set(DATA.deliveries.map(d => d.store).filter(Boolean)).size;
-
-  document.getElementById('stat-total-deliveries').textContent = totalDeliveries.toLocaleString();
-  document.getElementById('stat-total-production').textContent = totalProduction.toLocaleString();
-  document.getElementById('stat-total-stores').textContent = activeStores;
+  // Counts for the window that is loaded, not for all time.
+  document.getElementById('stat-total-production').textContent = DATA.production.length.toLocaleString();
+  document.getElementById('stat-total-deliveries').textContent = DATA.deliveries.length.toLocaleString();
+  document.getElementById('stat-total-stores').textContent = new Set(DATA.deliveries.map(d => d.store).filter(Boolean)).size;
+  const caption = document.getElementById('system-stats-window');
+  if (caption) caption.textContent = DATA.window ? `${DATA.window.from} to ${DATA.window.to}` : 'the loaded range';
 
   // New high-value widgets
   renderCriticalAlerts();
@@ -695,10 +774,9 @@ function renderCriticalAlerts() {
 
 function renderStorePerformance() {
   // Calculate shrink rate per store - Last 30 Days
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgo = addDaysISO(getTodayDate(), -30);
 
-  const recentDeliveries = DATA.deliveries.filter(d => new Date(d.date) >= thirtyDaysAgo);
+  const recentDeliveries = DATA.deliveries.filter(d => normalizeDate(d.date) >= thirtyDaysAgo);
   const storeMetrics = {};
 
   recentDeliveries.forEach(d => {
@@ -762,8 +840,8 @@ function renderStorePerformance() {
 }
 
 function renderFinancialImpact() {
-  const weekStart = getWeekStart(new Date());
-  const weekDeliveries = DATA.deliveries.filter(d => new Date(d.date) >= weekStart);
+  const weekStart = weekStartISO(getTodayDate());
+  const weekDeliveries = DATA.deliveries.filter(d => normalizeDate(d.date) >= weekStart);
 
   const totalAdded = weekDeliveries.reduce((sum, d) => sum + (parseInt(d.added) || 0), 0);
   const totalShrink = weekDeliveries.reduce((sum, d) => sum + (parseInt(d.removed) || 0), 0);
@@ -858,13 +936,12 @@ function loadFoodSafety() {
   const weekEnd = document.getElementById('safety-week-end').value;
   if (!weekEnd) return;
 
-  const weekEndDate = new Date(weekEnd);
-  const weekStart = new Date(weekEndDate);
-  weekStart.setDate(weekStart.getDate() - 6);
+  const weekStart = addDaysISO(weekEnd, -6);
+  ensureWindow(weekStart);
 
   const weekDeliveries = DATA.deliveries.filter(d => {
-    const date = new Date(d.date);
-    return date >= weekStart && date <= weekEndDate;
+    const date = normalizeDate(d.date);
+    return date >= weekStart && date <= weekEnd;
   });
 
   // Group by store
@@ -897,14 +974,14 @@ function loadFoodSafety() {
         <div class="safety-violations">
           <div>
             <div class="violation-count ${countClass} ${clickableClass}"
-                 onclick="${violations.coolerViolations > 0 ? `openViolationModal('${storeId}', 'cooler', '${weekStart.toISOString()}', '${weekEndDate.toISOString()}')` : ''}">
+                 onclick="${violations.coolerViolations > 0 ? `openViolationModal('${storeId}', 'cooler', '${weekStart}', '${weekEnd}')` : ''}">
               ${violations.coolerViolations}
             </div>
             <div class="violation-label">Cooler Temp Violations</div>
           </div>
           <div>
             <div class="violation-count ${countClass} ${clickableClass}"
-                 onclick="${violations.deliveryTempViolations > 0 ? `openViolationModal('${storeId}', 'delivery', '${weekStart.toISOString()}', '${weekEndDate.toISOString()}')` : ''}">
+                 onclick="${violations.deliveryTempViolations > 0 ? `openViolationModal('${storeId}', 'delivery', '${weekStart}', '${weekEnd}')` : ''}">
               ${violations.deliveryTempViolations}
             </div>
             <div class="violation-label">Delivery Temp Violations</div>
@@ -916,14 +993,12 @@ function loadFoodSafety() {
   }).join('');
 }
 
-function openViolationModal(storeId, violationType, weekStartISO, weekEndISO) {
-  const weekStart = new Date(weekStartISO);
-  const weekEnd = new Date(weekEndISO);
+function openViolationModal(storeId, violationType, weekStart, weekEnd) {
   const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
 
   // Filter deliveries for this store and date range
   const storeDeliveries = DATA.deliveries.filter(d => {
-    const date = new Date(d.date);
+    const date = normalizeDate(d.date);
     return d.store === storeId && date >= weekStart && date <= weekEnd;
   });
 
@@ -1075,16 +1150,16 @@ function setDeliveryQuickRange(range) {
   });
 
   // Filter data by date range
-  const today = new Date();
+  const today = getTodayDate();
   let filtered = [...DATA.deliveries];
 
   if (range === 'today') {
-    const todayStr = getTodayDate();
-    filtered = filtered.filter(d => normalizeDate(d.date) === todayStr);
-  } else if (range !== 'all') {
-    const startDate = new Date(today);
-    startDate.setDate(today.getDate() - range);
-    const startStr = normalizeDate(startDate);
+    filtered = filtered.filter(d => normalizeDate(d.date) === today);
+  } else if (range === 'all') {
+    ensureWindow(earliestWindowFrom());
+  } else {
+    const startStr = addDaysISO(today, -range);
+    ensureWindow(startStr);
     filtered = filtered.filter(d => normalizeDate(d.date) >= startStr);
   }
 
@@ -1111,7 +1186,11 @@ function applyDeliveryCustomRange() {
 
   DELIVERY_STATE.quickRange = 'custom';
   DELIVERY_STATE.currentPage = 1;
-  DELIVERY_STATE.filtered = DATA.deliveries.filter(d => d.date >= startDate && d.date <= endDate);
+  ensureWindow(startDate);
+  DELIVERY_STATE.filtered = DATA.deliveries.filter(d => {
+    const date = normalizeDate(d.date);
+    return date >= startDate && date <= endDate;
+  });
 
   updateDeliveryMetrics();
   updateDeliveryChart();
@@ -1187,7 +1266,7 @@ function applyDeliveryAdvancedFilters() {
   if (daysOfWeek.length > 0) {
     filtered = filtered.filter(d => {
       if (!d.date) return false;
-      const dayOfWeek = new Date(d.date).getDay();
+      const dayOfWeek = localDate(d.date).getDay();
       return daysOfWeek.includes(dayOfWeek);
     });
   }
@@ -1537,19 +1616,25 @@ const PRODUCTION_STATE = {
   filtered: [],
   quickRange: 7,
   chart: null,
+  isInitialized: false,
   advancedFilters: {
     shift: '',
     kitchen: '',
     supervisor: '',
     dish: '',
-    qa: '',
     search: ''
   }
 };
 
 function renderProduction() {
-  // Default to last 7 days
-  setProductionQuickRange(7);
+  // Only set defaults on first load, preserve filters on refresh
+  if (!PRODUCTION_STATE.isInitialized) {
+    PRODUCTION_STATE.isInitialized = true;
+    setProductionQuickRange(7);
+  } else {
+    setProductionQuickRange(PRODUCTION_STATE.quickRange);
+    applyProductionAdvancedFilters();
+  }
 }
 
 function setProductionQuickRange(range) {
@@ -1565,16 +1650,16 @@ function setProductionQuickRange(range) {
   });
 
   // Filter by date range
-  const today = new Date();
+  const today = getTodayDate();
   let filtered = [...DATA.production];
 
   if (range === 'today') {
-    const todayStr = getTodayDate();
-    filtered = filtered.filter(p => normalizeDate(p.date) === todayStr);
-  } else if (range !== 'all') {
-    const startDate = new Date(today);
-    startDate.setDate(today.getDate() - range);
-    const startStr = normalizeDate(startDate);
+    filtered = filtered.filter(p => normalizeDate(p.date) === today);
+  } else if (range === 'all') {
+    ensureWindow(earliestWindowFrom());
+  } else {
+    const startStr = addDaysISO(today, -range);
+    ensureWindow(startStr);
     filtered = filtered.filter(p => normalizeDate(p.date) >= startStr);
   }
 
@@ -1601,8 +1686,11 @@ function applyProductionCustomRange() {
     btn.classList.remove('active');
   });
 
-  let filtered = [...DATA.production];
-  filtered = filtered.filter(p => p.date >= startDate && p.date <= endDate);
+  ensureWindow(startDate);
+  const filtered = DATA.production.filter(p => {
+    const date = normalizeDate(p.date);
+    return date >= startDate && date <= endDate;
+  });
 
   PRODUCTION_STATE.filtered = filtered;
   updateProductionMetrics();
@@ -1616,8 +1704,6 @@ function updateProductionMetrics() {
   const totalBatches = filtered.length;
   const totalProduced = filtered.reduce((sum, p) => sum + (parseInt(p.qtyProduced) || 0), 0);
   const totalDiscarded = filtered.reduce((sum, p) => sum + (parseInt(p.qtyDiscarded) || 0), 0);
-  const qaPassCount = filtered.filter(p => p.qa === 'Pass').length;
-  const qaPassRate = totalBatches > 0 ? ((qaPassCount / totalBatches) * 100).toFixed(1) : '0.0';
 
   document.getElementById('production-metrics').innerHTML = `
     <div class="metric-card">
@@ -1629,11 +1715,6 @@ function updateProductionMetrics() {
       <div class="metric-label">Units Produced</div>
       <div class="metric-value">${totalProduced.toLocaleString()}</div>
       <div class="metric-sub">${totalDiscarded.toLocaleString()} discarded</div>
-    </div>
-    <div class="metric-card ${qaPassRate < 95 ? 'alert' : ''}">
-      <div class="metric-label">QA Pass Rate</div>
-      <div class="metric-value">${qaPassRate}%</div>
-      <div class="metric-sub">${qaPassCount} of ${totalBatches} passed</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">Avg Batch Size</div>
@@ -1711,7 +1792,6 @@ function populateProductionFilters() {
   populateSelect('production-kitchen-filter', new Set(filtered.map(p => p.kitchen).filter(Boolean)));
   populateSelect('production-supervisor-filter', new Set(filtered.map(p => normalizeName(p.supervisor)).filter(Boolean)));
   populateSelect('production-dish-filter', new Set(filtered.map(p => p.dish).filter(Boolean)));
-  populateSelect('production-qa-filter', new Set(filtered.map(p => p.qa).filter(Boolean)));
 }
 
 function applyProductionAdvancedFilters() {
@@ -1720,7 +1800,6 @@ function applyProductionAdvancedFilters() {
     kitchen: document.getElementById('production-kitchen-filter').value,
     supervisor: document.getElementById('production-supervisor-filter').value,
     dish: document.getElementById('production-dish-filter').value,
-    qa: document.getElementById('production-qa-filter').value,
     search: document.getElementById('production-search').value.toLowerCase()
   };
   PRODUCTION_STATE.currentPage = 1;
@@ -1732,14 +1811,12 @@ function clearAllProductionFilters() {
   document.getElementById('production-kitchen-filter').value = '';
   document.getElementById('production-supervisor-filter').value = '';
   document.getElementById('production-dish-filter').value = '';
-  document.getElementById('production-qa-filter').value = '';
   document.getElementById('production-search').value = '';
   PRODUCTION_STATE.advancedFilters = {
     shift: '',
     kitchen: '',
     supervisor: '',
     dish: '',
-    qa: '',
     search: ''
   };
   PRODUCTION_STATE.currentPage = 1;
@@ -1755,7 +1832,6 @@ function displayProductionTable() {
   if (filters.kitchen) filtered = filtered.filter(p => p.kitchen === filters.kitchen);
   if (filters.supervisor) filtered = filtered.filter(p => p.supervisor === filters.supervisor);
   if (filters.dish) filtered = filtered.filter(p => p.dish === filters.dish);
-  if (filters.qa) filtered = filtered.filter(p => p.qa === filters.qa);
   if (filters.search) {
     filtered = filtered.filter(p => {
       return (p.date && p.date.toLowerCase().includes(filters.search)) ||
@@ -1763,8 +1839,7 @@ function displayProductionTable() {
              (p.kitchen && p.kitchen.toLowerCase().includes(filters.search)) ||
              (p.supervisor && p.supervisor.toLowerCase().includes(filters.search)) ||
              (p.dish && p.dish.toLowerCase().includes(filters.search)) ||
-             (p.batch && p.batch.toLowerCase().includes(filters.search)) ||
-             (p.qa && p.qa.toLowerCase().includes(filters.search));
+             (p.discardReason && p.discardReason.toLowerCase().includes(filters.search));
     });
   }
 
@@ -1786,22 +1861,18 @@ function displayProductionTable() {
     return;
   }
 
-  const rows = pageData.map(p => {
-    const qaClass = p.qa === 'Pass' ? '' : (p.qa === 'Fail' ? 'style="color:var(--red);font-weight:600;"' : '');
-    return `
+  const rows = pageData.map(p => `
       <tr>
-        <td>${p.date}</td>
-        <td>${p.shift}</td>
-        <td>${p.kitchen}</td>
-        <td>${p.supervisor}</td>
-        <td>${p.dish}</td>
-        <td>${p.batch}</td>
+        <td>${normalizeDate(p.date)}</td>
+        <td>${p.shift || ''}</td>
+        <td>${p.kitchen || ''}</td>
+        <td>${p.supervisor || ''}</td>
+        <td>${p.dish || ''}</td>
         <td>${p.qtyProduced || 0}</td>
         <td>${p.qtyDiscarded || 0}</td>
-        <td ${qaClass}>${p.qa || 'N/A'}</td>
+        <td>${p.discardReason || ''}</td>
       </tr>
-    `;
-  }).join('');
+    `).join('');
 
   container.innerHTML = `
     <table class="data-table">
@@ -1812,10 +1883,9 @@ function displayProductionTable() {
           <th>Kitchen</th>
           <th>Supervisor</th>
           <th>Dish</th>
-          <th>Batch</th>
           <th>Produced</th>
           <th>Discarded</th>
-          <th>QA</th>
+          <th>Discard Reason</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -1892,13 +1962,13 @@ function setWasteQuickRange(range) {
   });
 
   // Filter by date range
-  const today = new Date();
   let filtered = [...DATA.waste];
 
-  if (range !== 'all') {
-    const startDate = new Date(today);
-    startDate.setDate(today.getDate() - range);
-    const startStr = startDate.toISOString().split('T')[0];
+  if (range === 'all') {
+    ensureWindow(earliestWindowFrom());
+  } else {
+    const startStr = addDaysISO(getTodayDate(), -range);
+    ensureWindow(startStr);
     filtered = filtered.filter(w => {
       const normalizedDate = normalizeDate(w.date);
       return normalizedDate && normalizedDate >= startStr;
@@ -2101,7 +2171,7 @@ function updateWasteCharts() {
 
   // Chart 4: Waste Trend Over Time (Line Chart)
   const dateEntries = Object.entries(wasteByDate).sort((a, b) => a[0].localeCompare(b[0]));
-  const trendLabels = dateEntries.map(([date]) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+  const trendLabels = dateEntries.map(([date]) => localDate(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
   const trendData = dateEntries.map(([, qty]) => qty);
 
   if (WASTE_STATE.charts.trend) WASTE_STATE.charts.trend.destroy();
@@ -2147,7 +2217,7 @@ function renderFoodSafety() {
   console.log('[Food Safety] Panel rendered');
 }
 
-let violationStatusFilter = 'all'; // all, open, in_progress, resolved
+let violationStatusFilter = 'all'; // all, open, resolved — a violation is open until it is resolved
 
 function refreshViolationsQueue() {
   const container = document.getElementById('violations-queue');
@@ -2172,7 +2242,7 @@ function refreshViolationsQueue() {
   if (filteredViolations.length === 0) {
     const message = violationStatusFilter === 'all'
       ? '✓ No violations found'
-      : `✓ No ${violationStatusFilter.replace('_', ' ')} violations`;
+      : `✓ No ${violationStatusFilter} violations`;
     container.innerHTML = `<div class="loading" style="color: var(--green);">${message}</div>`;
     return;
   }
@@ -2193,17 +2263,12 @@ function refreshViolationsQueue() {
         <div class="violation-queue-details">
           <div class="violation-queue-store">📍 ${v.storeName}</div>
           <div class="violation-queue-temp" style="color: var(--red); font-weight: 700;">${v.value}°F</div>
-          <div class="violation-queue-threshold">Threshold: ${v.threshold}°F</div>
-          ${v.notes ? `<div class="violation-queue-notes">📝 ${v.notes.split('\\n')[v.notes.split('\\n').length - 1]}</div>` : ''}
           ${v.resolvedAt ? `<div class="violation-queue-resolved">✅ Resolved ${new Date(v.resolvedAt).toLocaleDateString()} by ${v.resolvedBy}</div>` : ''}
         </div>
         <div class="violation-queue-actions">
           ${v.status !== 'resolved' ? `
             <button class="violation-queue-btn" onclick="markViolationResolved('${v.violationId}')">
               Mark Resolved
-            </button>
-            <button class="violation-queue-btn" onclick="openAddNoteModal('${v.violationId}', '${v.storeName}', '${v.violationType}')">
-              Add Note
             </button>
           ` : `
             <button class="violation-queue-btn" disabled style="opacity: 0.5;">
@@ -2222,7 +2287,6 @@ function refreshViolationsQueue() {
 function getStatusBadge(status) {
   const badges = {
     'open': '<span class="status-badge status-open">Open</span>',
-    'in_progress': '<span class="status-badge status-in-progress">In Progress</span>',
     'resolved': '<span class="status-badge status-resolved">Resolved</span>'
   };
   return badges[status] || badges['open'];
@@ -2235,8 +2299,8 @@ function setViolationFilter(status) {
   const buttons = document.querySelectorAll('.violation-filter-btn');
   buttons.forEach((btn, index) => {
     btn.classList.remove('active');
-    // Match button to status by order: all, open, in_progress, resolved
-    const statuses = ['all', 'open', 'in_progress', 'resolved'];
+    // Match button to status by order: all, open, resolved
+    const statuses = ['all', 'open', 'resolved'];
     if (statuses[index] === status) {
       btn.classList.add('active');
     }
@@ -2254,7 +2318,8 @@ async function markViolationResolved(violationId) {
   if (!confirm('Mark this violation as resolved?')) return;
 
   try {
-    const url = `${CONFIG.webAppUrl}?action=updateViolationStatus&violationId=${violationId}&status=resolved&resolvedBy=Dashboard User`;
+    const url = `${CONFIG.webAppUrl}?action=updateViolationStatus` +
+      `&violationId=${encodeURIComponent(violationId)}&status=resolved&resolvedBy=${encodeURIComponent('Dashboard User')}`;
     const response = await fetch(url, { method: 'GET', mode: 'cors' });
 
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -2279,79 +2344,11 @@ async function markViolationResolved(violationId) {
   }
 }
 
-function openAddNoteModal(violationId, storeName, violationType) {
-  const modal = document.createElement('div');
-  modal.className = 'modal-overlay';
-  modal.innerHTML = `
-    <div class="modal-content" style="max-width: 500px;">
-      <div class="modal-header">
-        <h2>Add Note to Violation</h2>
-        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
-      </div>
-      <div class="modal-body">
-        <p><strong>Store:</strong> ${storeName}</p>
-        <p><strong>Type:</strong> ${violationType}</p>
-        <textarea id="violation-note-input" rows="4" style="width: 100%; padding: 8px; border: 1px solid var(--mid); border-radius: 4px;" placeholder="Enter note (corrective action, investigation findings, etc.)"></textarea>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
-        <button class="btn-primary" onclick="submitViolationNote('${violationId}')">Add Note</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  document.getElementById('violation-note-input').focus();
-}
-
-async function submitViolationNote(violationId) {
-  const noteInput = document.getElementById('violation-note-input');
-  const note = noteInput.value.trim();
-
-  if (!note) {
-    alert('Please enter a note.');
-    return;
-  }
-
-  if (!CONFIG.webAppUrl) {
-    alert('Backend not configured. Cannot add note.');
-    return;
-  }
-
-  try {
-    const url = `${CONFIG.webAppUrl}?action=addViolationNote&violationId=${encodeURIComponent(violationId)}&note=${encodeURIComponent(note)}&author=Dashboard User`;
-    const response = await fetch(url, { method: 'GET', mode: 'cors' });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
-    if (data.status === 'ok') {
-      // Update local data
-      const violation = DATA.violations.find(v => v.violationId === violationId);
-      if (violation) {
-        const timestamp = new Date().toISOString();
-        const newNote = `[${timestamp}] Dashboard User: ${note}`;
-        violation.notes = violation.notes ? `${violation.notes}\\n${newNote}` : newNote;
-      }
-      refreshViolationsQueue();
-      document.querySelector('.modal-overlay').remove();
-      alert('Note added successfully!');
-    } else {
-      throw new Error(data.message);
-    }
-  } catch (e) {
-    console.error('[Violation] Add note failed:', e);
-    alert(`Failed to add note: ${e.message}`);
-  }
-}
-
 function openViolationDetailsModal(violationId) {
   const violation = DATA.violations.find(v => v.violationId === violationId);
   if (!violation) return;
 
   const timestamp = new Date(violation.timestamp);
-  const notesHtml = violation.notes
-    ? violation.notes.split('\\n').map(n => `<div style="margin-bottom: 8px; padding: 8px; background: var(--cream); border-radius: 4px;">${n}</div>`).join('')
-    : '<p class="hint">No notes</p>';
 
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
@@ -2367,14 +2364,11 @@ function openViolationDetailsModal(violationId) {
         <p><strong>Store:</strong> ${violation.storeName} (${violation.storeId})</p>
         <p><strong>Timestamp:</strong> ${timestamp.toLocaleString()}</p>
         <p><strong>Temperature:</strong> <span style="color: var(--red); font-weight: 700;">${violation.value}°F</span></p>
-        <p><strong>Threshold:</strong> ${violation.threshold}°F</p>
         <p><strong>Violation ID:</strong> <code>${violation.violationId}</code></p>
         ${violation.resolvedAt ? `
           <p><strong>Resolved:</strong> ${new Date(violation.resolvedAt).toLocaleString()}</p>
           <p><strong>Resolved By:</strong> ${violation.resolvedBy}</p>
         ` : ''}
-        <h3 style="margin-top: 20px;">Notes & Resolution History</h3>
-        ${notesHtml}
       </div>
       <div class="modal-footer">
         <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Close</button>
@@ -2447,10 +2441,9 @@ function renderShrinkDashboard() {
   }
 
   // Filter deliveries by date range
-  const filteredDeliveries = DATA.deliveries.filter(d => {
-    const dDate = new Date(d.date);
-    return dDate >= startDate;
-  });
+  const startStr = normalizeDate(startDate);
+  ensureWindow(startStr);
+  const filteredDeliveries = DATA.deliveries.filter(d => normalizeDate(d.date) >= startStr);
 
   // Calculate shrink metrics
   const totalLoaded = filteredDeliveries.reduce((sum, d) => sum + (parseInt(d.added) || 0), 0);
@@ -2840,13 +2833,11 @@ function applyAdvancedShrinkFilters() {
 
   // Date range filter
   if (startDate) {
-    const start = new Date(startDate);
-    filtered = filtered.filter(d => new Date(d.date) >= start);
+    ensureWindow(startDate);
+    filtered = filtered.filter(d => normalizeDate(d.date) >= startDate);
   }
   if (endDate) {
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999); // Include full end date
-    filtered = filtered.filter(d => new Date(d.date) <= end);
+    filtered = filtered.filter(d => normalizeDate(d.date) <= endDate);
   }
 
   // Store filter

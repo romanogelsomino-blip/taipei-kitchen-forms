@@ -165,7 +165,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   const now = new Date();
-  document.getElementById('f-date').value   = now.toISOString().slice(0,10);
+  document.getElementById('f-date').value   = localDateISO();
   const hh = String(now.getHours()).padStart(2,'0');
   const mm = String(now.getMinutes()).padStart(2,'0');
   document.getElementById('f-arrive').value = hh + ':' + mm;
@@ -226,13 +226,15 @@ async function previewPhoto(input, previewId, zoneId) {
 }
 
 // ── Payload ────────────────────────────────────────────────
-// One row per dish. Keys match DELIVERY_LOG_COLUMNS in backend/Code.gs.
+// One row per dish, keyed to match the Deliveries tab's schema in backend/Schemas.gs.
+// One submission id covers the rows and the photos that follow in a second request.
 function buildPayload() {
+  const submissionId = newSubmissionId();
   const date   = document.getElementById('f-date').value;
   const driver = driverPicker.value();
   const arrive = document.getElementById('f-arrive').value;
+  const arrivalTemp = document.getElementById('f-arrival-temp').value;
   const ctTemp    = document.getElementById('f-cooler-temp').value;
-  const ctCond    = document.getElementById('f-cooler-cond').value;
   const casePrefill = document.getElementById('f-case-prefill').value;
   const notes  = document.getElementById('f-notes').value;
   const rcvd   = document.getElementById('f-received-by').value;
@@ -243,8 +245,10 @@ function buildPayload() {
   DISHES.forEach(dish => {
     const data = dishEntry.get(dish);
     rows.push({
+      submissionId,
       date, driver, store, storeId: storeIdClean, arrive,
-      coolerTemp: ctTemp, coolerCond: ctCond,
+      arrivalTemp: arrivalTemp,
+      coolerTemp: ctTemp,
       casePrefillPercent: casePrefill,
       dish,
       added:   data.added   || '0',
@@ -262,6 +266,7 @@ function buildPayload() {
     rows,
     formType: 'delivery',
     photos: {
+      submissionId,
       before: photoData.before,
       after:  photoData.after,
       storeId: storeIdClean,
@@ -442,8 +447,8 @@ async function submitForm() {
   const dataPayload = {
     rows:     payload.rows,
     formType: payload.formType,
-    photos:   { storeId: payload.photos.storeId, storeName: payload.photos.storeName,
-                date: payload.photos.date, driver: payload.photos.driver }
+    photos:   { submissionId: payload.photos.submissionId, storeId: payload.photos.storeId,
+                storeName: payload.photos.storeName, date: payload.photos.date, driver: payload.photos.driver }
   };
 
   try {
@@ -531,6 +536,5 @@ function clearAll() {
     document.getElementById('icon-'  + w).textContent = w === 'before' ? '📸' : '📷';
     document.getElementById('label-' + w).textContent = 'Tap to take photo';
   });
-  const now = new Date();
-  document.getElementById('f-date').value = now.toISOString().slice(0,10);
+  document.getElementById('f-date').value = localDateISO();
 }

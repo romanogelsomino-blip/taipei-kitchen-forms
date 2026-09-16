@@ -36,14 +36,11 @@ const dishEntry = createDishEntry({
   fields: [
     { key: 'produced',      id: 'modal-produced' },
     { key: 'discarded',     id: 'modal-discarded' },
-    { key: 'discardReason', id: 'modal-discard-reason' },
-    { key: 'qa',            id: 'modal-qa', default: 'pass' },
-    { key: 'qaNotes',       id: 'modal-qa-notes' },
-    { key: 'initials',      id: 'modal-initials' }
+    { key: 'discardReason', id: 'modal-discard-reason' }
   ],
   status(data) {
-    if (data.produced && data.initials) return 'complete'; // key fields filled
-    return (data.produced || data.discarded || data.qaNotes || data.initials) ? 'partial' : 'empty';
+    if (data.produced !== '') return 'complete';
+    return (data.discarded !== '' || data.discardReason) ? 'partial' : 'empty';
   },
   totals: [
     { key: 'produced',  id: 'total-produced' },
@@ -62,9 +59,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   populateKitchens();
   applyKitchenParam();
 
-  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('f-date').value = localDateISO();
   dishEntry.buildList();
-  updateBatchId();
   supervisorPicker.load();
   lastSubmission.offerIfRecent();
 });
@@ -88,20 +84,6 @@ function applyKitchenParam() {
   const id = new URLSearchParams(window.location.search).get('kitchen');
   const kitchen = id && KITCHENS.find(k => k.id === id);
   if (kitchen) document.getElementById('f-kitchen').value = kitchen.name;
-}
-
-// ─── Batch ID management ─────────────────────────────────
-let batchCounter = 1;
-
-function updateBatchId() {
-  const date = document.getElementById('f-date').value || new Date().toISOString().slice(0,10);
-  const formatted = date.replace(/-/g, '/');
-  document.getElementById('batch-id-display').textContent = formatted + '  ·  B' + batchCounter;
-}
-
-function changeBatch(dir) {
-  batchCounter = Math.max(1, batchCounter + dir);
-  updateBatchId();
 }
 
 // ─── Batch cook & cool times ─────────────────────────────
@@ -153,24 +135,17 @@ function toggleBatchNextAM() {
   }
 }
 
-function flagBatchTemp(el) {
-  const val = parseFloat(el.value);
-  el.style.borderColor = val > 41 ? 'var(--red)' : (val > 0 ? 'var(--green)' : '');
-  el.style.background  = val > 41 ? 'var(--red-lt)' : '';
-}
-
 // ─── Payload ──────────────────────────────────────────────
-// One row per dish. Keys match PRODUCTION_LOG_COLUMNS in backend/Code.gs.
+// One row per dish, keyed to match the Production tab's schema in backend/Schemas.gs.
+// One submission id covers the whole batch.
 function buildPayload() {
+  const submissionId = newSubmissionId();
   const date       = document.getElementById('f-date').value;
   const shift      = document.getElementById('f-shift').value;
   const kitchen    = document.getElementById('f-kitchen').value;
   const supervisor = supervisorPicker.value();
-  const genNotes   = document.getElementById('f-general-notes').value;
-  const qaNotes    = document.getElementById('f-quality-notes').value;
 
   // Shared batch values
-  const batchId    = document.getElementById('batch-id-display').textContent;
   const cookTemp   = document.getElementById('b-cook-temp').value;
   const cookStart  = document.getElementById('b-cook-start').value;
   const cookEnd    = document.getElementById('b-cook-end').value;
@@ -185,25 +160,20 @@ function buildPayload() {
   DISHES.forEach(dish => {
     const data = dishEntry.get(dish);
     rows.push({
+      submissionId,
       date, shift, kitchen, supervisor,
       dish:          dish,
-      batch:         batchId,
+      qtyProduced:   data.produced || '0',
+      qtyDiscarded:  data.discarded || '0',
+      discardReason: data.discardReason,
       cookTemp:      cookTemp,
       cookStart:     cookStart,
       cookEnd:       cookEnd,
       cookTime:      cookTime,
-      qtyProduced:   data.produced || '0',
-      qtyDiscarded:  data.discarded || '0',
-      discardReason: data.discardReason,
       coolStart:     coolStart,
       coolEnd:       coolEnd,
       coolTime:      coolTime,
       finalTemp:     finalTemp,
-      qa:            data.qa,
-      qaNotes:       data.qaNotes,
-      initials:      data.initials,
-      generalNotes:  genNotes,
-      batchQANotes:  qaNotes,
       formType:      'production',
       clientTimestamp: new Date().toISOString()
     });
@@ -271,7 +241,5 @@ function clearAll() {
   document.getElementById('b-final-temp').style.background  = '';
   document.getElementById('b-cool-end').disabled = false;
   document.getElementById('b-cool-end').style.opacity = '1';
-  batchCounter = 1;
-  document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
-  updateBatchId();
+  document.getElementById('f-date').value = localDateISO();
 }

@@ -44,10 +44,9 @@ function productionPayload(over = {}) {
   const s = settings(over);
   const rows = dishNames(s).map(dish => ({
     submissionId: s.id, date: s.date, shift: 'AM', kitchen: s.tag, supervisor: s.tag,
-    dish, batch: '', cookTemp: '200', cookStart: '00:00', cookEnd: '00:01', cookTime: '1',
-    qtyProduced: '0', qtyDiscarded: '0', discardReason: '',
+    dish, qtyProduced: '0', qtyDiscarded: '0', discardReason: s.note,
+    cookTemp: '200', cookStart: '00:00', cookEnd: '00:01', cookTime: '1',
     coolStart: '00:01', coolEnd: '00:02', coolTime: '1', finalTemp: '38',
-    qa: '', qaNotes: '', initials: '', generalNotes: s.note, batchQANotes: '',
     formType: 'production', clientTimestamp: s.now
   }));
   return { formType: 'production', rows };
@@ -62,7 +61,7 @@ function deliveryPayload(over = {}) {
   const s = settings(over);
   const rows = dishNames(s).map(dish => ({
     submissionId: s.id, date: s.date, driver: s.tag, store: s.store, storeId: s.store, arrive: '00:00',
-    arrivalTemp: '38', coolerTemp: '38', coolerCond: 'Good', casePrefillPercent: '0-25%',
+    arrivalTemp: '38', coolerTemp: '38', casePrefillPercent: '0-25%',
     dish, added: '0', before: '0', removed: '0', reason: '', after: '0',
     notes: s.note, receivedBy: s.tag, formType: 'delivery', clientTimestamp: s.now
   }));
