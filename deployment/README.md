@@ -42,9 +42,10 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
    App URL never changes. Without `-i` clasp would mint a new deployment and a new URL.
 4. Waits until the web app answers with JSON. An in-place redeploy can serve Google's
    "unable to open the file" page for several minutes before the new version is live.
-5. Sets the `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID`, `SPREADSHEET_ID` and
-   `WRITE_TARGETS` Script Properties from the matching secrets through the
-   `setScriptProperty` admin action, so the secrets are authoritative.
+5. Sets the `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID`, `SPREADSHEET_ID`, `WRITE_TARGETS`,
+   `ALERT_RECIPIENTS` and `ALERT_FROM` Script Properties from the matching secrets through
+   the `setScriptProperty` admin action, so the secrets are authoritative. `ALERT_FROM` is
+   the one that may be empty, which means alerts send as the deploying account.
 6. Pings the deployment and asserts the operations folder id, the current month's file
    name, a valid `WRITE_TARGETS`, and, while `legacy` is a target, the legacy spreadsheet
    id. The month file itself is created by the first record written in the month, never
@@ -118,6 +119,8 @@ PROD_SPREADSHEET_ID         STAGING_SPREADSHEET_ID
 PROD_PHOTO_FOLDER_ID        STAGING_PHOTO_FOLDER_ID
 PROD_SPREADSHEET_FOLDER_ID  STAGING_SPREADSHEET_FOLDER_ID
 PROD_WRITE_TARGETS          STAGING_WRITE_TARGETS
+PROD_ALERT_RECIPIENTS       STAGING_ALERT_RECIPIENTS
+PROD_ALERT_FROM             STAGING_ALERT_FROM
 ```
 
 The names match `.env` one-for-one; copy the values from there. Plus **Settings → Pages →
@@ -127,6 +130,15 @@ Source → GitHub Actions**, or `actions/deploy-pages` fails regardless of the s
 Workspace organizational unit must exempt the clasp OAuth client from Google Cloud session
 control, or the token expires within a day of each `clasp login` and the backend job fails
 at `clasp push` with `invalid_grant`.
+
+### Alert email
+
+`ALERT_RECIPIENTS` is who HACCP alerts and the daily summary go to, comma separated.
+`ALERT_FROM` is the From address and may be left empty, in which case alerts come from the
+account the deployment runs as. A non-empty value works only if that address is a verified
+"Send mail as" alias on that account; otherwise the deploy logs a warning, alerts still go
+out from the account address, and the fallback is recorded on the execution row. Check with
+`npm run mail:<env>` before relying on a new address.
 
 ### Write targets
 

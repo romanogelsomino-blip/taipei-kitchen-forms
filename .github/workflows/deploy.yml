@@ -133,6 +133,8 @@ jobs:
           PHOTO_FOLDER_ID: ${{ github.ref_name == 'prod' && secrets.PROD_PHOTO_FOLDER_ID || secrets.STAGING_PHOTO_FOLDER_ID }}
           SPREADSHEET_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_ID || secrets.STAGING_SPREADSHEET_ID }}
           WRITE_TARGETS: ${{ github.ref_name == 'prod' && secrets.PROD_WRITE_TARGETS || secrets.STAGING_WRITE_TARGETS }}
+          ALERT_RECIPIENTS: ${{ github.ref_name == 'prod' && secrets.PROD_ALERT_RECIPIENTS || secrets.STAGING_ALERT_RECIPIENTS }}
+          ALERT_FROM: ${{ github.ref_name == 'prod' && secrets.PROD_ALERT_FROM || secrets.STAGING_ALERT_FROM }}
         run: |
           set -euo pipefail
           source .github/scripts/webapp.sh
@@ -146,9 +148,9 @@ jobs:
             "") echo "::error::${{ steps.env.outputs.name }} WRITE_TARGETS secret is not set. Expected 'legacy,monthly' or 'monthly'."; exit 1 ;;
             *)  echo "::error::${{ steps.env.outputs.name }} WRITE_TARGETS secret is '$WRITE_TARGETS'; expected 'legacy,monthly' or 'monthly'."; exit 1 ;;
           esac
-          for KEY in SPREADSHEET_FOLDER_ID PHOTO_FOLDER_ID SPREADSHEET_ID WRITE_TARGETS; do
+          for KEY in SPREADSHEET_FOLDER_ID PHOTO_FOLDER_ID SPREADSHEET_ID WRITE_TARGETS ALERT_RECIPIENTS ALERT_FROM; do
             VALUE="${!KEY}"
-            if [ -z "$VALUE" ]; then
+            if [ -z "$VALUE" ] && [ "$KEY" != ALERT_FROM ]; then
               echo "::error::${{ steps.env.outputs.name }} $KEY secret is not set."
               exit 1
             fi
@@ -159,7 +161,7 @@ jobs:
               echo "::error::could not set $KEY — the web app rejected the request ($(webapp_field "$OUT" .message)); is the admin token current?"
               exit 1
             fi
-            echo "set $KEY"
+            if [ -n "$VALUE" ]; then echo "set $KEY"; else echo "cleared $KEY (secret is empty)"; fi
           done
 
       - name: Verify deployment is live and bound to the right stores
@@ -200,9 +202,21 @@ jobs:
               || { echo "::error::legacy write target is a different spreadsheet than the ${{ steps.env.outputs.name }} secret specifies."; exit 1; }
           fi
 
+          MAIL=$(webapp_get mailStatus) || MAIL='{}'
+          ALERT_TO=$(jq -r '(.recipients // []) | join(", ")' <<<"$MAIL")
+          ALERT_FROM_SET=$(webapp_field "$MAIL" .alert_from)
+          if [ -n "$ALERT_FROM_SET" ] && [ "$(webapp_field "$MAIL" .alert_from_usable)" != true ]; then
+            echo "::warning::$(webapp_field "$MAIL" .alert_from_note)"
+            ALERT_FROM_LABEL="$ALERT_FROM_SET (alias not verified, sending as the account)"
+          else
+            ALERT_FROM_LABEL="${ALERT_FROM_SET:-the deploying account}"
+          fi
+
           {
             echo "### ${{ steps.env.outputs.name }} storage"
             echo "- write targets: \`$TARGETS\`"
+            echo "- alerts to: ${ALERT_TO:-none configured}"
+            echo "- alerts from: $ALERT_FROM_LABEL"
             if [ -n "$MONTH_URL" ]; then
               echo "- current month: [$EXPECTED]($MONTH_URL)"
             else

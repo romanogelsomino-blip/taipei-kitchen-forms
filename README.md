@@ -91,8 +91,10 @@ The HACCP cooling rule is printed on the production form: hot food must cool fro
   and flags any recorded temperature above 41°F.
 - The delivery form flags both temperatures it records, the product temperature on arrival
   and the store cooler temperature, above 41°F.
-- The backend emails an alert when either exceeds the configured threshold (default 41°F)
-  and writes a row on the month's Violations tab.
+- The backend checks both once per submission, not once per dish. Each breach sends one email
+  and writes one row on the month's Violations tab, carrying who the alert went to and whether
+  it sent. The row is written even when the email fails.
+- 41°F is fixed in the code. It is the regulatory cold-holding limit, not a setting.
 - The dashboard lists those violations. One is open until someone resolves it.
 
 ---
@@ -124,6 +126,20 @@ second one alongside it.
 
 ---
 
+## Email
+
+The backend sends as the Google account the deployment runs as. There is no separate mail
+credential; the manifest's mail scope, granted once by that account, is the authorisation.
+
+- `ALERT_RECIPIENTS` is who violation alerts and the daily summary go to.
+- `ALERT_FROM` is the From address. It works only when that address is a verified "Send mail
+  as" alias on the sending account. An unverified one falls back to the account's own address
+  and records that it did, rather than dropping the message.
+- `npm run mail:staging` reports the sending account, its aliases, and whether the configured
+  From address is usable. The deploy summary reports the same thing on every deploy.
+
+---
+
 ## Environments & Configuration
 
 There are two environments, staging and production. Each has its own Apps Script project,
@@ -145,13 +161,16 @@ PROD_SPREADSHEET_FOLDER_ID     STAGING_SPREADSHEET_FOLDER_ID
 PROD_SPREADSHEET_ID            STAGING_SPREADSHEET_ID
 PROD_WEB_APP_URL               STAGING_WEB_APP_URL
 PROD_WRITE_TARGETS             STAGING_WRITE_TARGETS
+PROD_ALERT_RECIPIENTS          STAGING_ALERT_RECIPIENTS
+PROD_ALERT_FROM                STAGING_ALERT_FROM
 ```
 
 Nothing reads `.env` at runtime. It is the reference copy everything else is populated from:
 
 - **GitHub Actions secrets** — the same keys, pasted by hand.
 - **Apps Script Script Properties** — `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID`,
-  `SPREADSHEET_ID` and `WRITE_TARGETS` are pushed by the deploy workflow on every deploy.
+  `SPREADSHEET_ID`, `WRITE_TARGETS`, `ALERT_RECIPIENTS` and `ALERT_FROM` are pushed by the
+  deploy workflow on every deploy.
   `ADMIN_TOKEN` is copied by hand in Project Settings, because the endpoint that sets
   properties authenticates with it. None have defaults: an unset property throws instead of
   falling back. `WRITE_TARGETS` selects the stores records are written to; see

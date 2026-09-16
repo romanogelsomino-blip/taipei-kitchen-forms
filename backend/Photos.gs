@@ -140,14 +140,14 @@ function checkPhotoDrift() {
   };
 
   if (drift > PHOTO_DRIFT.threshold) {
-    MailApp.sendEmail({
-      to: BUG_REPORT_EMAIL,
-      subject: 'Taipei Kitchen photo drift ' + (drift * 100).toFixed(1) + '% (' + summary.from + ' to ' + summary.to + ')',
-      body: 'Drive holds ' + drivePhotos + ' delivery photos for ' + summary.from + ' to ' + summary.to +
+    sendMail(
+      alertRecipients(),
+      'Taipei Kitchen photo drift ' + (drift * 100).toFixed(1) + '% (' + summary.from + ' to ' + summary.to + ')',
+      'Drive holds ' + drivePhotos + ' delivery photos for ' + summary.from + ' to ' + summary.to +
         '; the delivery rows link ' + linkedPhotos + '.\n\nDays that differ:\n' +
         summary.days.map(d => '  ' + d.date + ': ' + d.inDrive + ' in Drive, ' + d.linked + ' linked').join('\n') +
         '\n\nThe Executions tab lists each photos_only request; notes of photo_orphan or photo_link_failed name the uploads that did not link.'
-    });
+    );
     summary.alerted = true;
   }
   Logger.log('[Photo Drift] ' + JSON.stringify(summary));

@@ -1,7 +1,5 @@
 // Submissions.gs — what each POST does with its payload.
 
-const BUG_REPORT_EMAIL = 'tech-support@kalispellconsulting.com';
-
 /** Approximate decoded size of a photo payload, for the execution record. */
 function photoPayloadSizeKB(photos) {
   if (!photos) return 0;
@@ -28,11 +26,9 @@ function normaliseRows(rows, ctx) {
 
 function handleBugReport(payload, ctx) {
   ctx.logEntry.formType = 'bugReport';
-  MailApp.sendEmail({
-    to: BUG_REPORT_EMAIL,
-    subject: payload.subject,
-    body: payload.body
-  });
+  const sent = sendMail(alertRecipients(), payload.subject, payload.body);
+  if (sent.note) note(ctx, sent.note);
+  if (sent.status !== 'SUCCESS') note(ctx, 'bug_report_mail_failed=' + sent.error);
   ctx.logEntry.status = 'SUCCESS';
   return jsonResponse({ status: 'ok', message: 'Bug report sent' });
 }
@@ -48,16 +44,15 @@ function handleDeliverySubmission(payload, ctx) {
   const rows = normaliseRows(payload.rows || [], ctx);
   writeRecords('deliveries', rows, ctx);
 
-  // HACCP violation alerts, still on the legacy tracker and still per row until the
-  // violations rebuild. The rows are already written, so a failure here must not fail the
-  // submission: losing an alert is recoverable, losing the record is not.
-  rows.forEach(row => {
-    try {
-      onViolationDetected(row, `Store ${row.store}`);
-    } catch (alertError) {
-      Logger.log(`Warning: Violation check failed for ${row.store}: ${alertError}`);
-    }
-  });
+  // HACCP violation alerts, once for the submission. The rows are already written, so a
+  // failure here must not fail the submission: losing an alert is recoverable, losing the
+  // record is not.
+  try {
+    checkViolations(rows, ctx);
+  } catch (alertError) {
+    note(ctx, 'violation_check_failed=' + alertError.message);
+    Logger.log(`Warning: violation check failed: ${alertError}`);
+  }
 
   ctx.logEntry.status = 'SUCCESS';
   return jsonResponse({ status: 'ok' });

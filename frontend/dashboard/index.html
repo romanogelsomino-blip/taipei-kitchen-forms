@@ -871,25 +871,16 @@
         <div class="section-card">
           <h2 class="section-title">HACCP Violation Alerts</h2>
 
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--dark);">Email Recipients</label>
-            <textarea id="violation-alert-emails" rows="4" placeholder="manager@example.com&#10;supervisor@example.com&#10;safety@example.com" style="width: 100%; padding: 10px; border: 2px solid var(--border); border-radius: 6px; font-size: 1rem; background: var(--surface); color: var(--dark); font-family: inherit; resize: vertical;"></textarea>
-            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px;">Enter one email address per line. These recipients will be notified when HACCP violations are logged.</p>
-          </div>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
-              <input type="checkbox" id="enable-violation-alerts" checked style="width: 20px; height: 20px; cursor: pointer;">
-              <span style="font-weight: 600; color: var(--dark);">Enable Alert Emails</span>
-            </label>
-            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px; margin-left: 32px;">Send email notifications when temperature violations are detected</p>
-          </div>
-
-          <button onclick="saveViolationAlertSettings()" style="width: 100%; padding: 14px; background: var(--red); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 1rem; transition: all 0.2s;">
-            Save Alert Settings
-          </button>
-          <p style="font-size: 0.85rem; color: var(--soft); margin-top: 12px; padding: 12px; background: var(--light); border-radius: 6px; border-left: 4px solid var(--yellow);">
-            <strong>Note:</strong> Email alerts require backend configuration in Google Apps Script. Contact your administrator to enable this feature.
+          <p style="font-size: 0.95rem; color: var(--dark); margin-bottom: 12px;">
+            An alert is sent whenever a delivery records a product or cooler temperature above
+            41&deg;F. The limit is the regulatory cold-holding maximum and is fixed in the code.
+            Every alert is also recorded on the month's Violations tab and appears in the queue
+            under Food Safety.
+          </p>
+          <p style="font-size: 0.85rem; color: var(--soft); padding: 12px; background: var(--light); border-radius: 6px; border-left: 4px solid var(--red);">
+            Recipients and the sending address are deployment settings, not dashboard settings.
+            They are held as repository secrets and applied on each release. Ask your
+            administrator to change them.
           </p>
         </div>
 

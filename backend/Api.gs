@@ -112,17 +112,12 @@ function action_rotateAdminToken(e) {
 /** Idempotent set-up: the legacy control tabs, and the current month's file so the first write of the month never has to create it. */
 function action_init(e) {
   try {
-    initializeConfigSheet();
-    initializeAlertLogSheet();
-    initializeViolationsTrackerSheet();
-
     const monthKey = monthKeyOfInstant(new Date());
     const opened = openMonthly(monthKey, true);
 
     return jsonResponse({
       status: 'ok',
       message: 'Initialization complete',
-      sheets_created: ['Config', 'Alert Log', 'Violations Tracker'],
       current_month: { key: monthKey, name: monthlyFileName(monthKey), id: opened.fileId, url: monthlyFileUrl(opened.fileId) }
     });
   } catch (error) {
@@ -378,10 +373,8 @@ function actions() {
   return {
     // Admin (token required)
     rotateAdminToken:      { fn: action_rotateAdminToken,      admin: true },
-    resetConfig:           { fn: action_resetConfig,           admin: true },
     init:                  { fn: action_init,                  admin: true },
     test:                  { fn: action_test,                  admin: true },
-    debugConfig:           { fn: action_debugConfig,           admin: true },
     ping:                  { fn: action_ping,                  admin: true },
     setScriptProperty:     { fn: action_setScriptProperty,     admin: true },
     sendDailySummary:      { fn: action_sendDailySummary,      admin: true },
@@ -391,11 +384,10 @@ function actions() {
     deleteTrigger:         { fn: action_deleteTrigger,         admin: true },
     checkPhotoDrift:       { fn: action_checkPhotoDrift,       admin: true },
     formatStorage:         { fn: action_formatStorage,         admin: true },
+    mailStatus:            { fn: action_mailStatus,            admin: true },
     queryDeliveries:       { fn: action_queryDeliveries,       admin: true },
     storageStatus:         { fn: action_storageStatus,         admin: true },
     // Public
-    getConfig:             { fn: action_getConfig,             admin: false },
-    setConfig:             { fn: action_setConfig,             admin: false },
     getViolations:         { fn: action_getViolations,         admin: false },
     updateViolationStatus: { fn: action_updateViolationStatus, admin: false }
   };
@@ -410,7 +402,7 @@ function doGet(e) {
     return ContentService
       .createTextOutput(JSON.stringify({
         status: 'error',
-        message: 'Unknown action. Admin actions (require token): init, test, ping, debugConfig, resetConfig, setScriptProperty, rotateAdminToken, sendDailySummary, getExecutionLog, queryDeliveries, storageStatus, listTriggers, createTrigger, deleteTrigger, checkPhotoDrift, formatStorage. Public actions: getConfig, setConfig, getViolations, updateViolationStatus'
+        message: 'Unknown action. Admin actions (require token): init, test, ping, mailStatus, setScriptProperty, rotateAdminToken, sendDailySummary, getExecutionLog, queryDeliveries, storageStatus, listTriggers, createTrigger, deleteTrigger, checkPhotoDrift, formatStorage. Public actions: getViolations, updateViolationStatus'
       }))
       .setMimeType(ContentService.MimeType.JSON);
   }
