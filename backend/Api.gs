@@ -81,7 +81,7 @@ function verifyAdminToken(providedToken) {
   const storedToken = scriptProperties.getProperty('ADMIN_TOKEN');
 
   if (!storedToken) {
-    Logger.log('⚠️ No ADMIN_TOKEN script property set. Set it in Project Settings > Script Properties.');
+    Logger.log('No ADMIN_TOKEN script property set. Set it in Project Settings > Script Properties.');
     return false;
   }
 
@@ -202,120 +202,6 @@ function action_setScriptProperty(e) {
   }
 }
 
-function action_sendDailySummary(e) {
-  try {
-    sendDailySummary();
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        status: 'ok',
-        message: 'Daily summary email sent successfully'
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        status: 'error',
-        message: error.toString()
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function action_listTriggers(e) {
-  try {
-    const triggers = ScriptApp.getProjectTriggers();
-    const triggerList = triggers.map(trigger => ({
-      triggerId: trigger.getUniqueId(),
-      handlerFunction: trigger.getHandlerFunction(),
-      eventType: trigger.getEventType().toString(),
-      source: trigger.getTriggerSource().toString()
-    }));
-
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        status: 'ok',
-        triggers: triggerList,
-        count: triggerList.length
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        status: 'error',
-        message: error.toString()
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-/** Functions the admin endpoint may schedule daily, with the default hour (project time zone). */
-function schedulableFunctions() {
-  return { sendDailySummary: 9, checkPhotoDrift: 2 };
-}
-
-/** Replace any trigger for `functionName` with one daily trigger at `hour`. */
-function createDailyTrigger(functionName, hour) {
-  ScriptApp.getProjectTriggers().forEach(trigger => {
-    if (trigger.getHandlerFunction() === functionName) ScriptApp.deleteTrigger(trigger);
-  });
-  ScriptApp.newTrigger(functionName).timeBased().atHour(hour).everyDays(1).create();
-}
-
-/** ?function=<name>&hour=<0-23>; defaults to the daily summary at its default hour. */
-function action_createTrigger(e) {
-  try {
-    const functionName = e.parameter.function || 'sendDailySummary';
-    const defaults = schedulableFunctions();
-    if (!(functionName in defaults)) {
-      throw new Error('Unknown function "' + functionName + '"; schedulable: ' + Object.keys(defaults).join(', '));
-    }
-    const hour = e.parameter.hour === undefined ? defaults[functionName] : parseInt(e.parameter.hour, 10);
-    if (isNaN(hour) || hour < 0 || hour > 23) throw new Error('hour must be 0-23');
-    createDailyTrigger(functionName, hour);
-    return jsonResponse({ status: 'ok', message: 'Daily trigger for ' + functionName + ' at hour ' + hour, function: functionName, hour: hour });
-  } catch (error) {
-    return jsonResponse({ status: 'error', message: error.toString() });
-  }
-}
-
-function action_checkPhotoDrift(e) {
-  try {
-    return jsonResponse(Object.assign({ status: 'ok' }, checkPhotoDrift()));
-  } catch (error) {
-    return jsonResponse({ status: 'error', message: error.toString() });
-  }
-}
-
-function action_deleteTrigger(e) {
-  try {
-    const functionName = e.parameter.function || 'sendDailySummary';
-    const triggers = ScriptApp.getProjectTriggers();
-    let deleted = 0;
-
-    triggers.forEach(trigger => {
-      if (trigger.getHandlerFunction() === functionName) {
-        ScriptApp.deleteTrigger(trigger);
-        deleted++;
-      }
-    });
-
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        status: 'ok',
-        message: `Deleted ${deleted} trigger(s) for function: ${functionName}`,
-        deleted: deleted
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        status: 'error',
-        message: error.toString()
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
 /** The monthly store as it stands: folder, targets, and the current and previous month files with row counts per tab. */
 /** Re-apply the tab styling to the current and previous month files. Idempotent. */
 function action_formatStorage(e) {
@@ -377,12 +263,7 @@ function actions() {
     test:                  { fn: action_test,                  admin: true },
     ping:                  { fn: action_ping,                  admin: true },
     setScriptProperty:     { fn: action_setScriptProperty,     admin: true },
-    sendDailySummary:      { fn: action_sendDailySummary,      admin: true },
     getExecutionLog:       { fn: action_getExecutionLog,       admin: true },
-    listTriggers:          { fn: action_listTriggers,          admin: true },
-    createTrigger:         { fn: action_createTrigger,         admin: true },
-    deleteTrigger:         { fn: action_deleteTrigger,         admin: true },
-    checkPhotoDrift:       { fn: action_checkPhotoDrift,       admin: true },
     formatStorage:         { fn: action_formatStorage,         admin: true },
     mailStatus:            { fn: action_mailStatus,            admin: true },
     queryDeliveries:       { fn: action_queryDeliveries,       admin: true },
@@ -402,7 +283,7 @@ function doGet(e) {
     return ContentService
       .createTextOutput(JSON.stringify({
         status: 'error',
-        message: 'Unknown action. Admin actions (require token): init, test, ping, mailStatus, setScriptProperty, rotateAdminToken, sendDailySummary, getExecutionLog, queryDeliveries, storageStatus, listTriggers, createTrigger, deleteTrigger, checkPhotoDrift, formatStorage. Public actions: getViolations, updateViolationStatus'
+        message: 'Unknown action. Admin actions (require token): init, test, ping, mailStatus, setScriptProperty, rotateAdminToken, getExecutionLog, queryDeliveries, storageStatus, formatStorage. Public actions: getViolations, updateViolationStatus'
       }))
       .setMimeType(ContentService.MimeType.JSON);
   }

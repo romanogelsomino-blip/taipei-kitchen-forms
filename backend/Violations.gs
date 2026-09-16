@@ -47,7 +47,7 @@ function checkViolations(rows, ctx) {
     const recipients = alertRecipients();
     const sent = sendMail(
       recipients,
-      '⚠️ HACCP Violation Alert: ' + rule.type + ' - Store ' + storeId,
+      'HACCP Violation Alert: ' + rule.type + ' - Store ' + storeId,
       violationEmailBody(rule, value, first, storeId)
     );
     if (sent.note) note(ctx, sent.note);
@@ -87,7 +87,7 @@ function violationEmailBody(rule, value, delivery, storeId) {
     '   TAIPEI KITCHEN · HACCP VIOLATION ALERT',
     '═══════════════════════════════════════════════════',
     '',
-    '⚠️ VIOLATION DETECTED',
+    'VIOLATION DETECTED',
     '',
     'Location: Store ' + storeId,
     'Date: ' + (delivery.date || ''),
@@ -144,105 +144,6 @@ function simulateViolation() {
 }
 
 // ─── Daily summary ───────────────────────────────────────────────────────────
-
-function sendDailySummary() {
-  try {
-    const day = addDays(todayNY(), -1);
-    const label = formatDate(new Date(day + 'T12:00:00Z'));
-    const read = readMonthlyRows([monthKeyOfDate(day)], 'Executions');
-    const entries = read.records.filter(record => String(record.timestamp).slice(0, 10) === day);
-
-    if (entries.length === 0) {
-      sendMail(alertRecipients(), 'Taipei Kitchen Daily Summary - ' + label + ' - NO ACTIVITY',
-        'No form submissions were recorded on ' + label + '.\n\nThis could indicate:\n- No operations on that day\n- Form submission failures\n- Network connectivity issues\n\nPlease verify with the operations team.');
-      return;
-    }
-
-    let deliveryCount = 0, productionCount = 0, bugReportCount = 0, photoUploads = 0;
-    let errorCount = 0, totalDuration = 0, maxDuration = 0;
-    const errors = [];
-    const notes = [];
-
-    entries.forEach(entry => {
-      if (entry.formType === 'delivery') deliveryCount++;
-      else if (entry.formType === 'production') productionCount++;
-      else if (entry.formType === 'bugReport') bugReportCount++;
-
-      if (entry.status === 'ERROR') {
-        errorCount++;
-        errors.push(entry.timestamp + ': ' + entry.errorMessage);
-      }
-      if (entry.notes) notes.push(entry.timestamp + ': ' + entry.notes);
-      if ((parseInt(entry.photoSizeKB, 10) || 0) > 0) photoUploads++;
-
-      const duration = parseInt(entry.durationMs, 10) || 0;
-      totalDuration += duration;
-      if (duration > maxDuration) maxDuration = duration;
-    });
-
-    const violations = readMonthlyRows([monthKeyOfDate(day)], 'Violations').records
-      .filter(v => String(v.date).slice(0, 10) === day);
-    const monthFile = (read.files[0] || {}).fileId;
-
-    const body = [
-      'Daily Operations Summary for ' + label,
-      '',
-      '═══════════════════════════════════════',
-      'SUBMISSIONS',
-      '═══════════════════════════════════════',
-      '• Delivery forms: ' + deliveryCount,
-      '• Production forms: ' + productionCount,
-      '• Bug reports: ' + bugReportCount,
-      '• Total: ' + entries.length + ' requests',
-      '',
-      '═══════════════════════════════════════',
-      'HACCP VIOLATIONS',
-      '═══════════════════════════════════════',
-      violations.length === 0 ? '✅ None recorded'
-        : violations.map(v => '• ' + v.violationType + ' at store ' + v.storeId + ': ' + v.value + '°F (' + v.violationId + ')').join('\n'),
-      '',
-      '═══════════════════════════════════════',
-      'ERRORS',
-      '═══════════════════════════════════════',
-      errorCount === 0 ? '✅ No errors reported' : '❌ ' + errorCount + ' error(s):\n\n' + errors.join('\n\n'),
-      '',
-      '═══════════════════════════════════════',
-      'NOTES',
-      '═══════════════════════════════════════',
-      notes.length === 0 ? 'None' : notes.join('\n'),
-      '',
-      '═══════════════════════════════════════',
-      'PERFORMANCE',
-      '═══════════════════════════════════════',
-      '• Submissions with photos: ' + photoUploads,
-      '• Average response time: ' + Math.round(totalDuration / entries.length) + 'ms',
-      '• Slowest submission: ' + maxDuration + 'ms',
-      '',
-      monthFile ? "View the month's operations file:\n" + monthlyFileUrl(monthFile) : '',
-      '',
-      '---',
-      '🤖 Automated daily summary from Taipei Kitchen Operations System'
-    ].join('\n').trim();
-
-    sendMail(alertRecipients(),
-      'Taipei Kitchen Daily Summary - ' + label + (errorCount > 0 ? ' ⚠️ ERRORS' : ''), body);
-    Logger.log('[Daily Summary] Email sent');
-
-  } catch (error) {
-    Logger.log('[Daily Summary] Failed: ' + error);
-    try {
-      sendMail(alertRecipients(), 'Taipei Kitchen Daily Summary - FAILED',
-        'Failed to generate daily summary:\n\n' + error.toString());
-    } catch (e) {
-      Logger.log('[Daily Summary] Could not send error notification: ' + e);
-    }
-  }
-}
-
-/** Human-readable date for email subjects and headings. */
-function formatDate(date) {
-  return Utilities.formatDate(date, NY_TZ, 'EEE, MMM d, yyyy');
-}
 
 // ─── Read and resolve ────────────────────────────────────────────────────────
 

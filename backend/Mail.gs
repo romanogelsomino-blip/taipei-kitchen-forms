@@ -6,7 +6,7 @@
 // account's own address rather than losing the message.
 
 const ALERT_FROM_NAME = 'Taipei Kitchen Operations';
-const DEFAULT_ALERT_RECIPIENTS = 'tech-support@kalispellconsulting.com';
+const DEFAULT_SUPPORT_RECIPIENTS = 'tech-support@kalispellconsulting.com';
 const ALIAS_MEMO = {}; // per-execution cache: the account's verified aliases
 
 /** Verified "Send mail as" aliases of the sending account. Empty when Gmail cannot be asked. */
@@ -27,13 +27,29 @@ function configuredFrom() {
   return (PropertiesService.getScriptProperties().getProperty('ALERT_FROM') || '').trim();
 }
 
-/** Who alerts go to: the ALERT_RECIPIENTS property, comma or newline separated. */
-function alertRecipients() {
-  const raw = PropertiesService.getScriptProperties().getProperty('ALERT_RECIPIENTS');
-  return String(raw === null || raw === undefined || raw === '' ? DEFAULT_ALERT_RECIPIENTS : raw)
+/** Addresses from a property, comma, semicolon or newline separated. */
+function recipientsFrom(property, fallback) {
+  const raw = PropertiesService.getScriptProperties().getProperty(property);
+  return String(raw === null || raw === undefined || raw === '' ? fallback : raw)
     .split(/[,\n;]/)
     .map(address => address.trim())
     .filter(address => address.indexOf('@') > 0);
+}
+
+/**
+ * Who hears about a HACCP violation: the people responsible for food safety at the client.
+ * They should not receive stack traces.
+ */
+function alertRecipients() {
+  return recipientsFrom('ALERT_RECIPIENTS', DEFAULT_SUPPORT_RECIPIENTS);
+}
+
+/**
+ * Who hears when the system itself has a problem: bug reports, the daily operations summary
+ * and the photo drift check. Whoever maintains the system, not whoever runs the kitchen.
+ */
+function supportRecipients() {
+  return recipientsFrom('SUPPORT_RECIPIENTS', DEFAULT_SUPPORT_RECIPIENTS);
 }
 
 /**
@@ -89,7 +105,8 @@ function action_mailStatus(e) {
       alert_from_note: wanted && aliases.indexOf(wanted) < 0
         ? 'Add ' + wanted + ' as a verified "Send mail as" alias on ' + account + ', or alerts will come from the account address.'
         : null,
-      recipients: alertRecipients(),
+      alert_recipients: alertRecipients(),
+      support_recipients: supportRecipients(),
       daily_quota_remaining: MailApp.getRemainingDailyQuota()
     });
   } catch (error) {

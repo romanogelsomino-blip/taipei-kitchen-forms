@@ -26,7 +26,7 @@ function normaliseRows(rows, ctx) {
 
 function handleBugReport(payload, ctx) {
   ctx.logEntry.formType = 'bugReport';
-  const sent = sendMail(alertRecipients(), payload.subject, payload.body);
+  const sent = sendMail(supportRecipients(), payload.subject, payload.body);
   if (sent.note) note(ctx, sent.note);
   if (sent.status !== 'SUCCESS') note(ctx, 'bug_report_mail_failed=' + sent.error);
   ctx.logEntry.status = 'SUCCESS';

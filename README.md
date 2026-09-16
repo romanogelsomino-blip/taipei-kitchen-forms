@@ -49,7 +49,8 @@ The pages live in `frontend/`, their scripts and stylesheet in `frontend/forms/`
 
 ### Dashboard
 1. Google Apps Script `doGet` endpoint serves JSON data from the sheet.
-2. The dashboard asks for a date window and polls it every 30 seconds.
+2. The dashboard asks for a date window, refreshes it every 15 minutes while someone is
+   looking at the tab, and has a Refresh button for the moment that is not soon enough.
 3. Real-time metrics display: production batches, deliveries today, HACCP violations, waste.
 4. Interactive filters by date range, driver, store, dish.
 5. Waste analysis with charts showing patterns by store and reason.
@@ -131,7 +132,11 @@ second one alongside it.
 The backend sends as the Google account the deployment runs as. There is no separate mail
 credential; the manifest's mail scope, granted once by that account, is the authorisation.
 
-- `ALERT_RECIPIENTS` is who violation alerts and the daily summary go to.
+- `ALERT_RECIPIENTS` is who HACCP violation alerts go to: the people responsible for food
+  safety. They get temperatures, not stack traces.
+- `SUPPORT_RECIPIENTS` is who system mail goes to: a failed form submission and bug reports
+  from the dashboard. Whoever maintains the system, which will not always be whoever owns
+  the Google account it sends from.
 - `ALERT_FROM` is the From address. It works only when that address is a verified "Send mail
   as" alias on the sending account. An unverified one falls back to the account's own address
   and records that it did, rather than dropping the message.
@@ -162,6 +167,7 @@ PROD_SPREADSHEET_ID            STAGING_SPREADSHEET_ID
 PROD_WEB_APP_URL               STAGING_WEB_APP_URL
 PROD_WRITE_TARGETS             STAGING_WRITE_TARGETS
 PROD_ALERT_RECIPIENTS          STAGING_ALERT_RECIPIENTS
+PROD_SUPPORT_RECIPIENTS        STAGING_SUPPORT_RECIPIENTS
 PROD_ALERT_FROM                STAGING_ALERT_FROM
 ```
 
@@ -169,8 +175,8 @@ Nothing reads `.env` at runtime. It is the reference copy everything else is pop
 
 - **GitHub Actions secrets** — the same keys, pasted by hand.
 - **Apps Script Script Properties** — `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID`,
-  `SPREADSHEET_ID`, `WRITE_TARGETS`, `ALERT_RECIPIENTS` and `ALERT_FROM` are pushed by the
-  deploy workflow on every deploy.
+  `SPREADSHEET_ID`, `WRITE_TARGETS`, `ALERT_RECIPIENTS`, `SUPPORT_RECIPIENTS` and
+  `ALERT_FROM` are pushed by the deploy workflow on every deploy.
   `ADMIN_TOKEN` is copied by hand in Project Settings, because the endpoint that sets
   properties authenticates with it. None have defaults: an unset property throws instead of
   falling back. `WRITE_TARGETS` selects the stores records are written to; see

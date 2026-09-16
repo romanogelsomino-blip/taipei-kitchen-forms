@@ -43,7 +43,7 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
 4. Waits until the web app answers with JSON. An in-place redeploy can serve Google's
    "unable to open the file" page for several minutes before the new version is live.
 5. Sets the `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID`, `SPREADSHEET_ID`, `WRITE_TARGETS`,
-   `ALERT_RECIPIENTS` and `ALERT_FROM` Script Properties from the matching secrets through
+   `ALERT_RECIPIENTS`, `SUPPORT_RECIPIENTS` and `ALERT_FROM` Script Properties through
    the `setScriptProperty` admin action, so the secrets are authoritative. `ALERT_FROM` is
    the one that may be empty, which means alerts send as the deploying account.
 6. Pings the deployment and asserts the operations folder id, the current month's file
@@ -120,6 +120,7 @@ PROD_PHOTO_FOLDER_ID        STAGING_PHOTO_FOLDER_ID
 PROD_SPREADSHEET_FOLDER_ID  STAGING_SPREADSHEET_FOLDER_ID
 PROD_WRITE_TARGETS          STAGING_WRITE_TARGETS
 PROD_ALERT_RECIPIENTS       STAGING_ALERT_RECIPIENTS
+PROD_SUPPORT_RECIPIENTS     STAGING_SUPPORT_RECIPIENTS
 PROD_ALERT_FROM             STAGING_ALERT_FROM
 ```
 
@@ -133,7 +134,11 @@ at `clasp push` with `invalid_grant`.
 
 ### Alert email
 
-`ALERT_RECIPIENTS` is who HACCP alerts and the daily summary go to, comma separated.
+`ALERT_RECIPIENTS` is who HACCP violation alerts go to, comma separated. `SUPPORT_RECIPIENTS`
+is who failed submissions and dashboard bug reports go to. The two lists exist because the
+audiences differ: one runs the kitchen, the other maintains the system. A failed submission
+emails support at once; the same error repeating is suppressed for 15 minutes so a bad
+deploy reports itself once rather than once per driver.
 `ALERT_FROM` is the From address and may be left empty, in which case alerts come from the
 account the deployment runs as. A non-empty value works only if that address is a verified
 "Send mail as" alias on that account; otherwise the deploy logs a warning, alerts still go

@@ -22,10 +22,15 @@ let DATA = {
 
 // The dashboard asks the backend for a date window rather than the whole store. The backend
 // reads one spreadsheet per month and caps a request at six of them.
+const TEMP_LIMIT_F = 41;   // regulatory cold-holding limit; matches the backend and the forms
 const WINDOW_MAX_MONTHS = 6;
 let REQUESTED_FROM = null;
 let REFRESH_INTERVAL = null;
-const POLL_INTERVAL_MS = 30000; // Changed from 10s to 30s for better UX
+// Submissions arrive a few dozen times a day, and the Refresh button is instant, so polling
+// is a safety net rather than a live feed. It stops entirely while the tab is in the
+// background: an unattended tab used to poll all night for nobody.
+const POLL_INTERVAL_MS = 15 * 60 * 1000;
+let LAST_FETCH_AT = 0;
 const DEMO_MODE = true; // Enable demo data for local development
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -76,11 +81,6 @@ function monthsBackISO(iso, months) {
   const [year, month] = iso.slice(0, 7).split('-').map(Number);
   const index = year * 12 + (month - 1) - months;
   return Math.floor(index / 12) + '-' + String((index % 12) + 1).padStart(2, '0') + '-01';
-}
-
-/** The Sunday that starts the week `iso` falls in. */
-function weekStartISO(iso) {
-  return addDaysISO(iso, -localDate(iso).getDay());
 }
 
 /** A `YYYY-MM-DD` as a local Date at midday, for day-of-week and label formatting only. */
@@ -213,16 +213,15 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (CONFIG.webAppUrl && CONFIG.webAppUrl !== 'DEMO_MODE') {
     // Production mode: fetch from real Google Apps Script
     await fetchData();
-    startAutoRefresh(); // T-055: Start 10s polling
+    startAutoRefresh();
+    watchTabVisibility();
   } else {
     // Demo mode: use mock data for local development
     loadDemoData();
     updateStatus('demo', 'Demo Mode (sample data)');
-    renderOverview();
     renderProduction();
     renderDeliveries();
     renderFoodSafety();
-    renderWaste();
   }
 });
 
@@ -236,18 +235,6 @@ function updateCurrentDate() {
     const now = new Date();
     document.getElementById('current-date').textContent = now.toLocaleDateString('en-US', options);
   }, 60000);
-}
-
-// Toggle dashboard info panel
-function toggleDashboardInfo() {
-  const info = document.getElementById('dashboard-info');
-  info.style.display = info.style.display === 'none' ? 'block' : 'none';
-}
-
-// Toggle HACCP policy panel
-function toggleHACCPPolicy() {
-  const policy = document.getElementById('haccp-policy');
-  policy.style.display = policy.style.display === 'none' ? 'block' : 'none';
 }
 
 // Read config.js, generated per environment at build time (see
@@ -269,7 +256,7 @@ function loadConfig() {
 }
 
 function showConfigInstructions() {
-  document.getElementById('panel-overview').innerHTML = `
+  document.getElementById('panel-home').innerHTML = `
     <div style="padding:40px;text-align:center;background:var(--red-lt);border:2px solid var(--red);border-radius:12px;margin:20px;">
       <h2 style="font-family:'Syne',sans-serif;color:var(--red);margin-bottom:16px;">Configuration Required</h2>
       <p style="font-size:0.95rem;color:var(--mid);margin-bottom:20px;">
@@ -394,6 +381,7 @@ async function fetchData(opts) {
     DATA.stores = data.stores || [];
     DATA.window = data.window || null;   // absent until the backend serves windows
     DATA.lastUpdated = data.lastUpdated || null;
+    LAST_FETCH_AT = Date.now();
 
     console.log('[Data] Fetched:', DATA);
 
@@ -403,11 +391,9 @@ async function fetchData(opts) {
     updateStatus('connected', statusText());
 
     // Production precedes delivery: food is cooked before it is delivered.
-    renderOverview();
     renderProduction();
     renderDeliveries();
     renderFoodSafety();
-    renderWaste();
   } catch (e) {
     console.error('[Data] Fetch failed:', e);
     updateStatus('error', `Fetch failed: ${e.message}`);
@@ -451,11 +437,31 @@ async function fetchViolations(win) {
 
 // T-055: Auto-refresh polling at 10s
 function startAutoRefresh() {
+  stopAutoRefresh();
+  REFRESH_INTERVAL = setInterval(() => { fetchData(); }, POLL_INTERVAL_MS);
+  console.log(`[Polling] every ${POLL_INTERVAL_MS / 60000} min while the tab is visible`);
+}
+
+function stopAutoRefresh() {
   if (REFRESH_INTERVAL) clearInterval(REFRESH_INTERVAL);
-  REFRESH_INTERVAL = setInterval(() => {
-    fetchData();
-  }, POLL_INTERVAL_MS);
-  console.log(`[Polling] Started at ${POLL_INTERVAL_MS / 1000}s interval`);
+  REFRESH_INTERVAL = null;
+}
+
+/**
+ * Poll only a tab someone is looking at. Returning to a tab that has gone stale refreshes
+ * once straight away, so what is on screen is never older than the moment it was looked at.
+ */
+function watchTabVisibility() {
+  document.addEventListener('visibilitychange', () => {
+    if (!CONFIG.webAppUrl) return;
+    if (document.hidden) {
+      stopAutoRefresh();
+      console.log('[Polling] paused, tab hidden');
+      return;
+    }
+    if (Date.now() - LAST_FETCH_AT >= POLL_INTERVAL_MS) fetchData();
+    startAutoRefresh();
+  });
 }
 
 function updateStatus(state, message) {
@@ -521,10 +527,6 @@ function showPanel(panelName) {
   if (panelName === 'shrink') {
     populateShrinkFilters(); // Populate filter dropdowns
     renderShrinkDashboard();
-  }
-
-  if (panelName === 'settings') {
-    loadSettings(); // Load saved settings into form
   }
 
   // Scroll to top on mobile when switching panels
@@ -598,336 +600,22 @@ function homeOpen(kind) {
 // T-051: Overview Panel
 // ═══════════════════════════════════════════════════════════════════════════
 
-function renderOverview() {
-  // FIX: Use local timezone instead of UTC to correctly identify "today"
-  const today = getTodayDate();
-  const weekStart = weekStartISO(today);
-
-  // Today's Metrics
-  const deliveriesToday = DATA.deliveries.filter(d => normalizeDate(d.date) === today).length;
-  const productionToday = DATA.production.filter(p => normalizeDate(p.date) === today).length;
-  const violationsToday = countViolations(DATA.deliveries.filter(d => normalizeDate(d.date) === today));
-  const wasteThisWeek = DATA.waste
-    .filter(w => {
-      const wDate = normalizeDate(w.date);
-      return wDate && wDate >= weekStart;
-    })
-    .reduce((sum, w) => sum + (parseInt(w.removed !== undefined ? w.removed : w.qtyRemoved) || 0), 0);
-
-  document.getElementById('metric-deliveries').textContent = deliveriesToday;
-  document.getElementById('metric-production').textContent = productionToday;
-  document.getElementById('metric-violations').textContent = violationsToday;
-  document.getElementById('metric-waste').textContent = wasteThisWeek;
-
-  // Add critical alert styling if violations > 5
-  const violationCard = document.getElementById('metric-violations').closest('.metric-card');
-  if (violationsToday > 5) {
-    violationCard.classList.add('critical');
-  } else {
-    violationCard.classList.remove('critical');
-  }
-
-  // Counts for the window that is loaded, not for all time.
-  document.getElementById('stat-total-production').textContent = DATA.production.length.toLocaleString();
-  document.getElementById('stat-total-deliveries').textContent = DATA.deliveries.length.toLocaleString();
-  document.getElementById('stat-total-stores').textContent = new Set(DATA.deliveries.map(d => d.store).filter(Boolean)).size;
-  const caption = document.getElementById('system-stats-window');
-  if (caption) caption.textContent = DATA.window ? `${DATA.window.from} to ${DATA.window.to}` : 'the loaded range';
-
-  // New high-value widgets
-  renderCriticalAlerts();
-  renderStorePerformance();
-  renderFinancialImpact();
-}
-
-function renderTopStores() {
-  const storeCounts = {};
-  DATA.deliveries.forEach(d => {
-    storeCounts[d.store] = (storeCounts[d.store] || 0) + 1;
-  });
-
-  const sorted = Object.entries(storeCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
-
-  const container = document.getElementById('top-stores-list');
-  if (sorted.length === 0) {
-    container.innerHTML = '<div class="loading">No delivery data yet</div>';
-    return;
-  }
-
-  container.innerHTML = sorted.map(([storeId, count]) => {
-    // storeId is already the full store name from the delivery data
-    const storeName = storeId || 'Unknown Store';
-    return `
-      <div class="store-item">
-        <span class="store-name">${storeName}</span>
-        <span class="store-volume">${count} deliveries</span>
-      </div>
-    `;
-  }).join('');
-}
-
-function renderRecentFeed() {
-  const combined = [
-    ...DATA.deliveries.map(d => ({ ...d, type: 'delivery', time: d.submittedAt })),
-    ...DATA.production.map(p => ({ ...p, type: 'production', time: p.submittedAt }))
-  ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 10);
-
-  const container = document.getElementById('recent-feed');
-  if (combined.length === 0) {
-    container.innerHTML = '<div class="loading">No submissions yet</div>';
-    return;
-  }
-
-  container.innerHTML = combined.map(item => {
-    const date = new Date(item.time);
-    const time = isNaN(date.getTime()) ? '—' : date.toLocaleTimeString();
-    const typeClass = item.type;
-    let text = '';
-
-    if (item.type === 'delivery') {
-      const storeName = DATA.stores.find(s => s.id === item.store)?.name || `Store ${item.store}`;
-      text = `${item.driver || 'Unknown'} delivered to ${storeName}`;
-    } else {
-      text = `${item.supervisor || 'Unknown'} logged production batch ${item.batch || '—'}`;
-    }
-
-    const violationClass = item.type === 'delivery' && hasViolation(item) ? 'violation' : '';
-
-    return `
-      <div class="feed-item ${typeClass} ${violationClass}">
-        <span class="feed-time">${time}</span>
-        <span class="feed-text">${text}</span>
-      </div>
-    `;
-  }).join('');
-}
-
-function hasViolation(delivery) {
-  const temp = parseFloat(delivery.coolerTemp);
-  return temp > 41;
-}
-
-function hasHACCPViolation(delivery) {
-  const coolerTemp = parseFloat(delivery.coolerTemp);
-  // Note: arrivalTemp field removed from data structure (no longer stored)
-  return coolerTemp > 41;
-}
-
-function countViolations(deliveries) {
-  return deliveries.filter(hasViolation).length;
+/**
+ * Whether a delivery row breached the cold-holding limit on either temperature it records.
+ * The limit matches TEMP_LIMIT_F in the backend and the forms; all three must agree.
+ */
+function hasTemperatureViolation(delivery) {
+  return [delivery.coolerTemp, delivery.arrivalTemp]
+    .some(value => parseFloat(value) > TEMP_LIMIT_F);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // NEW HIGH-VALUE WIDGETS
 // ═══════════════════════════════════════════════════════════════════════════
 
-function renderCriticalAlerts() {
-  const today = getTodayDate();
-  const todayDeliveries = DATA.deliveries.filter(d => normalizeDate(d.date) === today);
-
-  const alerts = [];
-
-  // Check for temperature violations
-  const violations = todayDeliveries.filter(d => hasViolation(d));
-  if (violations.length > 0) {
-    alerts.push({
-      level: 'critical',
-      message: `${violations.length} temperature violation${violations.length > 1 ? 's' : ''} today`,
-      details: violations.map(v => `${v.store}: ${v.coolerTemp}°F`).slice(0, 3).join(', ')
-    });
-  }
-
-  // Check for high shrink stores
-  const shrinkByStore = {};
-  todayDeliveries.forEach(d => {
-    if (!shrinkByStore[d.store]) shrinkByStore[d.store] = { added: 0, removed: 0 };
-    shrinkByStore[d.store].added += parseInt(d.added) || 0;
-    shrinkByStore[d.store].removed += parseInt(d.removed) || 0;
-  });
-
-  Object.entries(shrinkByStore).forEach(([store, data]) => {
-    const rate = data.added > 0 ? (data.removed / data.added) * 100 : 0;
-    if (rate > 15) {
-      alerts.push({
-        level: 'warning',
-        message: `${store}: ${rate.toFixed(1)}% shrink rate`,
-        details: `${data.removed} units shrink out of ${data.added} loaded`
-      });
-    }
-  });
-
-  const container = document.getElementById('critical-alerts-content');
-
-  if (alerts.length === 0) {
-    container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--green);font-weight:600;">✅ All systems normal - no critical alerts</div>';
-    return;
-  }
-
-  container.innerHTML = alerts.map(alert => `
-    <div style="padding:12px;margin-bottom:8px;border-left:4px solid ${alert.level === 'critical' ? 'var(--red)' : '#F59E0B'};background:${alert.level === 'critical' ? 'var(--red-lt)' : '#FEF3C7'};border-radius:4px;">
-      <div style="font-weight:600;color:${alert.level === 'critical' ? 'var(--red)' : '#B45309'};margin-bottom:4px;">${alert.message}</div>
-      <div style="font-size:0.85rem;color:var(--mid);">${alert.details}</div>
-    </div>
-  `).join('');
-}
-
-function renderStorePerformance() {
-  // Calculate shrink rate per store - Last 30 Days
-  const thirtyDaysAgo = addDaysISO(getTodayDate(), -30);
-
-  const recentDeliveries = DATA.deliveries.filter(d => normalizeDate(d.date) >= thirtyDaysAgo);
-  const storeMetrics = {};
-
-  recentDeliveries.forEach(d => {
-    const store = d.store;
-    if (!storeMetrics[store]) {
-      storeMetrics[store] = { added: 0, removed: 0, violations: 0, deliveries: 0 };
-    }
-    storeMetrics[store].added += parseInt(d.added) || 0;
-    storeMetrics[store].removed += parseInt(d.removed) || 0;
-    if (hasViolation(d)) storeMetrics[store].violations++;
-    storeMetrics[store].deliveries++;
-  });
-
-  // Calculate rates and rank
-  const ranked = Object.entries(storeMetrics).map(([store, data]) => ({
-    store,
-    shrinkRate: data.added > 0 ? (data.removed / data.added) * 100 : 0,
-    violationRate: data.deliveries > 0 ? (data.violations / data.deliveries) * 100 : 0,
-    ...data
-  })).filter(s => s.deliveries >= 5); // Only stores with 5+ deliveries
-
-  // Sort by shrink rate
-  ranked.sort((a, b) => a.shrinkRate - b.shrinkRate);
-
-  const bestStores = ranked.slice(0, 3);
-  const problemStores = ranked.slice(-3).reverse();
-
-  // Render best performers
-  const bestContainer = document.getElementById('best-stores-list');
-  bestContainer.innerHTML = bestStores.map((s, i) => `
-    <div style="padding:10px;margin-bottom:8px;background:var(--green-lt);border-radius:6px;border:1px solid var(--green);">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <span style="font-weight:600;color:var(--dark);">${s.store}</span>
-          <div style="font-size:0.8rem;color:var(--mid);margin-top:2px;">${s.deliveries} deliveries</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-weight:700;font-size:1.1rem;color:var(--green);">${s.shrinkRate.toFixed(1)}%</div>
-          <div style="font-size:0.75rem;color:var(--mid);">shrink rate</div>
-        </div>
-      </div>
-    </div>
-  `).join('') || '<div style="padding:16px;text-align:center;color:var(--soft);">Not enough data</div>';
-
-  // Render problem stores
-  const problemContainer = document.getElementById('problem-stores-list');
-  problemContainer.innerHTML = problemStores.map((s, i) => `
-    <div style="padding:10px;margin-bottom:8px;background:var(--red-lt);border-radius:6px;border:1px solid var(--red);">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <span style="font-weight:600;color:var(--dark);">${s.store}</span>
-          <div style="font-size:0.8rem;color:var(--mid);margin-top:2px;">${s.violations} violations</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-weight:700;font-size:1.1rem;color:var(--red);">${s.shrinkRate.toFixed(1)}%</div>
-          <div style="font-size:0.75rem;color:var(--mid);">shrink rate</div>
-        </div>
-      </div>
-    </div>
-  `).join('') || '<div style="padding:16px;text-align:center;color:var(--soft);">Not enough data</div>';
-}
-
-function renderFinancialImpact() {
-  const weekStart = weekStartISO(getTodayDate());
-  const weekDeliveries = DATA.deliveries.filter(d => normalizeDate(d.date) >= weekStart);
-
-  const totalAdded = weekDeliveries.reduce((sum, d) => sum + (parseInt(d.added) || 0), 0);
-  const totalShrink = weekDeliveries.reduce((sum, d) => sum + (parseInt(d.removed) || 0), 0);
-  const shrinkRate = totalAdded > 0 ? (totalShrink / totalAdded) * 100 : 0;
-
-  // Estimate cost (assuming avg $5 per unit - client can adjust)
-  const avgUnitCost = 5;
-  const totalLoadedValue = totalAdded * avgUnitCost;
-  const shrinkCost = totalShrink * avgUnitCost;
-  const targetShrinkRate = 5; // Industry standard
-  const potentialSavings = totalAdded > 0 ? ((shrinkRate - targetShrinkRate) / 100) * totalLoadedValue : 0;
-
-  const container = document.getElementById('financial-metrics');
-  container.innerHTML = `
-    <div style="padding:12px 0;">
-      <div style="margin-bottom:16px;">
-        <div style="font-size:0.75rem;color:var(--soft);text-transform:uppercase;margin-bottom:4px;">Total Loaded (This Week)</div>
-        <div style="font-size:1.5rem;font-weight:700;color:var(--dark);">$${totalLoadedValue.toLocaleString()}</div>
-        <div style="font-size:0.8rem;color:var(--mid);">${totalAdded.toLocaleString()} units @ $${avgUnitCost}/unit</div>
-      </div>
-
-      <div style="margin-bottom:16px;">
-        <div style="font-size:0.75rem;color:var(--soft);text-transform:uppercase;margin-bottom:4px;">Shrink Cost</div>
-        <div style="font-size:1.5rem;font-weight:700;color:var(--red);">$${shrinkCost.toLocaleString()}</div>
-        <div style="font-size:0.8rem;color:var(--mid);">${shrinkRate.toFixed(1)}% shrink rate</div>
-      </div>
-
-      ${potentialSavings > 0 ? `
-      <div style="padding:12px;background:var(--yellow);border-radius:6px;">
-        <div style="font-size:0.75rem;color:var(--dark);text-transform:uppercase;margin-bottom:4px;">Potential Savings</div>
-        <div style="font-size:1.3rem;font-weight:700;color:var(--dark);">$${potentialSavings.toLocaleString()}</div>
-        <div style="font-size:0.75rem;color:var(--dark);">If shrink reduced to ${targetShrinkRate}%</div>
-      </div>
-      ` : '<div style="padding:12px;background:var(--green-lt);border-radius:6px;text-align:center;color:var(--green);font-weight:600;">✓ Meeting target shrink rate!</div>'}
-    </div>
-  `;
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // T-053: Daily Reconciliation Panel
 // ═══════════════════════════════════════════════════════════════════════════
-
-function loadReconciliation() {
-  const date = document.getElementById('recon-date').value;
-  if (!date) return;
-
-  const deliveriesOnDate = DATA.deliveries.filter(d => d.date === date);
-  const productionOnDate = DATA.production.filter(p => p.date === date);
-
-  // Aggregate by dish
-  const dishData = {};
-
-  productionOnDate.forEach(p => {
-    if (!dishData[p.dish]) dishData[p.dish] = { produced: 0, delivered: 0, sold: 0 };
-    dishData[p.dish].produced += parseInt(p.qtyProduced) || 0;
-  });
-
-  deliveriesOnDate.forEach(d => {
-    if (!dishData[d.dish]) dishData[d.dish] = { produced: 0, delivered: 0, sold: 0 };
-    dishData[d.dish].delivered += parseInt(d.added) || 0;
-  });
-
-  // Sold data (placeholder for POS integration)
-  // For now, sold = null
-
-  const tbody = document.getElementById('recon-tbody');
-  if (Object.keys(dishData).length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="loading">No data for this date</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = Object.entries(dishData).map(([dish, data]) => {
-    const loss = data.produced - data.delivered;
-    const lossClass = loss > 0 ? 'loss' : (loss < 0 ? 'loss positive' : '');
-    return `
-      <tr>
-        <td>${dish}</td>
-        <td>${data.produced}</td>
-        <td>${data.delivered}</td>
-        <td>—</td>
-        <td class="${lossClass}">${loss}</td>
-      </tr>
-    `;
-  }).join('');
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // T-054: Weekly Food Safety Summary Panel
@@ -951,7 +639,7 @@ function loadFoodSafety() {
     if (!storeViolations[d.store]) {
       storeViolations[d.store] = { coolerViolations: 0, deliveryTempViolations: 0 };
     }
-    if (parseFloat(d.coolerTemp) > 41) {
+    if (hasTemperatureViolation(d)) {
       storeViolations[d.store].coolerViolations++;
       // Note: deliveryTempViolations deprecated (arrivalTemp no longer tracked)
     }
@@ -1005,12 +693,12 @@ function openViolationModal(storeId, violationType, weekStart, weekEnd) {
 
   // Filter for cooler temp violations (arrivalTemp no longer tracked)
   const violations = storeDeliveries.filter(d => {
-    return parseFloat(d.coolerTemp) > 41;
+    return hasTemperatureViolation(d);
   });
 
   const violationTypeLabel = 'Cooler Temp';
   const tempField = 'coolerTemp';
-  const threshold = '41°F';
+  const threshold = TEMP_LIMIT_F + '°F';
 
   // Build modal content
   const modalContent = `
@@ -1064,6 +752,16 @@ function closeViolationModal() {
 }
 
 // Violation Alert Banner Functions
+/** Jump to a panel from outside the nav, as the violation banner does. */
+function navigateTo(panelName) {
+  showPanel(panelName);
+  const link = document.querySelector(`.nav-link[data-panel="${panelName}"]`);
+  if (link) {
+    document.querySelectorAll('.nav-link, .mobile-nav-link').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll(`[data-panel="${panelName}"]`).forEach(el => el.classList.add('active'));
+  }
+}
+
 function dismissViolationBanner() {
   document.getElementById('violation-alert-banner').style.display = 'none';
   localStorage.setItem('violation-banner-dismissed', new Date().toISOString());
@@ -1528,7 +1226,7 @@ function displayDeliveryTable() {
     const storeData = DATA.stores.find(s => s.id === storeId);
     const storeName = storeData ? `${storeData.name} – ${storeData.location}` : d.store;
 
-    const hasViolation = hasHACCPViolation(d);
+    const hasViolation = hasTemperatureViolation(d);
     const rowStyle = hasViolation ? 'style="background:#FADBD8;border-left:4px solid var(--red);"' : '';
     const tempIcon = hasViolation ? '⚠️ ' : '';
 
@@ -1928,284 +1626,6 @@ function nextProductionPage() {
 // Waste Analysis Panel
 // ═══════════════════════════════════════════════════════════════════════════
 
-const WASTE_STATE = {
-  quickRange: 30,
-  filtered: [],
-  isInitialized: false,
-  charts: {
-    byStore: null,
-    byDish: null,
-    byReason: null,
-    trend: null
-  }
-};
-
-function renderWaste() {
-  // Only set defaults on first load, preserve filters on refresh
-  if (!WASTE_STATE.isInitialized) {
-    WASTE_STATE.isInitialized = true;
-    setWasteQuickRange(30);
-  } else {
-    // On refresh: re-apply current date range without resetting UI
-    setWasteQuickRange(WASTE_STATE.quickRange);
-  }
-}
-
-function setWasteQuickRange(range) {
-  WASTE_STATE.quickRange = range;
-
-  // Update button states
-  document.querySelectorAll('#panel-waste .btn-time-range').forEach(btn => {
-    btn.classList.remove('active');
-    if (btn.getAttribute('data-range') == range) {
-      btn.classList.add('active');
-    }
-  });
-
-  // Filter by date range
-  let filtered = [...DATA.waste];
-
-  if (range === 'all') {
-    ensureWindow(earliestWindowFrom());
-  } else {
-    const startStr = addDaysISO(getTodayDate(), -range);
-    ensureWindow(startStr);
-    filtered = filtered.filter(w => {
-      const normalizedDate = normalizeDate(w.date);
-      return normalizedDate && normalizedDate >= startStr;
-    });
-  }
-
-  WASTE_STATE.filtered = filtered;
-  updateWasteMetrics();
-  updateWasteCharts();
-}
-
-function updateWasteMetrics() {
-  const filtered = WASTE_STATE.filtered;
-  const totalWaste = filtered.reduce((sum, w) => sum + (parseInt(w.removed) || 0), 0);
-  const wasteEvents = filtered.length;
-  const avgPerEvent = wasteEvents > 0 ? Math.round(totalWaste / wasteEvents) : 0;
-
-  // Calculate top reason
-  const wasteByReason = {};
-  filtered.forEach(w => {
-    const reason = w.reason || 'Unknown';
-    wasteByReason[reason] = (wasteByReason[reason] || 0) + (parseInt(w.removed) || 0);
-  });
-  const topReason = Object.entries(wasteByReason).sort((a, b) => b[1] - a[1])[0];
-
-  document.getElementById('waste-metrics').innerHTML = `
-    <div class="metric-card alert">
-      <div class="metric-label">Total Waste</div>
-      <div class="metric-value">${totalWaste.toLocaleString()}</div>
-      <div class="metric-sub">Units discarded</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Waste Events</div>
-      <div class="metric-value">${wasteEvents.toLocaleString()}</div>
-      <div class="metric-sub">${avgPerEvent} avg units/event</div>
-    </div>
-    <div class="metric-card">
-      <div class="metric-label">Top Waste Reason</div>
-      <div class="metric-value" style="font-size:1.3rem;">${topReason ? topReason[0] : 'N/A'}</div>
-      <div class="metric-sub">${topReason ? topReason[1] + ' units' : ''}</div>
-    </div>
-  `;
-}
-
-function updateWasteCharts() {
-  const filtered = WASTE_STATE.filtered;
-
-  // Check if canvas elements exist before rendering
-  const canvas1 = document.getElementById('chart-waste-by-store');
-  const canvas2 = document.getElementById('chart-waste-by-dish');
-  const canvas3 = document.getElementById('chart-waste-by-reason');
-  const canvas4 = document.getElementById('chart-waste-trend');
-
-  if (!canvas1 || !canvas2 || !canvas3 || !canvas4) {
-    return; // Skip rendering if canvas elements not available
-  }
-
-  // Aggregate data
-  const wasteByStore = {};
-  const wasteByDish = {};
-  const wasteByReason = {};
-  const wasteByDate = {};
-
-  filtered.forEach(w => {
-    const qty = parseInt(w.removed) || 0;
-    wasteByStore[w.store] = (wasteByStore[w.store] || 0) + qty;
-    wasteByDish[w.dish] = (wasteByDish[w.dish] || 0) + qty;
-    wasteByReason[w.reason || 'Unknown'] = (wasteByReason[w.reason || 'Unknown'] || 0) + qty;
-
-    // Normalize date before using as key to prevent "Invalid Date" labels
-    const normalizedDate = normalizeDate(w.date);
-    if (normalizedDate) {
-      wasteByDate[normalizedDate] = (wasteByDate[normalizedDate] || 0) + qty;
-    }
-  });
-
-  // Chart 1: Waste by Store (Bar Chart)
-  const storeEntries = Object.entries(wasteByStore).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  const storeLabels = storeEntries.map(([storeId]) => {
-    const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
-    return storeName;
-  });
-  const storeData = storeEntries.map(([, qty]) => qty);
-
-  if (WASTE_STATE.charts.byStore) WASTE_STATE.charts.byStore.destroy();
-  const ctx1 = document.getElementById('chart-waste-by-store').getContext('2d');
-  WASTE_STATE.charts.byStore = new Chart(ctx1, {
-    type: 'bar',
-    data: {
-      labels: storeLabels,
-      datasets: [{
-        label: 'Units Wasted',
-        data: storeData,
-        backgroundColor: 'rgba(192, 57, 43, 0.7)',
-        borderColor: '#C0392B',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { maxTicksLimit: 10 }
-        }
-      }
-    }
-  });
-
-  // Chart 2: Waste by Dish (Horizontal Bar Chart)
-  const dishEntries = Object.entries(wasteByDish).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  const dishLabels = dishEntries.map(([dish]) => dish);
-  const dishData = dishEntries.map(([, qty]) => qty);
-
-  if (WASTE_STATE.charts.byDish) WASTE_STATE.charts.byDish.destroy();
-  const ctx2 = document.getElementById('chart-waste-by-dish').getContext('2d');
-  WASTE_STATE.charts.byDish = new Chart(ctx2, {
-    type: 'bar',
-    data: {
-      labels: dishLabels,
-      datasets: [{
-        label: 'Units Wasted',
-        data: dishData,
-        backgroundColor: 'rgba(192, 57, 43, 0.7)',
-        borderColor: '#C0392B',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        x: {
-          beginAtZero: true,
-          ticks: { maxTicksLimit: 10 }
-        }
-      }
-    }
-  });
-
-  // Chart 3: Waste by Reason (Doughnut Chart)
-  const reasonEntries = Object.entries(wasteByReason).sort((a, b) => b[1] - a[1]);
-
-  // Limit to top 5 reasons + aggregate rest as "Other"
-  const top5Reasons = reasonEntries.slice(0, 5);
-  const otherReasons = reasonEntries.slice(5);
-  const otherSum = otherReasons.reduce((sum, [, qty]) => sum + qty, 0);
-
-  const reasonLabels = top5Reasons.map(([reason]) => reason);
-  const reasonData = top5Reasons.map(([, qty]) => qty);
-
-  if (otherSum > 0) {
-    reasonLabels.push('Other');
-    reasonData.push(otherSum);
-  }
-
-  if (WASTE_STATE.charts.byReason) WASTE_STATE.charts.byReason.destroy();
-  const ctx3 = document.getElementById('chart-waste-by-reason').getContext('2d');
-  WASTE_STATE.charts.byReason = new Chart(ctx3, {
-    type: 'doughnut',
-    data: {
-      labels: reasonLabels,
-      datasets: [{
-        data: reasonData,
-        backgroundColor: [
-          '#C0392B',  // Red - Spoilage
-          '#E67E22',  // Orange - Over-production
-          '#F39C12',  // Yellow-orange - Quality issues
-          '#27AE60',  // Green - Contamination
-          '#3498DB',  // Blue - Packaging damage
-          '#9B59B6',  // Purple - Other
-          '#95A5A6'   // Gray - Unknown
-        ],
-        borderWidth: 2,
-        borderColor: '#fff'
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'bottom',
-          labels: {
-            font: { size: 11 },
-            padding: 10
-          }
-        }
-      }
-    }
-  });
-
-  // Chart 4: Waste Trend Over Time (Line Chart)
-  const dateEntries = Object.entries(wasteByDate).sort((a, b) => a[0].localeCompare(b[0]));
-  const trendLabels = dateEntries.map(([date]) => localDate(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-  const trendData = dateEntries.map(([, qty]) => qty);
-
-  if (WASTE_STATE.charts.trend) WASTE_STATE.charts.trend.destroy();
-  const ctx4 = document.getElementById('chart-waste-trend').getContext('2d');
-  WASTE_STATE.charts.trend = new Chart(ctx4, {
-    type: 'line',
-    data: {
-      labels: trendLabels,
-      datasets: [{
-        label: 'Daily Waste',
-        data: trendData,
-        borderColor: '#C0392B',
-        backgroundColor: 'rgba(192, 57, 43, 0.1)',
-        tension: 0.3,
-        fill: true
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { maxTicksLimit: 10 }
-        }
-      }
-    }
-  });
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Food Safety Panel
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2382,13 +1802,6 @@ function openViolationDetailsModal(violationId) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Utilities
 // ═══════════════════════════════════════════════════════════════════════════
-
-function getWeekStart(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day;
-  return new Date(d.setDate(diff));
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SHRINK TRACKING DASHBOARD
@@ -2664,6 +2077,34 @@ function renderShrinkCharts(deliveries, shrinkByStore) {
       }
     }
   });
+
+  // Chart 5: why it came off the shelf. The reason is the only thing here that says whether
+  // shrink is a forecasting problem or a handling one.
+  const byReason = {};
+  deliveries.forEach(d => {
+    const units = parseInt(d.removed, 10) || 0;
+    if (units <= 0) return;
+    const reason = (d.reason || '').trim() || 'Unspecified';
+    byReason[reason] = (byReason[reason] || 0) + units;
+  });
+  const reasons = Object.keys(byReason).sort((a, b) => byReason[b] - byReason[a]);
+
+  shrinkCharts.byReason = new Chart(document.getElementById('chart-shrink-by-reason'), {
+    type: 'doughnut',
+    data: {
+      labels: reasons,
+      datasets: [{
+        data: reasons.map(reason => byReason[reason]),
+        backgroundColor: ['#DC2626', '#EA580C', '#CA8A04', '#65A30D', '#0891B2', '#7C3AED', '#9B9B9B'],
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true, position: 'right' } }
+    }
+  });
 }
 
 function renderShrinkTable(deliveries) {
@@ -2934,142 +2375,6 @@ function exportShrinkToCSV() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // Settings object with defaults
-const SETTINGS = {
-  theme: 'light',
-  tempThreshold: 41,
-  shrinkThreshold: 15,
-  targetShrink: 5,
-  avgUnitCost: 5,
-  currencyFormat: 'USD',
-  showBugButton: true,
-  bugEmail: 'YOUR_EMAIL@example.com'
-};
-
-function loadSettings() {
-  const saved = localStorage.getItem('dashboard-settings');
-  if (saved) {
-    Object.assign(SETTINGS, JSON.parse(saved));
-  }
-
-  // Apply settings to UI
-  document.getElementById('temp-threshold').value = SETTINGS.tempThreshold;
-  document.getElementById('shrink-threshold').value = SETTINGS.shrinkThreshold;
-  document.getElementById('target-shrink').value = SETTINGS.targetShrink;
-  document.getElementById('avg-unit-cost').value = SETTINGS.avgUnitCost;
-  document.getElementById('currency-format').value = SETTINGS.currencyFormat;
-  document.getElementById('show-bug-button').checked = SETTINGS.showBugButton;
-  document.getElementById('bug-email').value = SETTINGS.bugEmail;
-
-  // Apply theme button states
-  updateThemeButtonStates(SETTINGS.theme);
-
-  // Apply bug button visibility
-  const bugBtn = document.getElementById('bug-report-btn');
-  if (bugBtn) {
-    bugBtn.style.display = SETTINGS.showBugButton ? 'block' : 'none';
-  }
-}
-
-function saveSettings() {
-  // Read values from inputs
-  SETTINGS.tempThreshold = parseFloat(document.getElementById('temp-threshold').value);
-  SETTINGS.shrinkThreshold = parseFloat(document.getElementById('shrink-threshold').value);
-  SETTINGS.targetShrink = parseFloat(document.getElementById('target-shrink').value);
-  SETTINGS.avgUnitCost = parseFloat(document.getElementById('avg-unit-cost').value);
-  SETTINGS.currencyFormat = document.getElementById('currency-format').value;
-  SETTINGS.showBugButton = document.getElementById('show-bug-button').checked;
-  SETTINGS.bugEmail = document.getElementById('bug-email').value;
-
-  // Save to localStorage
-  localStorage.setItem('dashboard-settings', JSON.stringify(SETTINGS));
-
-  // Apply bug button visibility
-  const bugBtn = document.getElementById('bug-report-btn');
-  if (bugBtn) {
-    bugBtn.style.display = SETTINGS.showBugButton ? 'block' : 'none';
-  }
-
-  // Show confirmation
-  alert('Settings saved successfully! Refresh the dashboard to see updated calculations.');
-}
-
-function setThemeFromSettings(theme) {
-  SETTINGS.theme = theme;
-  document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('dashboard-theme', theme);
-  updateThemeButtonStates(theme);
-  updateThemeIcon(theme);
-}
-
-function updateThemeButtonStates(theme) {
-  const lightBtn = document.getElementById('theme-light-btn');
-  const darkBtn = document.getElementById('theme-dark-btn');
-
-  if (lightBtn && darkBtn) {
-    if (theme === 'dark') {
-      lightBtn.style.borderColor = 'var(--border)';
-      lightBtn.style.background = 'var(--surface)';
-      lightBtn.style.color = 'var(--dark)';
-      darkBtn.style.borderColor = 'var(--red)';
-      darkBtn.style.background = 'var(--red)';
-      darkBtn.style.color = '#fff';
-    } else {
-      lightBtn.style.borderColor = 'var(--red)';
-      lightBtn.style.background = 'var(--red)';
-      lightBtn.style.color = '#fff';
-      darkBtn.style.borderColor = 'var(--border)';
-      darkBtn.style.background = 'var(--surface)';
-      darkBtn.style.color = 'var(--dark)';
-    }
-  }
-}
-
-function resetDashboardTour() {
-  localStorage.removeItem('dashboard-tour-seen');
-  localStorage.removeItem('dashboard-tour-version');
-  alert('Dashboard tour has been reset! It will show again when you refresh the page.');
-}
-
-function exportAllDataToJSON() {
-  if (!DATA.deliveries || !DATA.production) {
-    alert('No data available to export');
-    return;
-  }
-
-  const exportData = {
-    exportDate: new Date().toISOString(),
-    version: '2.0',
-    deliveries: DATA.deliveries,
-    production: DATA.production,
-    stores: DATA.stores
-  };
-
-  const json = JSON.stringify(exportData, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-
-  const timestamp = getTodayDate();
-  link.setAttribute('href', url);
-  link.setAttribute('download', `taipei-kitchen-data-${timestamp}.json`);
-  link.style.visibility = 'hidden';
-
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
-function clearLocalSettings() {
-  if (confirm('Are you sure you want to reset all settings to defaults? This cannot be undone.')) {
-    localStorage.removeItem('dashboard-settings');
-    localStorage.removeItem('dashboard-theme');
-    localStorage.removeItem('dashboard-tour-seen');
-    localStorage.removeItem('dashboard-tour-version');
-    alert('All settings have been cleared! The page will now reload with default settings.');
-    location.reload();
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // Auto-Collapsible Sidebar (CSS-based, no JS needed)
 // Sidebar starts collapsed (70px) and expands on hover (220px)

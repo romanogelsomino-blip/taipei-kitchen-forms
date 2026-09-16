@@ -5,7 +5,6 @@
 // and the links go onto every row of that delivery in the monthly Deliveries tab: matched by
 // submission id, or by store, date and driver for payloads sent before the forms carried one.
 
-const PHOTO_DRIFT = { days: 7, threshold: 0.05 };
 
 /** The photo root for this environment, by id only: a wrong id or a sharing gap fails loudly instead of minting a second folder. */
 function getPhotoRootFolder() {
@@ -102,54 +101,3 @@ function fillColumnRows(sheet, column, rowNumbers, value) {
   }
 }
 
-/**
- * Compare the photos in Drive with the links on the delivery rows over the last seven New
- * York days: each day folder against the distinct links on rows dated that day. Emails when
- * the totals differ by more than the threshold. Never creates folders. Returns the summary.
- */
-function checkPhotoDrift() {
-  const today = todayNY();
-  const dates = [];
-  for (let i = PHOTO_DRIFT.days - 1; i >= 0; i--) dates.push(addDays(today, -i));
-  const monthKeys = dates.map(monthKeyOfDate).filter((k, i, all) => all.indexOf(k) === i);
-  const read = readMonthlyRows(monthKeys, 'Deliveries');
-
-  const linked = {}; // date → { url: true }
-  read.records.forEach(r => {
-    if (dates.indexOf(String(r.date)) < 0) return;
-    [r.beforePhotoLink, r.afterPhotoLink].forEach(url => {
-      if (url) (linked[r.date] = linked[r.date] || {})[String(url)] = true;
-    });
-  });
-
-  const days = dates.map(date => {
-    const folder = photoDayFolder(date, false);
-    let inDrive = 0;
-    if (folder) {
-      const files = folder.getFiles();
-      while (files.hasNext()) { files.next(); inDrive += 1; }
-    }
-    return { date: date, inDrive: inDrive, linked: Object.keys(linked[date] || {}).length };
-  });
-  const drivePhotos = days.reduce((n, d) => n + d.inDrive, 0);
-  const linkedPhotos = days.reduce((n, d) => n + d.linked, 0);
-  const drift = drivePhotos ? Math.abs(drivePhotos - linkedPhotos) / drivePhotos : (linkedPhotos ? 1 : 0);
-  const summary = {
-    from: dates[0], to: today, drivePhotos: drivePhotos, linkedPhotos: linkedPhotos, drift: drift,
-    alerted: false, days: days.filter(d => d.inDrive !== d.linked), missingMonths: read.missing
-  };
-
-  if (drift > PHOTO_DRIFT.threshold) {
-    sendMail(
-      alertRecipients(),
-      'Taipei Kitchen photo drift ' + (drift * 100).toFixed(1) + '% (' + summary.from + ' to ' + summary.to + ')',
-      'Drive holds ' + drivePhotos + ' delivery photos for ' + summary.from + ' to ' + summary.to +
-        '; the delivery rows link ' + linkedPhotos + '.\n\nDays that differ:\n' +
-        summary.days.map(d => '  ' + d.date + ': ' + d.inDrive + ' in Drive, ' + d.linked + ' linked').join('\n') +
-        '\n\nThe Executions tab lists each photos_only request; notes of photo_orphan or photo_link_failed name the uploads that did not link.'
-    );
-    summary.alerted = true;
-  }
-  Logger.log('[Photo Drift] ' + JSON.stringify(summary));
-  return summary;
-}

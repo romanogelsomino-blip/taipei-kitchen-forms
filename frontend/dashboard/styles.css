@@ -28,23 +28,6 @@
 }
 
 /* Dark Mode - Reversed Light Mode Palette */
-[data-theme="dark"] {
-  --cream: #1C1C1C;          /* Dark background (reverse of cream) */
-  --dark: #FDF5E6;           /* Light text (reverse of dark) */
-  --mid: #9B9B9B;            /* Keep mid-tone */
-  --soft: #4A4A4A;           /* Darker soft (reverse of soft) */
-  --border: #4A4A4A;         /* Dark border */
-  --surface: #2C2C2C;        /* Slightly lighter than cream for cards */
-  --row-alt: #373737;        /* Alternating row color */
-  --panel-bg: #2C2C2C;       /* Panel background */
-  --light: #373737;          /* Light variant */
-  --green-lt: #1a3a2a;       /* Keep green tint */
-  --red-lt: #3a1a1a;         /* Keep red tint */
-  /* Header stays dark in dark mode */
-  --header-bg: #1C1C1C;
-  --header-text: #FDF5E6;
-}
-
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;

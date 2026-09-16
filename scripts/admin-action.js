@@ -2,14 +2,13 @@
 /**
  * Call an admin action on the web app and print its JSON.
  * Usage: node scripts/admin-action.js <staging|production> <action> [key=value ...]
- * A bare word is sent as key=true; for deleteTrigger and getExecutionLog a bare first word
- * is the function name or the limit.
+ * A bare word is sent as key=true; for getExecutionLog a bare first word is the limit.
  */
 const { readPrefix, requireKeys } = require('./env');
 const webapp = require('./webapp');
 
 const USAGE = 'Usage: node scripts/admin-action.js <staging|production> <action> [key=value ...]\n' +
-  'Actions: ping, storageStatus, init, test, getExecutionLog, queryDeliveries, listTriggers, createTrigger, deleteTrigger, checkPhotoDrift, formatStorage, mailStatus, sendDailySummary, setScriptProperty, rotateAdminToken';
+  'Actions: ping, storageStatus, init, test, getExecutionLog, queryDeliveries, formatStorage, mailStatus, setScriptProperty, rotateAdminToken';
 const [,, environment, action, ...params] = process.argv;
 if (!environment || !action) {
   console.error(USAGE);
@@ -22,7 +21,6 @@ const query = { action, token: ADMIN_TOKEN };
 params.forEach((p, i) => {
   const eq = p.indexOf('=');
   if (eq > 0) query[p.slice(0, eq)] = p.slice(eq + 1);
-  else if (i === 0 && action === 'deleteTrigger') query.function = p;
   else if (i === 0 && action === 'getExecutionLog') query.limit = p;
   else query[p] = 'true';
 });

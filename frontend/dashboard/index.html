@@ -11,8 +11,6 @@
 <!-- Chart.js via CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <!-- Driver.js for Dashboard Tour -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.6/dist/driver.css">
-<script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.6/dist/driver.js.iife.js"></script>
 </head>
 <body>
 
@@ -49,15 +47,6 @@
       </svg>
       <span class="nav-label">Home</span>
     </a>
-    <a href="#overview" class="nav-link" data-panel="overview">
-      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="3" width="7" height="7"></rect>
-        <rect x="14" y="3" width="7" height="7"></rect>
-        <rect x="14" y="14" width="7" height="7"></rect>
-        <rect x="3" y="14" width="7" height="7"></rect>
-      </svg>
-      <span class="nav-label">Overview</span>
-    </a>
     <a href="#production" class="nav-link" data-panel="production">
       <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M2 20h20"></path>
@@ -76,12 +65,19 @@
       </svg>
       <span class="nav-label">Deliveries</span>
     </a>
-    <a href="#shrink" class="nav-link" data-panel="shrink">
+    <a href="#sales" class="nav-link" data-panel="sales">
       <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="12" y1="1" x2="12" y2="23"></line>
         <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
       </svg>
-      <span class="nav-label">Shrink Tracking</span>
+      <span class="nav-label">Sales</span>
+    </a>
+    <a href="#shrink" class="nav-link" data-panel="shrink">
+      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline>
+        <polyline points="17 18 23 18 23 12"></polyline>
+      </svg>
+      <span class="nav-label">Shrink</span>
     </a>
     <a href="#food-safety" class="nav-link" data-panel="food-safety">
       <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -90,20 +86,6 @@
       </svg>
       <span class="nav-label">Food Safety</span>
     </a>
-    <a href="#waste" class="nav-link" data-panel="waste">
-      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="3 6 5 6 21 6"></polyline>
-        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-      </svg>
-      <span class="nav-label">Waste Analysis</span>
-    </a>
-    <a href="#settings" class="nav-link" data-panel="settings">
-      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="3"></circle>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-      </svg>
-      <span class="nav-label">Settings</span>
-    </a>
   </nav>
 
   <!-- Mobile Bottom Navigation -->
@@ -111,26 +93,20 @@
     <a href="#home" class="mobile-nav-link active" data-panel="home">
       <span class="mobile-nav-label">Home</span>
     </a>
-    <a href="#overview" class="mobile-nav-link" data-panel="overview">
-      <span class="mobile-nav-label">Overview</span>
-    </a>
     <a href="#production" class="mobile-nav-link" data-panel="production">
       <span class="mobile-nav-label">Kitchen</span>
     </a>
     <a href="#deliveries" class="mobile-nav-link" data-panel="deliveries">
       <span class="mobile-nav-label">Trucks</span>
     </a>
-    <a href="#food-safety" class="mobile-nav-link" data-panel="food-safety">
-      <span class="mobile-nav-label">Safety</span>
-    </a>
-    <a href="#waste" class="mobile-nav-link" data-panel="waste">
-      <span class="mobile-nav-label">Waste</span>
+    <a href="#sales" class="mobile-nav-link" data-panel="sales">
+      <span class="mobile-nav-label">Sales</span>
     </a>
     <a href="#shrink" class="mobile-nav-link" data-panel="shrink">
       <span class="mobile-nav-label">Shrink</span>
     </a>
-    <a href="#settings" class="mobile-nav-link" data-panel="settings">
-      <span class="mobile-nav-label">Settings</span>
+    <a href="#food-safety" class="mobile-nav-link" data-panel="food-safety">
+      <span class="mobile-nav-label">Safety</span>
     </a>
   </nav>
 
@@ -189,145 +165,6 @@
     </section>
 
     <!-- Overview Panel -->
-    <section id="panel-overview" class="panel">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <div>
-          <h1 class="panel-title" style="margin-bottom:4px;">Live Operations Dashboard</h1>
-          <p class="panel-subtitle" style="margin-bottom:0;">Real-time insights from production, delivery, and food safety operations</p>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button onclick="toggleHACCPPolicy()" style="background:var(--dark);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:0.8rem;cursor:pointer;font-weight:600;font-family:'DM Mono',monospace;">HACCP Policy</button>
-          <button id="theme-toggle" onclick="toggleTheme()" style="background:var(--mid);color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;font-weight:700;display:flex;align-items:center;justify-content:center;" title="Toggle Dark Mode">
-            <svg id="theme-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-            </svg>
-          </button>
-          <button onclick="startDashboardTour()" style="background:var(--red);color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer;font-weight:700;" title="Dashboard Tour">?</button>
-        </div>
-      </div>
-
-      <!-- HACCP Quick Reference (hidden by default) -->
-      <div id="haccp-policy" style="display:none;margin-bottom:20px;background:#f8f9fa;border:2px solid var(--dark);border-radius:8px;padding:20px;">
-        <h3 style="font-family:'Syne',sans-serif;font-size:1.1rem;margin-bottom:12px;color:var(--dark);">HACCP Quick Reference</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-          <div>
-            <h4 style="font-family:'DM Mono',monospace;font-size:0.75rem;text-transform:uppercase;color:var(--mid);margin-bottom:8px;">Critical Temperature Limits</h4>
-            <ul style="margin:0;padding-left:20px;font-size:0.85rem;line-height:1.6;">
-              <li><strong>Cold Holding:</strong> ≤41°F (refrigerated products)</li>
-              <li><strong>Danger Zone:</strong> 41°F - 135°F (bacteria growth)</li>
-              <li><strong>Critical Violation:</strong> >45°F (accelerated spoilage)</li>
-              <li><strong>Time Limit:</strong> Max 2 hours above 41°F</li>
-            </ul>
-          </div>
-          <div>
-            <h4 style="font-family:'DM Mono',monospace;font-size:0.75rem;text-transform:uppercase;color:var(--mid);margin-bottom:8px;">Corrective Actions</h4>
-            <ul style="margin:0;padding-left:20px;font-size:0.85rem;line-height:1.6;">
-              <li><strong>41-45°F:</strong> Monitor closely, reduce temp immediately</li>
-              <li><strong>>45°F for <2hrs:</strong> Cool rapidly, document action</li>
-              <li><strong>>45°F for >2hrs:</strong> Discard product, notify supervisor</li>
-              <li><strong>Equipment failure:</strong> Contact maintenance immediately</li>
-            </ul>
-          </div>
-        </div>
-        <div style="background:var(--red-lt);border-left:4px solid var(--red);padding:12px;border-radius:4px;">
-          <p style="margin:0;font-size:0.85rem;color:var(--dark);"><strong>Emergency Contact:</strong> Food Safety Manager — Call immediately for violations >45°F or equipment failure</p>
-        </div>
-      </div>
-
-      <!-- Collapsible Info (hidden by default) -->
-      <div id="dashboard-info" style="display:none;margin-bottom:20px;background:var(--red-lt);border:2px solid var(--red);border-radius:8px;padding:16px;">
-        <p style="color:var(--mid);font-size:0.85rem;line-height:1.5;margin:0;">
-          This dashboard provides real-time visibility into delivery logistics, production batching, food safety compliance, and waste tracking across all locations.
-          Use the navigation menu to explore detailed analytics, filter records, and generate reports.
-        </p>
-      </div>
-
-      <!-- Metrics Tiles -->
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <div class="metric-label">Deliveries Today</div>
-          <div class="metric-value" id="metric-deliveries">—</div>
-          <div class="metric-sub">Across all stores</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Production Batches Today</div>
-          <div class="metric-value" id="metric-production">—</div>
-          <div class="metric-sub">Total batches logged</div>
-        </div>
-        <div class="metric-card alert">
-          <div class="metric-label">HACCP Violations Today</div>
-          <div class="metric-value" id="metric-violations">—</div>
-          <div class="metric-sub">Temperature exceedances</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Waste This Week</div>
-          <div class="metric-value" id="metric-waste">—</div>
-          <div class="metric-sub">Discarded units</div>
-        </div>
-      </div>
-
-      <!-- Critical Alerts Panel -->
-      <div id="critical-alerts-panel" class="section-card" style="margin-bottom:20px;">
-        <h2 class="section-title">Critical Alerts</h2>
-        <div id="critical-alerts-content">
-          <div class="loading">Analyzing operations...</div>
-        </div>
-      </div>
-
-      <!-- Three Column Layout: Financial Impact + Store Performance -->
-      <div style="display:grid;grid-template-columns:1fr 2fr;gap:20px;margin-bottom:20px;">
-        <!-- Financial Impact -->
-        <div id="financial-impact" class="section-card" style="margin-bottom:0;">
-          <h2 class="section-title">Financial Impact</h2>
-          <div id="financial-metrics">
-            <div class="loading">Calculating...</div>
-          </div>
-        </div>
-
-        <!-- Store Performance: Best vs Problem Stores -->
-        <div class="section-card store-performance-widget" style="margin-bottom:0;">
-          <h2 class="section-title">Store Performance <span style="font-size:0.75rem;color:var(--soft);font-weight:400;margin-left:8px;">(Last 30 Days)</span></h2>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-            <!-- Best Performers -->
-            <div>
-              <h3 style="font-size:0.9rem;color:var(--green);font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-                Top 3 Best Performers
-              </h3>
-              <div id="best-stores-list"></div>
-            </div>
-            <!-- Problem Stores -->
-            <div>
-              <h3 style="font-size:0.9rem;color:var(--red);font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
-                Top 3 Problem Stores
-              </h3>
-              <div id="problem-stores-list"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick Stats -->
-      <div class="section-card">
-        <h2 class="section-title">System Overview</h2>
-        <p style="font-size:0.78rem;color:var(--soft);margin:-6px 0 14px;">Counts for <span id="system-stats-window">the loaded range</span></p>
-        <div id="system-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;">
-          <div style="text-align:center;">
-            <div style="font-family:'DM Mono',monospace;font-size:1.8rem;font-weight:700;color:#3498DB;" id="stat-total-production">—</div>
-            <div style="font-size:0.8rem;color:var(--mid);margin-top:4px;">Production Rows</div>
-          </div>
-          <div style="text-align:center;">
-            <div style="font-family:'DM Mono',monospace;font-size:1.8rem;font-weight:700;color:var(--green);" id="stat-total-deliveries">—</div>
-            <div style="font-size:0.8rem;color:var(--mid);margin-top:4px;">Delivery Rows</div>
-          </div>
-          <div style="text-align:center;">
-            <div style="font-family:'DM Mono',monospace;font-size:1.8rem;font-weight:700;color:var(--soft);" id="stat-total-stores">—</div>
-            <div style="font-size:0.8rem;color:var(--mid);margin-top:4px;">Active Stores</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Deliveries Panel -->
     <section id="panel-deliveries" class="panel">
       <h1 class="panel-title">Delivery Operations</h1>
       <p class="panel-subtitle">Complete delivery tracking with analytics and insights</p>
@@ -571,61 +408,21 @@
     </section>
 
     <!-- Waste Analysis Panel -->
-    <section id="panel-waste" class="panel">
-      <h1 class="panel-title">Waste Analysis</h1>
-      <p class="panel-subtitle">Track discarded units and identify loss patterns</p>
-
-      <!-- Quick Date Presets -->
-      <div style="margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <span style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--mid);font-weight:600;">QUICK:</span>
-        <button class="btn-time-range" data-range="7" onclick="setWasteQuickRange(7)">7 Days</button>
-        <button class="btn-time-range active" data-range="30" onclick="setWasteQuickRange(30)">30 Days</button>
-        <button class="btn-time-range" data-range="90" onclick="setWasteQuickRange(90)">90 Days</button>
-        <button class="btn-time-range" data-range="all" onclick="setWasteQuickRange('all')">All Time</button>
+    <section id="panel-sales" class="panel">
+      <div class="panel-header">
+        <h1 class="panel-title">Sales</h1>
+        <p class="panel-subtitle">What actually sold at each store</p>
       </div>
-
-      <!-- Waste Metrics -->
-      <div class="metrics-grid" id="waste-metrics">
-        <div class="loading">Loading metrics...</div>
-      </div>
-
-      <!-- Charts Grid -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
-        <!-- Waste by Store Chart -->
-        <div class="section-card" style="margin-bottom:0;">
-          <h2 class="section-title" style="margin-bottom:12px;">Waste by Store</h2>
-          <div style="height:250px;position:relative;">
-            <canvas id="chart-waste-by-store"></canvas>
-          </div>
-        </div>
-
-        <!-- Waste by Dish Chart -->
-        <div class="section-card" style="margin-bottom:0;">
-          <h2 class="section-title" style="margin-bottom:12px;">Waste by Dish</h2>
-          <div style="height:250px;position:relative;">
-            <canvas id="chart-waste-by-dish"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <!-- Waste Reasons Chart -->
       <div class="section-card">
-        <h2 class="section-title" style="margin-bottom:12px;">Waste by Reason</h2>
-        <div style="height:200px;position:relative;">
-          <canvas id="chart-waste-by-reason"></canvas>
-        </div>
-      </div>
-
-      <!-- Waste Trend Over Time -->
-      <div class="section-card">
-        <h2 class="section-title" style="margin-bottom:12px;">Waste Trend Over Time</h2>
-        <div style="height:200px;position:relative;">
-          <canvas id="chart-waste-trend"></canvas>
-        </div>
+        <h2 class="section-title">Under development</h2>
+        <p style="font-size:0.95rem;color:var(--mid);line-height:1.6;">
+          Sales figures are not captured yet. The system records what was produced, what was
+          delivered and what came off the shelf. What a customer paid for is not part of the
+          record today. This panel is where it will go once that data has a source.
+        </p>
       </div>
     </section>
 
-    <!-- Shrink Tracking Panel -->
     <section id="panel-shrink" class="panel">
       <h1 class="panel-title">Shrink Tracking Dashboard</h1>
       <p class="panel-subtitle">Monitor loaded inventory vs shrink/waste by item, store, and day</p>
@@ -728,6 +525,12 @@
             <canvas id="chart-loaded-vs-shrink"></canvas>
           </div>
         </div>
+        <div style="background: var(--panel-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;">
+          <h3 style="margin-bottom: 12px;">Shrink by Removal Reason</h3>
+          <div style="height: 280px; position: relative;">
+            <canvas id="chart-shrink-by-reason"></canvas>
+          </div>
+        </div>
       </div>
 
       <!-- Detailed Drill-Down Table -->
@@ -761,174 +564,7 @@
     </section>
 
     <!-- Settings Panel -->
-    <section id="panel-settings" class="panel">
-      <h1 class="panel-title">Dashboard Settings</h1>
-      <p class="panel-subtitle">Customize your dashboard experience and alert thresholds</p>
 
-      <!-- Settings Grid -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; margin-top: 24px;">
-
-        <!-- Appearance Settings -->
-        <div class="section-card">
-          <h2 class="section-title">Appearance</h2>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--dark);">Theme</label>
-            <div style="display: flex; gap: 12px;">
-              <button id="theme-light-btn" onclick="setThemeFromSettings('light')" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; font-weight: 600; transition: all 0.2s;">
-                Light Mode
-              </button>
-              <button id="theme-dark-btn" onclick="setThemeFromSettings('dark')" style="flex: 1; padding: 12px; border: 2px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; font-weight: 600; transition: all 0.2s;">
-                Dark Mode
-              </button>
-            </div>
-          </div>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--dark);">Dashboard Tour</label>
-            <button onclick="resetDashboardTour()" style="width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; font-weight: 600; transition: all 0.2s; color: var(--dark);">
-              Restart Dashboard Tour
-            </button>
-            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px;">Show the guided tour again to learn about dashboard features</p>
-          </div>
-        </div>
-
-        <!-- Alert Thresholds -->
-        <div class="section-card">
-          <h2 class="section-title">Alert Thresholds</h2>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--dark);">Temperature Violation (°F)</label>
-            <input type="number" id="temp-threshold" value="41" min="32" max="50" style="width: 100%; padding: 10px; border: 2px solid var(--border); border-radius: 6px; font-size: 1rem; background: var(--surface); color: var(--dark);">
-            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px;">Alert when cooler temperature exceeds this value</p>
-          </div>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--dark);">High Shrink Rate (%)</label>
-            <input type="number" id="shrink-threshold" value="15" min="5" max="50" step="1" style="width: 100%; padding: 10px; border: 2px solid var(--border); border-radius: 6px; font-size: 1rem; background: var(--surface); color: var(--dark);">
-            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px;">Flag stores with shrink rate above this percentage</p>
-          </div>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--dark);">Target Shrink Rate (%)</label>
-            <input type="number" id="target-shrink" value="5" min="1" max="20" step="0.5" style="width: 100%; padding: 10px; border: 2px solid var(--border); border-radius: 6px; font-size: 1rem; background: var(--surface); color: var(--dark);">
-            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px;">Industry standard target for financial calculations</p>
-          </div>
-
-          <button onclick="saveSettings()" style="width: 100%; padding: 14px; background: var(--red); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 1rem; transition: all 0.2s;">
-            Save Alert Settings
-          </button>
-        </div>
-
-        <!-- Financial Settings -->
-        <div class="section-card">
-          <h2 class="section-title">Financial Calculations</h2>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--dark);">Average Unit Cost ($)</label>
-            <input type="number" id="avg-unit-cost" value="5" min="0.5" max="50" step="0.25" style="width: 100%; padding: 10px; border: 2px solid var(--border); border-radius: 6px; font-size: 1rem; background: var(--surface); color: var(--dark);">
-            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px;">Average cost per unit for shrink cost calculations</p>
-          </div>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--dark);">Currency Display</label>
-            <select id="currency-format" style="width: 100%; padding: 10px; border: 2px solid var(--border); border-radius: 6px; font-size: 1rem; background: var(--surface); color: var(--dark);">
-              <option value="USD">USD ($)</option>
-              <option value="EUR">EUR (€)</option>
-              <option value="GBP">GBP (£)</option>
-            </select>
-          </div>
-
-          <button onclick="saveSettings()" style="width: 100%; padding: 14px; background: var(--red); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 1rem; transition: all 0.2s;">
-            Save Financial Settings
-          </button>
-        </div>
-
-        <!-- Bug Reporting -->
-        <div class="section-card">
-          <h2 class="section-title">Bug Reporting</h2>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: flex; align-items: center; gap: 12px; cursor: pointer;">
-              <input type="checkbox" id="show-bug-button" checked style="width: 20px; height: 20px; cursor: pointer;">
-              <span style="font-weight: 600; color: var(--dark);">Show Bug Report Button</span>
-            </label>
-            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px; margin-left: 32px;">Display the floating bug report button in the bottom-right corner</p>
-          </div>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--dark);">Bug Report Email</label>
-            <input type="email" id="bug-email" value="YOUR_EMAIL@example.com" style="width: 100%; padding: 10px; border: 2px solid var(--border); border-radius: 6px; font-size: 1rem; background: var(--surface); color: var(--dark);">
-            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px;">Email address to receive bug reports (update in Apps Script)</p>
-          </div>
-
-          <button onclick="saveSettings()" style="width: 100%; padding: 14px; background: var(--red); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 1rem; transition: all 0.2s;">
-            Save Bug Settings
-          </button>
-        </div>
-
-        <!-- HACCP Violation Alerts -->
-        <div class="section-card">
-          <h2 class="section-title">HACCP Violation Alerts</h2>
-
-          <p style="font-size: 0.95rem; color: var(--dark); margin-bottom: 12px;">
-            An alert is sent whenever a delivery records a product or cooler temperature above
-            41&deg;F. The limit is the regulatory cold-holding maximum and is fixed in the code.
-            Every alert is also recorded on the month's Violations tab and appears in the queue
-            under Food Safety.
-          </p>
-          <p style="font-size: 0.85rem; color: var(--soft); padding: 12px; background: var(--light); border-radius: 6px; border-left: 4px solid var(--red);">
-            Recipients and the sending address are deployment settings, not dashboard settings.
-            They are held as repository secrets and applied on each release. Ask your
-            administrator to change them.
-          </p>
-        </div>
-
-        <!-- Data Management -->
-        <div class="section-card">
-          <h2 class="section-title">Data Management</h2>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--dark);">Export All Data</label>
-            <button onclick="exportAllDataToJSON()" style="width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer; font-weight: 600; transition: all 0.2s; color: var(--dark);">
-              Download Complete Dataset (JSON)
-            </button>
-            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px;">Export all delivery and production data for backup</p>
-          </div>
-
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: var(--dark);">Clear Local Settings</label>
-            <button onclick="clearLocalSettings()" style="width: 100%; padding: 12px; border: 2px solid var(--red); border-radius: 6px; background: var(--red-lt); cursor: pointer; font-weight: 600; transition: all 0.2s; color: var(--red);">
-              Reset to Defaults
-            </button>
-            <p style="font-size: 0.85rem; color: var(--soft); margin-top: 6px;">Clear all saved preferences and return to default settings</p>
-          </div>
-        </div>
-
-        <!-- About -->
-        <div class="section-card">
-          <h2 class="section-title">About</h2>
-
-          <div style="margin-bottom: 16px;">
-            <p style="font-weight: 600; color: var(--dark); margin-bottom: 4px;">Taipei Kitchen Dashboard</p>
-            <p style="font-size: 0.9rem; color: var(--mid);">Version 2.0</p>
-          </div>
-
-          <div style="margin-bottom: 16px;">
-            <p style="font-size: 0.9rem; color: var(--mid); line-height: 1.6;">
-              A comprehensive operations management system for tracking deliveries, production, food safety compliance, waste analysis, and inventory shrink.
-            </p>
-          </div>
-
-          <div style="border-top: 1px solid var(--border); padding-top: 16px;">
-            <p style="font-size: 0.85rem; color: var(--soft);">
-              For support or feature requests, use the bug report button or contact your system administrator.
-            </p>
-          </div>
-        </div>
-
-      </div>
-    </section>
   </main>
 </div>
 
@@ -958,41 +594,7 @@
 <script src="../env-banner.js?v=__BUILD_ID__"></script>
 <script src="app.js?v=__BUILD_ID__"></script>
 
-<!-- Dark Mode Toggle -->
-<script>
-// Initialize theme from localStorage
-(function() {
-  const savedTheme = localStorage.getItem('dashboard-theme') || 'light';
-  document.documentElement.setAttribute('data-theme', savedTheme);
-  updateThemeIcon(savedTheme);
-})();
 
-function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-
-  document.documentElement.setAttribute('data-theme', newTheme);
-  localStorage.setItem('dashboard-theme', newTheme);
-  updateThemeIcon(newTheme);
-}
-
-function updateThemeIcon(theme) {
-  const icon = document.getElementById('theme-icon');
-  const button = document.getElementById('theme-toggle');
-
-  if (icon && button) {
-    if (theme === 'dark') {
-      // Show sun icon for switching to light mode
-      icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
-      button.title = 'Switch to Light Mode';
-    } else {
-      // Show moon icon for switching to dark mode
-      icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
-      button.title = 'Switch to Dark Mode';
-    }
-  }
-}
-</script>
 
 <!-- Bug Report System -->
 <script>
@@ -1124,188 +726,7 @@ ${lastError ? `
 }
 </script>
 
-<!-- Dashboard Tour Script -->
-<script>
-const TOUR_VERSION = '2.2';
 
-function startDashboardTour() {
-  const driver = window.driver.js.driver;
-
-  const driverObj = driver({
-    showProgress: true,
-    steps: [
-      {
-        element: '.brand',
-        popover: {
-          title: 'Welcome to Taipei Kitchen Dashboard v2.2',
-          description: 'This interactive tour will guide you through all features. <strong>NEW in v2.2:</strong> Complete visual rebrand with official Taipei Kitchen logo, updated color palette, and enhanced email templates. Previous features include: multi-select filters, case fullness analytics, HACCP drill-down, and violation alerts. Click "Next" to continue or "Close" to exit anytime.',
-          side: "bottom",
-          align: 'start'
-        }
-      },
-      {
-        element: '#status-dot',
-        popover: {
-          title: 'Connection Status',
-          description: 'This indicator shows your real-time connection to the data source. Green = Connected, Red = Disconnected, Orange = Demo Mode.',
-          side: "bottom",
-          align: 'start'
-        }
-      },
-      {
-        element: '#btn-refresh',
-        popover: {
-          title: 'Manual Refresh',
-          description: 'Click here to manually refresh all dashboard data. The dashboard auto-refreshes every 5 minutes.',
-          side: "bottom",
-          align: 'end'
-        }
-      },
-      {
-        element: '.metrics-grid',
-        popover: {
-          title: 'Key Metrics Overview',
-          description: 'These cards show real-time metrics from today\'s operations: total deliveries, production batches, food safety checks, and waste events.',
-          side: "bottom",
-          align: 'start'
-        }
-      },
-      {
-        element: '#critical-alerts-panel',
-        popover: {
-          title: 'NEW v2.0: Critical Alerts',
-          description: 'Get instant visibility into temperature violations and high-shrink stores requiring immediate attention. No more digging through data!',
-          side: "top",
-          align: 'start'
-        }
-      },
-      {
-        element: '#financial-impact',
-        popover: {
-          title: 'NEW v2.0: Financial Impact',
-          description: 'See the dollar cost of shrink this week and potential savings by hitting target rates. Justifies improvement initiatives with real numbers.',
-          side: "top",
-          align: 'start'
-        }
-      },
-      {
-        element: '.store-performance-widget',
-        popover: {
-          title: 'NEW v2.0: Store Performance',
-          description: 'Quickly identify your top 3 best performers and top 3 problem stores. Focus improvement efforts where they matter most.',
-          side: "top",
-          align: 'start'
-        }
-      },
-      {
-        element: '.side-nav',
-        popover: {
-          title: 'Navigation Panel',
-          description: 'Use these links to switch between different views: Overview, Deliveries, Production, Food Safety, Waste Analysis, Shrink Tracking, and Settings.',
-          side: "right",
-          align: 'start'
-        }
-      },
-      {
-        element: '.nav-link[data-panel="shrink"]',
-        popover: {
-          title: 'Enhanced: Shrink Tracking',
-          description: 'Track shrink trends with advanced filters (date range, store, item), pagination for easy navigation, and CSV export for external analysis.',
-          side: "right",
-          align: 'start'
-        }
-      },
-      {
-        element: '.nav-link[data-panel="settings"]',
-        popover: {
-          title: 'NEW v2.0: Settings Panel',
-          description: 'Customize alert thresholds, financial calculations, theme preferences, and manage your data exports. Tailor the dashboard to your operations.',
-          side: "right",
-          align: 'start'
-        }
-      },
-      {
-        element: '#violation-alert-banner',
-        popover: {
-          title: 'NEW v2.1: HACCP Violation Banner',
-          description: 'Get immediate visibility when temperature violations are detected in the last 7 days. Click "View Violations" to jump to Food Safety, or dismiss for 1 hour.',
-          side: "bottom",
-          align: 'start'
-        }
-      },
-      {
-        element: '.nav-link[data-panel="deliveries"]',
-        popover: {
-          title: 'NEW v2.1: Multi-Select Filters',
-          description: 'Filter deliveries by multiple stores or days of the week simultaneously. Select "All Stores" + "Monday, Tuesday, Wednesday" to analyze weekday patterns across all locations.',
-          side: "right",
-          align: 'start'
-        }
-      },
-      {
-        element: '#delivery-fullness-multiselect-container',
-        popover: {
-          title: 'NEW v2.1: Case Fullness Analytics',
-          description: 'Track how full cooler cases are on arrival (0-25%, 25-50%, 50-75%, 75-100%). See average fullness per store in the metrics cards and filter by fullness levels.',
-          side: "top",
-          align: 'start'
-        }
-      },
-      {
-        element: '.nav-link[data-panel="food-safety"]',
-        popover: {
-          title: 'NEW v2.1: HACCP Drill-Down & Alerts',
-          description: 'Click violation counts in the Weekly Food Safety Summary to see detailed incident reports. Automatic email alerts notify your team when violations are detected. Configure recipients in Settings.',
-          side: "right",
-          align: 'start'
-        }
-      },
-      {
-        element: '#violations-queue',
-        popover: {
-          title: 'NEW v2.1: Violations Queue',
-          description: 'Track all HACCP violations from the last 7 days in one place. View details, export to PDF, and stay on top of corrective actions.',
-          side: "top",
-          align: 'start'
-        }
-      },
-      {
-        element: '#bug-report-btn',
-        popover: {
-          title: 'Bug Reporting',
-          description: 'Found an issue? Click this button to send a bug report directly to your team. You can hide this button in Settings if you don\'t need it.',
-          side: "left",
-          align: 'start'
-        }
-      },
-      {
-        popover: {
-          title: 'Tour Complete!',
-          description: 'You\'re all set with v2.1! Explore multi-select filters, case fullness tracking, HACCP drill-down, and automated violation alerts. Visit Settings to customize thresholds and restart this tour anytime. Enjoy!',
-        }
-      }
-    ]
-  });
-
-  driverObj.drive();
-}
-
-// Auto-start tour for first-time visitors or version upgrades
-window.addEventListener('DOMContentLoaded', function() {
-  const lastSeenVersion = localStorage.getItem('dashboard-tour-version');
-  const hasSeenTour = localStorage.getItem('dashboard-tour-seen');
-
-  // Show tour if: (1) never seen, OR (2) seen but version changed
-  if (!hasSeenTour || lastSeenVersion !== TOUR_VERSION) {
-    // Wait 1 second for dashboard to load, then start tour
-    setTimeout(() => {
-      startDashboardTour();
-      localStorage.setItem('dashboard-tour-seen', 'true');
-      localStorage.setItem('dashboard-tour-version', TOUR_VERSION);
-    }, 1000);
-  }
-});
-</script>
 
 <!-- HACCP Violation Drill-Down Modal -->
 <div id="violation-modal" class="modal" onclick="if(event.target === this) closeViolationModal()">

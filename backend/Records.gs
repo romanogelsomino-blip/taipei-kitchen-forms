@@ -66,10 +66,63 @@ function writeRecords(kind, rows, ctx) {
   if (monthlyError) throw monthlyError;
 }
 
+// One email per distinct error per window, so a deploy that breaks every submission reports
+// itself once rather than once per driver. A different error still gets through immediately.
+const ERROR_EMAIL_WINDOW_SEC = 900;
+
+/**
+ * Tell support that a request failed. Google notifies the account that owns the project when
+ * a trigger throws, but nothing watches a failed form submission, and the account that owns
+ * the project will not always be the people who maintain it. Never throws.
+ */
+function emailExecutionError(ctx) {
+  try {
+    const message = String(ctx.logEntry.errorMessage || 'unknown error');
+    const cache = CacheService.getScriptCache();
+    // Keyed on the error itself, so a repeat is suppressed but a new fault is not.
+    const key = ('errmail:' + message.replace(/[^A-Za-z0-9]+/g, '-')).slice(0, 200);
+    if (cache.get(key)) {
+      note(ctx, 'error_email_suppressed');
+      return;
+    }
+    cache.put(key, '1', ERROR_EMAIL_WINDOW_SEC);
+
+    const monthKey = monthKeyOfInstant(ctx.startTime);
+    const fileId = resolveMonthlyFileId(monthKey, false);
+    const sent = sendMail(
+      supportRecipients(),
+      'Taipei Kitchen submission failed: ' + ctx.logEntry.formType,
+      [
+        'A form submission was rejected by the backend. The person who submitted it saw an error.',
+        '',
+        'Form type:     ' + ctx.logEntry.formType,
+        'Submission id: ' + (ctx.submissionId || '(none)'),
+        'Rows:          ' + ctx.logEntry.rowCount,
+        'When:          ' + ctx.serverTimestamp,
+        '',
+        'Error:',
+        message,
+        '',
+        ctx.notes.length ? 'Notes: ' + ctx.notes.join(' | ') : '',
+        '',
+        fileId ? "Executions tab of this month's operations file:\n" + monthlyFileUrl(fileId) : '',
+        '',
+        'Repeats of this same error are suppressed for ' + (ERROR_EMAIL_WINDOW_SEC / 60) + ' minutes.'
+      ].join('\n').trim()
+    );
+    note(ctx, sent.status === 'SUCCESS' ? 'error_email=sent' : 'error_email_failed=' + sent.error);
+  } catch (e) {
+    Logger.log('[Records] could not email the execution error: ' + e);
+  }
+}
+
 /** The Executions row for this request. Runs in doPost's finally and never throws. */
 function writeExecutionRecord(ctx) {
   const entry = ctx.logEntry;
   entry.durationMs = new Date() - ctx.startTime;
+
+  // Before the notes are snapshotted, so whether the email sent is recorded on the row too.
+  if (entry.status === 'ERROR') emailExecutionError(ctx);
 
   const notes = ctx.notes.slice();
 
