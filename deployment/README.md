@@ -146,8 +146,12 @@ Re-authorising, once per environment:
 2. Open the project as the deploying account: `npm run open:staging` or
    `npm run open:production`. Sign in as that account if the browser opens as someone else,
    or the approval will be recorded against the wrong one.
-3. Pick `authorize` from the function dropdown and press Run.
-4. Approve the prompt. It lists the whole declared scope set, not just what changed. The
+3. Revoke the project's existing access first, at
+   https://myaccount.google.com/permissions, as that account. Apps Script will not re-prompt
+   while an older grant is still valid: the function runs and then fails at the first call
+   needing a scope that grant lacks. Revoking is what forces the new list to be offered. The
+   web app stops serving until step 5 completes, so expect a short outage.
+4. Pick `authorize` from the function dropdown, press Run, and approve the prompt. It lists the whole declared scope set, not just what changed. The
    unverified-app warning is expected: choose Advanced, then go to the project.
 5. Read the execution log. `authorize` names each folder, spreadsheet, mail quota, sending
    account and verified alias it reached, and marks anything it could not as FAILED.
