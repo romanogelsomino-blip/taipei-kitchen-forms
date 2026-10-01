@@ -198,11 +198,15 @@ Run `npm run env:staging` before `npm run serve`, or the forms show "Not Configu
 
 ## Releases
 
-Every production release is tagged in GitHub. Merge `dev` into `prod`, then tag the merge
-commit (`v2.1.0`, `v2.2.0`, …) and push the tag.
+Releases are made by hand on GitHub. Open a pull request from `dev` to `prod`, merge it with
+a merge commit, and publish a GitHub Release against `prod` once the deploy is green. Merging
+is what starts the production deploy, and publishing the release creates its tag.
 
-To roll back, revert `prod` to the previous release tag and push. The workflow redeploys the
-backend and republishes the site from that tree.
+Never push `prod` from a terminal to release. To roll back, reset `prod` to the previous
+release tag and force-push; the workflow redeploys the backend and republishes the site from
+that tree.
+
+Full steps, including what to check before and after, are in `deployment/README.md`.
 
 ---
 

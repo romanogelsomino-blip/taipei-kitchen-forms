@@ -77,16 +77,33 @@ must stay backward-compatible for one release cycle.
 
 ## Releasing to production
 
-Every production release is tagged.
+Releases are made by hand on GitHub, never by pushing `prod` from a terminal. A release is a
+pull request from `dev` to `prod`, merged there, then published as a GitHub Release.
 
-```bash
-git checkout prod
-git merge dev                       # or merge the dev → prod pull request
-git tag v2.2.0
-git push origin prod --tags         # the push to prod triggers the production deploy
-```
+1. Confirm staging is healthy: `npm run ping:staging` and `npm run mail:staging`, and open
+   `/staging/dashboard/`. Whatever is wrong on staging will be wrong on production.
+2. Confirm the production secrets exist for anything the release adds. The reconcile step
+   fails the deploy if a Script Property it pushes has no secret behind it.
+3. Open a pull request from `dev` to `prod`. No checks run on it: the workflow triggers on
+   pushes to `dev` and `prod` and on manual dispatch, so a pull request produces no run.
+   Review the diff on its own merits.
+4. Merge it with a merge commit. This is the moment the production deploy starts. Squash and
+   rebase are both wrong here, because `prod` is a record of what was released and its
+   history should keep the shape of the branch it came from.
+5. Watch the run under Actions until the backend and site jobs are both green.
+6. Confirm production directly: `npm run ping:production`, then load the live dashboard and
+   one form.
+7. Publish a GitHub Release against `prod`, continuing the existing tag sequence. Creating
+   the release creates the tag, so do not also push one from a terminal. Auto-generated notes
+   list the merged commits; add a line for anything an operator must do by hand, such as
+   re-authorising the Apps Script project, since the commit titles will not say so.
 
-Check the run under Actions, then confirm the live forms and dashboard load.
+A release tag records which commit went live. Publish it even when something outside the
+repository still needs attention, because the next rollback resets to it.
+
+`prod` gains one merge commit per release that `dev` never has, so it reads as several
+commits ahead with identical content. The figure to watch is the other direction: `dev`
+ahead of `prod` is what means a release is pending.
 
 ## Rolling back
 
@@ -95,7 +112,7 @@ republishes the site from that tree.
 
 ```bash
 git checkout prod
-git reset --hard v2.1.0
+git reset --hard Release-2          # the previous release tag
 git push --force-with-lease origin prod
 ```
 
