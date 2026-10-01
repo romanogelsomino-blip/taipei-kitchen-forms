@@ -28,23 +28,6 @@
 }
 
 /* Dark Mode - Reversed Light Mode Palette */
-[data-theme="dark"] {
-  --cream: #1C1C1C;          /* Dark background (reverse of cream) */
-  --dark: #FDF5E6;           /* Light text (reverse of dark) */
-  --mid: #9B9B9B;            /* Keep mid-tone */
-  --soft: #4A4A4A;           /* Darker soft (reverse of soft) */
-  --border: #4A4A4A;         /* Dark border */
-  --surface: #2C2C2C;        /* Slightly lighter than cream for cards */
-  --row-alt: #373737;        /* Alternating row color */
-  --panel-bg: #2C2C2C;       /* Panel background */
-  --light: #373737;          /* Light variant */
-  --green-lt: #1a3a2a;       /* Keep green tint */
-  --red-lt: #3a1a1a;         /* Keep red tint */
-  /* Header stays dark in dark mode */
-  --header-bg: #1C1C1C;
-  --header-text: #FDF5E6;
-}
-
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -1715,4 +1698,75 @@ body {
   .violation-modal-footer .btn {
     width: 100%;
   }
+}
+
+/* ── Home panel ── */
+.home-launchers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+.home-launcher-blurb {
+  color: var(--mid);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+.home-launch {
+  margin-top: 14px;
+  margin-right: 0;
+  width: 100%;
+}
+.btn-apply-filters:disabled {
+  background: var(--border);
+  color: var(--soft);
+  cursor: not-allowed;
+}
+.home-status {
+  margin-top: 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--soft);
+}
+
+/* Eight sections share a phone-width bar: compact labels, and scroll rather than clip if
+   a screen is narrower still. */
+.mobile-nav { overflow-x: auto; }
+.mobile-nav-link { flex: 1 0 auto; padding: 12px 3px; }
+.mobile-nav-label { font-size: 0.6rem; letter-spacing: 0; }
+
+/* ── Home QR codes ─────────────────────────────────────────────────────── */
+.home-qr-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.home-qr-actions .btn-apply-filters { text-decoration: none; text-align: center; }
+/* `display: flex` on a class beats the hidden attribute's own rule, so restate it. */
+.home-qr-output[hidden] { display: none; }
+.home-qr-output {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.home-qr-canvas {
+  width: 220px;
+  height: 220px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+.home-qr-meta { flex: 1; min-width: 240px; }
+.home-qr-label { font-weight: 600; color: var(--dark); margin-bottom: 6px; }
+.home-qr-url {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--mid);
+  word-break: break-all;
+  margin-bottom: 14px;
 }

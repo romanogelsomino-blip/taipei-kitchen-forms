@@ -25,3 +25,6 @@ frontend/config.js
 
 # Scratch space — not part of the project
 /tmp/
+
+# The published site as `npm run serve` assembles it locally
+_site/

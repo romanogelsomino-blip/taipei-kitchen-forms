@@ -10,21 +10,24 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 
 | Path | What it does |
 |---|---|
-| `frontend/taipei_production_form3.html` | Kitchen form. Logs each batch — cook times, cooling, dish counts, quality notes. |
-| `frontend/taipei_delivery_form3.html` | Driver form. Logs each store delivery — temps, photos, what was loaded, what was left, case fill levels. |
-| `frontend/dashboard/` | Live web dashboard — metrics, deliveries, production, waste analysis, HACCP compliance. |
+| `frontend/taipei_production_form3.html` | Kitchen form. Logs each batch — cook and cooling times, final temperature, per-dish counts produced and discarded. |
+| `frontend/taipei_delivery_form3.html` | Driver form. Logs each store delivery — product temperature on arrival, store cooler temperature, photos, what was loaded, what was left, case fill levels. |
+| `frontend/forms/` | The scripts and stylesheet behind both forms: `common.js` and `styles.css` are shared, then one script per form. |
+| `frontend/dashboard/` | Live web dashboard. Opens on a home page that explains the system and launches either form; then metrics, production, deliveries, waste analysis, HACCP compliance. |
 | `frontend/assets/` | Branding used by the forms. |
-| `backend/Code.gs` | Google Apps Script handling form submissions and serving the dashboard API. |
-| `data/` | JSON for drivers, supervisors, stores, and dishes — fetched at form load. |
+| `backend/` | Google Apps Script handling form submissions and serving the dashboard API. One script, several files split by domain; `Api.gs` holds the two entry points. |
+| `data/` | JSON for drivers, supervisors, stores, kitchens, and dishes — fetched at page load. |
 | `deployment/` | Deployment guide — start here for how either half reaches production. |
 | `scripts/` | Admin-endpoint helpers, driven by the single root `.env`. |
 
 All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR codes posted at each location.
 
 **`frontend/` and `data/` publish to the site root**, so the served URLs contain no
-`frontend/` segment. The QR codes depend on that — see [CLAUDE.md](CLAUDE.md).
+`frontend/` segment. The QR codes depend on that.
 
-**Live Dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
+**Live dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
+
+**Staging dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/staging/dashboard/
 
 ---
 
@@ -34,97 +37,128 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 1. An employee scans the QR code at their location.
 2. The form opens on their phone.
 3. They fill it out with dropdowns for drivers, supervisors, stores, and standard options.
-4. Photos are compressed client-side before upload (target: <500KB).
+4. Photos are compressed client-side before upload.
 5. If offline, submissions queue in localStorage and retry when connection returns.
-6. The information lands in the master Google Sheet (`TaipeiKitchen_BentoOps_v2`).
-7. Delivery photos land in a Google Drive folder.
+6. The rows land in the month's operations spreadsheet (see [Data store](#data-store)).
+7. Delivery photos land in the Drive photo folder under year, month and day, and every
+   row of the delivery links to them.
+
+Neither form is linked here on purpose. Both need a location to be any use: the delivery form
+opens from a store's QR code as `?store=<id>`, and the dashboard's home page opens the
+production form as `?kitchen=<id>`. Opening one bare gives a form with no location chosen,
+which is how a delivery gets logged against the wrong store.
+
+The pages live in `frontend/`, their scripts and stylesheet in `frontend/forms/`. See
+[Running locally](#running-locally) to try a change before pushing it.
 
 ### Dashboard
 1. Google Apps Script `doGet` endpoint serves JSON data from the sheet.
-2. Dashboard polls the API every 10 seconds for updates.
-3. Real-time metrics display: deliveries today, production batches, HACCP violations, waste.
+2. The dashboard asks for a date window, refreshes it every 15 minutes while someone is
+   looking at the tab, and has a Refresh button for the moment that is not soon enough.
+3. Real-time metrics display: production batches, deliveries today, HACCP violations, waste.
 4. Interactive filters by date range, driver, store, dish.
 5. Waste analysis with charts showing patterns by store and reason.
 6. Weekly food safety summary suitable for regulator/corporate review.
 
+### Running locally
+
+`npm run serve:demo` assembles the site the way CI publishes it, `frontend/` at the root
+with `data/` beside it, into a gitignored `_site/` and serves it at http://localhost:8080/
+with no backend. The dashboard shows sample data and the forms render but do not submit.
+Open `/dashboard/`, or a form such as `/taipei_production_form3.html?kitchen=legacy-park`.
+
+To run against the staging backend instead, write the staging config once with
+`npm run env:staging`, then use `npm run serve`. The dashboard reads live staging data, and
+a form submission writes a real row to the staging sheet.
+
+The server serves the copy in `_site/`, so stop it and run the command again after editing.
+Push to `dev` to check `/staging/`, then merge to `prod`.
+
 ---
 
-## Stores Currently Served
+## Stores
 
-| Store ID | Location                       |
-|----------|--------------------------------|
-| 6006     | Kline Village, Harrisburg, PA  |
-| 6061     | Shippensburg, PA               |
-| 6253     | New Cumberland, PA             |
-| 6331     | Mechanicsburg, PA              |
-| 6443     | Chambersburg, PA               |
-| 6542     | Carlisle, PA                   |
-| 6564     | Harrisburg (Grayson Rd), PA    |
-
-To add a store: add it to `data/stores.json`, mirror the entry into the hardcoded fallback
-in `frontend/taipei_delivery_form3.html`, and release. The store list is also duplicated in
-`backend/Code.gs` (violation-alert names and the dashboard store filter) — those need a
-backend deploy to pick up a new store. QR codes point at
-`taipei_delivery_form3.html?store=<id>`.
+The store and kitchen lists are in `data/stores.json`. To add one: add it there, mirror the
+entry into the fallback in `frontend/forms/common.js`, and release. The store list is
+also duplicated in `backend/Reads.gs` (the dashboard store filter) —
+those need a backend deploy to pick up a new store. QR codes point at
+`taipei_delivery_form3.html?store=<id>`. The dashboard's home page opens the production form the
+same way, with `taipei_production_form3.html?kitchen=<id>`.
 
 ---
 
 ## Food Safety Rules Built In
 
-The forms automatically flag anything outside HACCP cooling rules:
+The HACCP cooling rule is printed on the production form: hot food must cool from 135°F to
+70°F within 2 hours, then to 41°F within 4 more hours. The system flags what it can measure:
 
-- Hot food must cool from 135°F to 70°F within 2 hours
-- Then from 70°F to 41°F within 4 more hours
-- Final batch temperature must be 41°F or below before packaging
-- Any delivery temperature above 41°F gets flagged on submission
-- Cooler temperature above 41°F triggers a violation alert
-
-Dashboard highlights all violations in red with corrective action notes.
-
----
-
-## Recent Improvements
-
-**✅ v2.1 (2026-05-24):**
-- **Programmatic Web App Deployment** — Fully automated deployment via Apps Script API (no browser GUI required)
-- **Admin Token Authentication** — UUID-based token auth for protected automation endpoints
-- **Violation Email Alerts** — Automatic HACCP cooler temp violation notifications with Alert Log tracking
-- **Bulletproof Boolean Handling** — Normalized config value handling (true/TRUE/1/yes all work)
-- **Token Rotation** — `?action=rotateAdminToken`, which requires the current token
-  (the unauthenticated "force" variant this shipped with was removed 2026-09-04)
-- **Config Reset Automation** — `npm run config:reset:staging/production` to wipe and reinitialize Config sheet
-- Multi-select filters for stores and days-of-week on dashboard
-- Case fullness analytics with trend visualizations
-- HACCP drill-down with detailed violation history
-
-**✅ Earlier (v2.0):**
-- Offline-first form behavior with localStorage queue
-- Client-side image compression (<500KB target)
-- Locked submission timestamps (regulatory requirement)
-- Driver, supervisor, and store dropdowns (eliminates data quality issues)
-- Expire reason dropdown with standardized options
-- Case fill-level tracking on delivery form (0-25%, 25-50%, 50-75%, 75-100%)
-- QA Result defaults to "Pass" (forces conscious Fail action)
-- Live web dashboard with 10-second auto-refresh
-- Real-time metrics, charts, and HACCP compliance monitoring
-- Waste analysis by store and reason with trend visualizations
+- The production form colors total cooling time orange past 4 hours and red past 6 hours,
+  and flags any recorded temperature above 41°F.
+- The delivery form flags both temperatures it records, the product temperature on arrival
+  and the store cooler temperature, above 41°F.
+- The backend checks both once per submission, not once per dish. Each breach sends one email
+  and writes one row on the month's Violations tab, carrying who the alert went to and whether
+  it sent. The row is written even when the email fails.
+- 41°F is fixed in the code. It is the regulatory cold-holding limit, not a setting.
+- The dashboard lists those violations. One is open until someone resolves it.
 
 ---
 
-## Project Documentation
+## Data store
 
-- **[CLAUDE.md](CLAUDE.md)** — Deployment steps for both halves of the stack, and the two
-  failure modes that have each caused a multi-day outage
+Records live in one spreadsheet per month, in a folder per year, under
+`SPREADSHEET_FOLDER_ID`: `<YYYY>/<YYYY-MM> Operations`. Each file has four tabs in this
+order: Production, Deliveries, Violations, Executions.
+
+- Headers come from the schemas in `backend/Schemas.gs` and are the read contract. Column
+  order is not: readers match on header text, so a tab may be reordered by hand.
+- A record is filed under its own date, read in New York. A submission spanning midnight at
+  a month boundary therefore lands in two files.
+- Every row of one submission shares a submission id, which is also how a delivery's photos
+  find their rows.
+- `WRITE_TARGETS` selects the stores that are written. There is no backfill: the legacy
+  spreadsheet holds everything logged before the cutover and nothing after it.
+
+Photos live under `PHOTO_FOLDER_ID` as `<YYYY>/<MM>/<DD>/`.
+
+Reads take a date window, `from` and `to` as `YYYY-MM-DD`, defaulting to the first of last
+month through today and capped at six months because that is six files to open. A month with
+no file contributes nothing rather than failing, which is what the first day of a month looks
+like before anything has been written to it.
+
+Never rename or move a monthly file. The backend finds it by exact name and would create a
+second one alongside it.
 
 ---
 
-## Configuration
+## Email
 
-### `.env` is the source of truth
+The backend sends as the Google account the deployment runs as. There is no separate mail
+credential; the manifest's mail scope, granted once by that account, is the authorisation.
 
-A single gitignored `.env` at the repo root holds **every** configuration value for **both**
-environments. Nothing else is authoritative — everywhere else these values appear, they are
-copies that have to be kept in step with this file.
+- `ALERT_RECIPIENTS` is who HACCP violation alerts go to: the people responsible for food
+  safety. They get temperatures, not stack traces.
+- `SUPPORT_RECIPIENTS` is who system mail goes to: a failed form submission and bug reports
+  from the dashboard. Whoever maintains the system, which will not always be whoever owns
+  the Google account it sends from.
+- `ALERT_FROM` is the From address. It works only when that address is a verified "Send mail
+  as" alias on the sending account. An unverified one falls back to the account's own address
+  and records that it did, rather than dropping the message.
+- `npm run mail:staging` reports the sending account, its aliases, and whether the configured
+  From address is usable. The deploy summary reports the same thing on every deploy.
+
+---
+
+## Environments & Configuration
+
+There are two environments, staging and production. Each has its own Apps Script project,
+Web App deployment, spreadsheet, and Drive photo folder, so nothing written to staging can
+reach production. `dev` deploys to staging, `prod` to production.
+
+A single gitignored `.env` at the repo root holds every value for both environments,
+prefixed `PROD_` / `STAGING_`. The names match the GitHub Actions secrets one-for-one:
+secrets share one flat namespace, the workflow needs both environments in a single run, and
+secrets cannot be read back once set, so `.env` is the readable copy.
 
 ```
 CLASPRC_JSON                   clasp OAuth credentials, shared by both environments
@@ -135,161 +169,62 @@ PROD_SCRIPT_ID                 STAGING_SCRIPT_ID
 PROD_SPREADSHEET_FOLDER_ID     STAGING_SPREADSHEET_FOLDER_ID
 PROD_SPREADSHEET_ID            STAGING_SPREADSHEET_ID
 PROD_WEB_APP_URL               STAGING_WEB_APP_URL
+PROD_WRITE_TARGETS             STAGING_WRITE_TARGETS
+PROD_ALERT_RECIPIENTS          STAGING_ALERT_RECIPIENTS
+PROD_SUPPORT_RECIPIENTS        STAGING_SUPPORT_RECIPIENTS
+PROD_ALERT_FROM                STAGING_ALERT_FROM
 ```
 
-Trailing `# comments` are stripped by the parsers on whitespace-then-hash, so a literal `#`
-inside a value survives. **Do not paste the comment when copying a value into GitHub** — the
-value is everything before the ` #`.
+Nothing reads `.env` at runtime. It is the reference copy everything else is populated from:
 
-### Why the prefixes
+- **GitHub Actions secrets** — the same keys, pasted by hand.
+- **Apps Script Script Properties** — `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID`,
+  `SPREADSHEET_ID`, `WRITE_TARGETS`, `ALERT_RECIPIENTS`, `SUPPORT_RECIPIENTS` and
+  `ALERT_FROM` are pushed by the deploy workflow on every deploy.
+  `ADMIN_TOKEN` is copied by hand in Project Settings, because the endpoint that sets
+  properties authenticates with it. None have defaults: an unset property throws instead of
+  falling back. `WRITE_TARGETS` selects the stores records are written to; see
+  `deployment/README.md`.
+- **`frontend/config.js`** — the only place a Web App URL exists. The forms and dashboard
+  are static files with no environment to read, so the URL is written into this gitignored
+  file at build time: by `npm run env:staging|production` locally, by the workflow per
+  tree in CI. A CI guard fails the build if an Apps Script URL appears anywhere else.
+- **`.clasp.json`** — the clasp target, generated the same way from `SCRIPT_ID`.
 
-The conventional pattern is one file per environment — `.env.staging`, `.env.production` —
-with unprefixed keys, where the *filename* selects the environment. This repo used to do
-that. Two things forced the change:
+Run `npm run env:staging` before `npm run serve`, or the forms show "Not Configured".
+`npm run serve:demo` needs no config.
 
-**GitHub secrets are flat.** There is one namespace per repository, so the environment has
-to be in the key name. And the deploy workflow genuinely needs both environments in scope in
-a single run: it publishes `prod` at the site root and `dev` under `/staging/`, rewriting the
-staging copy's endpoint as it goes. A per-environment file cannot express that.
+---
 
-**GitHub secrets are write-only.** Once set, no one — not the UI, not the API, not `gh` — can
-read a value back. If this file did not mirror them exactly, the only readable copy of the
-configuration would be gone, and a successor would have to rediscover every identifier. That
-is precisely the situation this project was left in by the previous handover.
+## Releases
 
-So `.env` mirrors the GitHub secret names one-for-one. The cost is that both environments are
-in scope at once locally, where the two-file model made that impossible. Worth knowing when
-writing an ad-hoc script.
+Every production release is tagged in GitHub. Merge `dev` into `prod`, then tag the merge
+commit (`v2.1.0`, `v2.2.0`, …) and push the tag.
 
-### Where the values go
-
-`.env` is not read at runtime by anything in production. It is the reference copy that four
-downstream stores are populated *from*:
-
-| Destination | Which values | How they get there |
-|---|---|---|
-| **GitHub Actions secrets** | all 15 | pasted by hand, one per key, same names |
-| **Apps Script Script Properties** | `SPREADSHEET_ID`, `PHOTO_FOLDER_ID` (unprefixed, per project) | pushed by the deploy workflow via `?action=setScriptProperty` on every deploy — the secret is authoritative |
-| **Apps Script Script Properties** | `ADMIN_TOKEN` | set by hand in Project Settings. It cannot be pushed: `setScriptProperty` authenticates *with* it |
-| **The published frontend** | `WEB_APP_URL` | written into a generated `frontend/config.js`, one per environment — see [The frontend has no environment](#the-frontend-has-no-environment) |
-| **`.clasp.json`** (clasp target) | `SCRIPT_ID` | generated, never committed — `npm run env:*` writes it from `.env` locally, the workflow writes it from the secret in CI |
-
-Apps Script is the only *runtime* consumer: `Code.gs` reads its three Script Properties and
-nothing else. `SPREADSHEET_ID` and `PHOTO_FOLDER_ID` have no defaults — an unset property
-throws rather than falling back, so a misconfigured environment fails loudly instead of
-quietly writing into production.
-
-`SPREADSHEET_FOLDER_ID` is recorded but unused. It exists for a planned move to
-year/month-split spreadsheets, mirroring how photos are already organised; the flat
-`SPREADSHEET_ID` is retired when that lands.
-
-### The frontend has no environment
-
-An environment variable belongs to a running process. The forms and dashboard are static
-files on a CDN — a phone opens them and gets bytes. There is no process, so there is
-nothing to read a variable *from*. The value has to be written into a file at build time by
-something that does have an environment.
-
-That file is **`frontend/config.js`**, and it is the only place a Web App URL exists:
-
-```js
-window.APP_CONFIG = { "environment": "staging", "webAppUrl": "https://script.google.com/…/exec" };
-```
-
-| Written by | When | From |
-|---|---|---|
-| `npm run env:staging` / `env:production` | you run it | `.env` |
-| `.github/workflows/deploy.yml` | site assembly, once per tree | the matching GitHub secret |
-
-It is gitignored, so no endpoint URL is committed and a form cannot inherit the wrong
-environment's backend by being copied into the wrong directory. Every call site — both
-forms, the dashboard, the bug-report handler — reads `window.APP_CONFIG.webAppUrl`. A CI
-guard fails the build if `script.google.com/macros` appears anywhere else in the artifact.
-
-This is the same thing a bundler does for `VITE_*` or `NEXT_PUBLIC_*`: substitute the value
-at build time and ship it in the output. We have no bundler, so the substitution is
-explicit. **None of it is secret** — the Web App URL is printed on QR codes and visible in
-view-source. The point is one source of truth, not confidentiality.
-
-Run `npm run env:staging` once after cloning, or the forms show "Not Configured".
+To roll back, revert `prod` to the previous release tag and push. The workflow redeploys the
+backend and republishes the site from that tree.
 
 ---
 
 ## Deployment
 
 There is no `main` branch. `dev` is the working branch, `prod` is the release branch, and
-`.github/workflows/deploy.yml` deploys both halves of the stack on push:
+`.github/workflows/deploy.yml` deploys both halves of the stack on every push to either:
 
 ```
 dev   → staging backend    + site published under /staging/
 prod  → production backend + site published at the root
 ```
 
-⚠️ **The workflow does not run yet.** `prod` predates the repo restructure and still has
-`apps_script/`, `dashboard/` and the forms at the root — no `frontend/`, no `backend/`, no
-`.github/`. Site assembly requires `frontend/` on both branches, so `dev` pushes fail it,
-and `prod` pushes trigger nothing at all because Actions reads the workflow from the branch
-being pushed. Until `prod` is restructured, both halves are manual — see [CLAUDE.md](CLAUDE.md).
+Nothing is deployed by hand. The workflow redeploys the Apps Script backend in place, then
+assembles and publishes the site with each tree's own `config.js`. The full procedure — what
+the workflow does step by step, releasing, rolling back, and required secrets — is in
+[deployment/README.md](deployment/README.md), which is authoritative.
 
-### Forms
-- **Production form:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_production_form3.html
-- **Delivery form:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_delivery_form3.html
-
-1. Edit the HTML in `frontend/`
-2. Generate the local config once: `npm run env:staging`
-3. Test on a local server: `cd frontend && python3 -m http.server 8080`
-4. Push to `dev`, check `/staging/`, then merge to `prod`
-
-### Dashboard
-Dashboard files live in `frontend/dashboard/` and deploy with the forms.
-
-1. Edit files in `frontend/dashboard/`
-2. Test locally: serve from `frontend/`, not `frontend/dashboard/` — the dashboard loads
-   `../config.js`, so it needs the parent as the web root:
-   `cd frontend && python3 -m http.server 8080` → http://localhost:8080/dashboard/
-3. Push to `dev`, check `/staging/`, then merge to `prod`
-4. Dashboard serves at https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
-
-Cache-busting is automatic — every `<script src>` carries `?v=__BUILD_ID__`, stamped with
-the commit SHA at assembly. Nothing to bump by hand.
-
-### Rollback
-
-Revert the commit and push it to `prod`. See [CLAUDE.md § Rollback](CLAUDE.md#rollback) for
-what that does not cover, and the break-glass path when a CI round-trip is too slow.
-
-### Apps Script
-
-The backend (`Code.gs`) is a standalone Apps Script project that reaches the spreadsheet by
-ID — it is not attached to the sheet. **`git push` does not deploy it.**
-
-See **[CLAUDE.md](CLAUDE.md)** for the full procedure, environment identifiers, and the two
-failure modes that have each caused a multi-day outage. The short version:
-
-```bash
-npm run env:production                  # or env:staging — sets the clasp target
-npx clasp push -f                       # uploads source — NOT yet live
-npx clasp deploy -i <DEPLOYMENT_ID> --description "what changed"
-```
-
-The deployment is version-pinned, so `clasp push` alone changes nothing that users see.
-Always pass `-i` with the existing deployment ID, or you mint a new URL — which then has to
-be updated in `.env` and in the GitHub secrets before the frontend picks it up.
-
-Verify with a write, not a read — reads can succeed while writes fail. Do not `source .env`
-(it holds `CLASPRC_JSON`, and the shell chokes on the JSON) and do not `grep | cut` (values
-carry trailing ` # comments` that only the parser strips):
-
-```bash
-WEB_APP_URL=$(node scripts/print-env.js production WEB_APP_URL)
-curl -sL "$WEB_APP_URL" -H 'Content-Type: text/plain;charset=utf-8' --data-binary @payload.json
-# {"status":"ok"}
-```
-
-#### Admin endpoints
+### Admin endpoints
 
 Protected by a UUID token in each project's Script Properties, mirrored into `.env` as
-`PROD_ADMIN_TOKEN` / `STAGING_ADMIN_TOKEN` and read by every `npm run *:production` script.
+`PROD_ADMIN_TOKEN` / `STAGING_ADMIN_TOKEN` and read by the helpers in `scripts/`.
 
 ```bash
 npm run ping:production              # health check
@@ -299,45 +234,12 @@ npm run email:summary:production     # send the daily summary now
 npm run test:violation:production    # simulate a HACCP violation alert
 ```
 
-A parallel staging environment exists with its own script project, deployment, spreadsheet,
-and Drive folder — see [CLAUDE.md](CLAUDE.md) for identifiers. Every command above has a
-`:staging` equivalent, e.g. `npm run ping:staging`.
-
----
-
-## QR Code System
-
-Each location has a QR code that opens the appropriate form:
-
-**Production Form QR:**
-```
-https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_production_form3.html
-```
-
-**Delivery Form QR (per store):**
-```
-https://romanogelsomino-blip.github.io/taipei-kitchen-forms/taipei_delivery_form3.html?store=6542
-```
-
-The `?store=` parameter pre-fills the store selection.
-
-Generate new QR codes at: https://www.qr-code-generator.com/
-
----
-
-## For the Owner
-
-- **Master spreadsheet:** `TaipeiKitchen_BentoOps_v2` in Google Sheets (ID: 1LP7MerVCPIMBj2hIFoAvomkjHR-GuCC6MeH5INEeOAI)
-- **Photo repository:** Google Drive (shareable via link)
-- **Live dashboard:** https://romanogelsomino-blip.github.io/taipei-kitchen-forms/dashboard/
-- **Staging sheet:** `Copy of TaipeiKitchen_BentoOps_v2` (ID: 12DjACv-MFoIHOfh5s03jeovpI9j6HCftfjTDddTAxBI)
-
-All changes to the live forms should be tested on the staging sheet first.
+Every command has a `:staging` equivalent, e.g. `npm run ping:staging`.
 
 ---
 
 ## Contact
 
 **Owner:** Romano Gelsomino — Taipei Kitchen
-**Developer:** Universole App Studios
+**Developer:** Kalispell Consulting
 **Repository:** https://github.com/romanogelsomino-blip/taipei-kitchen-forms
