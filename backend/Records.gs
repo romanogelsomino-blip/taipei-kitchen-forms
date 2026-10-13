@@ -45,13 +45,24 @@ function writeRecords(kind, rows, ctx) {
   });
 
   let monthlyError = null;
+  let duplicate = false;
   try {
     Object.keys(groups).sort().forEach(monthKey => {
-      appendMonthlyRows(monthKey, def.tab, buildRows(schema, groups[monthKey], ctx));
+      const written = appendMonthlyRows(monthKey, def.tab, buildRows(schema, groups[monthKey], ctx),
+        { ifAbsentSubmissionId: ctx.submissionId });
+      if (written.skipped) duplicate = true;
     });
   } catch (e) {
     monthlyError = e;
     note(ctx, 'monthly_failed=' + kind + ':' + e.message);
+  }
+
+  // Already recorded, so this is a replay of a submission whose reply never arrived. Report
+  // success: the rows are there, and the caller must stop retrying.
+  if (duplicate) {
+    note(ctx, 'duplicate_submission=' + ctx.submissionId);
+    ctx.duplicate = true;
+    return;
   }
 
   if (targets.legacy) {

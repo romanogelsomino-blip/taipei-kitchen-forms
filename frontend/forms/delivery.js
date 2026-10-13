@@ -298,17 +298,14 @@ async function retryQueuedSubmissions() {
 
   console.log(`[Queue] Retrying ${queued.length} queued submissions...`);
   for (const item of queued) {
-    try {
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item.data)
-      });
+    // Only drop it once the backend confirms. A submission the backend already holds is
+    // reported as a duplicate, which counts as confirmed: the rows are there.
+    const sent = await postToBackend(item.data);
+    if (sent.ok) {
       localStorage.removeItem(item.key);
-      console.log('[Queue] Successfully uploaded:', item.key);
-    } catch (e) {
-      console.log('[Queue] Retry failed:', item.key, e.message);
+      console.log('[Queue] Confirmed:', item.key, sent.data && sent.data.duplicate ? '(already recorded)' : '');
+    } else {
+      console.log('[Queue] Still failing:', item.key, sent.error);
     }
   }
 }
@@ -352,18 +349,13 @@ async function retryQueuedPhotos() {
       continue;
     }
 
-    try {
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item.payload)
-      });
-      console.log('[Photo Retry] Successfully uploaded photos from', item.timestamp);
-    } catch (e) {
+    const sent = await postToBackend(item.payload);
+    if (sent.ok) {
+      console.log('[Photo Retry] Confirmed upload from', item.timestamp);
+    } else {
       item.attempts++;
       stillFailed.push(item);
-      console.log(`[Photo Retry] Still failing (attempt ${item.attempts}/10):`, item.timestamp);
+      console.log(`[Photo Retry] Still failing (attempt ${item.attempts}/10):`, item.timestamp, sent.error);
     }
   }
 
@@ -451,17 +443,11 @@ async function submitForm() {
                 storeName: payload.photos.storeName, date: payload.photos.date, driver: payload.photos.driver }
   };
 
-  try {
-    await fetch(GOOGLE_SCRIPT_URL, {
-      method:  'POST',
-      mode:    'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(dataPayload)
-    });
-  } catch(e) {
-    // T-007: Queue for retry instead of just backup
+  const wrote = await postToBackend(dataPayload);
+  if (!wrote.ok) {
     queueSubmission(dataPayload);
-    showStatus('❌', 'Offline Mode', 'Submission queued. Will auto-retry when back online (every 30s).');
+    showStatus('❌', 'Offline Mode',
+      `Submission queued and will retry automatically every 30 seconds. Leave this page open. (${wrote.error})`);
     showStatusDone();
     document.getElementById('submit-btn').disabled = false;
     return;
@@ -490,31 +476,23 @@ async function submitForm() {
       storeId: photoPayload.photos?.storeId,
       driver: photoPayload.photos?.driver
     }));
-    try {
-      await fetch(GOOGLE_SCRIPT_URL, {
-        method:  'POST',
-        mode:    'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(photoPayload)
-      });
+    const sent = await postToBackend(photoPayload);
+    if (sent.ok) {
       showStatus('✅', 'All Done!',
-        payload.rows.length + ' dish rows saved to Google Sheets for ' +
+        payload.rows.length + ' dish rows saved for ' +
         (storeData ? storeData.name : 'store ' + storeId) + '. ' +
-        `${photoCount} photo${photoCount > 1 ? 's' : ''} uploaded to Google Drive.`);
-
-      // T-044: Clear photo retry queue on success
+        `${photoCount} photo${photoCount > 1 ? 's' : ''} uploaded. You can close this page.`);
       clearPhotoRetryQueue();
-    } catch(e) {
-      // T-044: Queue photos for retry
+    } else {
       queuePhotoRetry(photoPayload);
       showStatus('⚠️', 'Mostly Done',
-        'Delivery data saved to Google Sheets ✓. ' +
-        `${photoCount} photo${photoCount > 1 ? 's' : ''} queued for retry — will auto-upload when connection improves.`);
+        'Delivery data saved ✓. ' +
+        `${photoCount} photo${photoCount > 1 ? 's' : ''} queued and will upload automatically. Leave this page open. (${sent.error})`);
     }
   } else {
     showStatus('✅', 'Submitted!',
-      payload.rows.length + ' dish rows saved to Google Sheets for ' +
-      (storeData ? storeData.name : 'store ' + storeId) + '. No photos attached.');
+      payload.rows.length + ' dish rows saved for ' +
+      (storeData ? storeData.name : 'store ' + storeId) + '. No photos attached. You can close this page.');
   }
 
   // T-041: Save last submission values for quick recall

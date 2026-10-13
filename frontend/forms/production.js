@@ -203,21 +203,18 @@ async function submitForm() {
     return;
   }
 
-  try {
-    await fetch(GOOGLE_SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rows: payload, formType: 'production' })
-    });
-    showStatus('✅', 'Submitted!', payload.length + ' dish rows saved to Google Sheets.');
+  const wrote = await postToBackend({ rows: payload, formType: 'production' });
+  if (wrote.ok) {
+    showStatus('✅', 'Submitted!', payload.length + ' dish rows saved. You can close this page.');
     showStatusDone();
-
-    // T-041: Save last submission values for quick recall
     lastSubmission.save();
-  } catch(e) {
+  } else {
+    // The batch is kept locally so nothing is lost, but it does not resend by itself: the
+    // kitchen is at a desk and can press submit again, and a silent resend is what put
+    // duplicate batches in the sheet.
     localStorage.setItem('tk_prod_backup_' + Date.now(), JSON.stringify(payload));
-    showStatus('❌', 'Connection Error', 'Could not reach Google Sheets. Data saved locally — retry when connected.');
+    showStatus('❌', 'Not Saved',
+      `The batch was not recorded and has been kept on this device. Press Submit again when you have a connection. (${wrote.error})`);
     showStatusDone();
     document.getElementById('submit-btn').disabled = false;
   }

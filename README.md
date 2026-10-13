@@ -119,7 +119,10 @@ order: Production, Deliveries, Violations, Executions.
 - `WRITE_TARGETS` selects the stores that are written. There is no backfill: the legacy
   spreadsheet holds everything logged before the cutover and nothing after it.
 
-Photos live under `PHOTO_FOLDER_ID` as `<YYYY>/<MM>/<DD>/`.
+Photos live under `PHOTO_FOLDER_ID` as `<YYYY>/<MM>/<DD>/`, named
+`<store>_<date>_<before|after>_<submission>.jpg`. The submission in the name is what ties a
+file back to the delivery it documents, and lets a retry reuse a photo already saved
+instead of storing it twice.
 
 Reads take a date window, `from` and `to` as `YYYY-MM-DD`, defaulting to the first of last
 month through today and capped at six months because that is six files to open. A month with

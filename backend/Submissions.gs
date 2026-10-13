@@ -37,12 +37,19 @@ function handleProductionSubmission(payload, ctx) {
   const rows = normaliseRows(payload.rows || [], ctx);
   writeRecords('production', rows, ctx);
   ctx.logEntry.status = 'SUCCESS';
-  return jsonResponse({ status: 'ok' });
+  return jsonResponse({ status: 'ok', duplicate: !!ctx.duplicate });
 }
 
 function handleDeliverySubmission(payload, ctx) {
   const rows = normaliseRows(payload.rows || [], ctx);
   writeRecords('deliveries', rows, ctx);
+
+  // A replay has already been checked and alerted on; checking again would send a second
+  // email for one bad reading.
+  if (ctx.duplicate) {
+    ctx.logEntry.status = 'SUCCESS';
+    return jsonResponse({ status: 'ok', duplicate: true });
+  }
 
   // HACCP violation alerts, once for the submission. The rows are already written, so a
   // failure here must not fail the submission: losing an alert is recoverable, losing the
@@ -55,7 +62,7 @@ function handleDeliverySubmission(payload, ctx) {
   }
 
   ctx.logEntry.status = 'SUCCESS';
-  return jsonResponse({ status: 'ok' });
+  return jsonResponse({ status: 'ok', duplicate: !!ctx.duplicate });
 }
 
 /**
@@ -70,11 +77,19 @@ function handlePhotoUpload(payload, ctx) {
   ctx.submissionId = photos.submissionId || null;
   if (!photos.submissionId) note(ctx, 'photo_match=store_date_driver');
 
+  // A replayed upload would save a second copy to Drive and relink to it, orphaning the
+  // first. The links already on the rows say the work is done.
+  if (photosAlreadyLinked(photos)) {
+    note(ctx, 'duplicate_photos=' + photos.submissionId);
+    ctx.logEntry.status = 'SUCCESS';
+    return jsonResponse({ status: 'ok', duplicate: true, savedPhotos: 0, linkedRows: 0 });
+  }
+
   const saved = savePhotosToDrive(photos, ctx);
-  ctx.logEntry.rowCount = saved.savedCount;
+  ctx.logEntry.rowCount = saved.savedCount + saved.reusedCount;
 
   let linked = 0;
-  if (!saved.savedCount) {
+  if (!saved.savedCount && !saved.reusedCount) {
     note(ctx, 'photos_none');
   } else {
     try {
@@ -93,5 +108,5 @@ function handlePhotoUpload(payload, ctx) {
   }
 
   ctx.logEntry.status = 'SUCCESS';
-  return jsonResponse({ status: 'ok', savedPhotos: saved.savedCount, linkedRows: linked });
+  return jsonResponse({ status: 'ok', savedPhotos: saved.savedCount, reusedPhotos: saved.reusedCount, linkedRows: linked });
 }
