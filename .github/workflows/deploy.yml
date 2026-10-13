@@ -131,8 +131,6 @@ jobs:
           TOKEN: ${{ github.ref_name == 'prod' && secrets.PROD_ADMIN_TOKEN || secrets.STAGING_ADMIN_TOKEN }}
           SPREADSHEET_FOLDER_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_FOLDER_ID || secrets.STAGING_SPREADSHEET_FOLDER_ID }}
           PHOTO_FOLDER_ID: ${{ github.ref_name == 'prod' && secrets.PROD_PHOTO_FOLDER_ID || secrets.STAGING_PHOTO_FOLDER_ID }}
-          SPREADSHEET_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_ID || secrets.STAGING_SPREADSHEET_ID }}
-          WRITE_TARGETS: ${{ github.ref_name == 'prod' && secrets.PROD_WRITE_TARGETS || secrets.STAGING_WRITE_TARGETS }}
           ALERT_RECIPIENTS: ${{ github.ref_name == 'prod' && secrets.PROD_ALERT_RECIPIENTS || secrets.STAGING_ALERT_RECIPIENTS }}
           ALERT_FROM: ${{ github.ref_name == 'prod' && secrets.PROD_ALERT_FROM || secrets.STAGING_ALERT_FROM }}
           SUPPORT_RECIPIENTS: ${{ github.ref_name == 'prod' && secrets.PROD_SUPPORT_RECIPIENTS || secrets.STAGING_SUPPORT_RECIPIENTS }}
@@ -143,13 +141,7 @@ jobs:
             echo "::error::admin token secret is not set for ${{ steps.env.outputs.name }}."
             exit 1
           fi
-          # Checked before anything is pushed, so a bad secret cannot take the forms down.
-          case "$WRITE_TARGETS" in
-            legacy,monthly|monthly) ;;
-            "") echo "::error::${{ steps.env.outputs.name }} WRITE_TARGETS secret is not set. Expected 'legacy,monthly' or 'monthly'."; exit 1 ;;
-            *)  echo "::error::${{ steps.env.outputs.name }} WRITE_TARGETS secret is '$WRITE_TARGETS'; expected 'legacy,monthly' or 'monthly'."; exit 1 ;;
-          esac
-          for KEY in SPREADSHEET_FOLDER_ID PHOTO_FOLDER_ID SPREADSHEET_ID WRITE_TARGETS ALERT_RECIPIENTS SUPPORT_RECIPIENTS ALERT_FROM; do
+          for KEY in SPREADSHEET_FOLDER_ID PHOTO_FOLDER_ID ALERT_RECIPIENTS SUPPORT_RECIPIENTS ALERT_FROM; do
             VALUE="${!KEY}"
             if [ -z "$VALUE" ] && [ "$KEY" != ALERT_FROM ]; then
               echo "::error::${{ steps.env.outputs.name }} $KEY secret is not set."
@@ -165,11 +157,10 @@ jobs:
             if [ -n "$VALUE" ]; then echo "set $KEY"; else echo "cleared $KEY (secret is empty)"; fi
           done
 
-      - name: Verify deployment is live and bound to the right stores
+      - name: Verify deployment is live and bound to the right store
         env:
           URL: ${{ steps.env.outputs.web_app_url }}
           TOKEN: ${{ github.ref_name == 'prod' && secrets.PROD_ADMIN_TOKEN || secrets.STAGING_ADMIN_TOKEN }}
-          SPREADSHEET_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_ID || secrets.STAGING_SPREADSHEET_ID }}
           SPREADSHEET_FOLDER_ID: ${{ github.ref_name == 'prod' && secrets.PROD_SPREADSHEET_FOLDER_ID || secrets.STAGING_SPREADSHEET_FOLDER_ID }}
         run: |
           set -euo pipefail
@@ -189,20 +180,6 @@ jobs:
             || { echo "::error::current month file is not '$EXPECTED'."; exit 1; }
           MONTH_URL=$(webapp_field "$OUT" .current_month.url)
 
-          # The reconcile step pushed WRITE_TARGETS from the secret; the backend must now see it.
-          TARGETS=$(webapp_field "$OUT" .write_targets)
-          case "$TARGETS" in
-            legacy,monthly|monthly) ;;
-            "") echo "::error::the backend reports no WRITE_TARGETS although the reconcile step set it; check the ${{ steps.env.outputs.name }} WRITE_TARGETS secret."; exit 1 ;;
-            *)  echo "::error::the backend reports WRITE_TARGETS '$TARGETS'; expected 'legacy,monthly' or 'monthly'."; exit 1 ;;
-          esac
-
-          # The legacy sheet stays asserted while it is still a write target.
-          if [[ "$TARGETS" == *legacy* ]]; then
-            [ "$(webapp_field "$OUT" .sheet_id)" = "$SPREADSHEET_ID" ] \
-              || { echo "::error::legacy write target is a different spreadsheet than the ${{ steps.env.outputs.name }} secret specifies."; exit 1; }
-          fi
-
           MAIL=$(webapp_get mailStatus) || MAIL='{}'
           ALERT_TO=$(jq -r '(.alert_recipients // []) | join(", ")' <<<"$MAIL")
           SUPPORT_TO=$(jq -r '(.support_recipients // []) | join(", ")' <<<"$MAIL")
@@ -216,7 +193,6 @@ jobs:
 
           {
             echo "### ${{ steps.env.outputs.name }} storage"
-            echo "- write targets: \`$TARGETS\`"
             echo "- violation alerts to: ${ALERT_TO:-none configured}"
             echo "- system mail to: ${SUPPORT_TO:-none configured}"
             echo "- alerts from: $ALERT_FROM_LABEL"

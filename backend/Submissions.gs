@@ -73,7 +73,6 @@ function handleDeliverySubmission(payload, ctx) {
  */
 function handlePhotoUpload(payload, ctx) {
   const photos = payload.photos || {};
-  const targets = getWriteTargets();
   ctx.submissionId = photos.submissionId || null;
   if (!photos.submissionId) note(ctx, 'photo_match=store_date_driver');
 
@@ -97,13 +96,6 @@ function handlePhotoUpload(payload, ctx) {
       note(ctx, linked ? 'photo_rows=' + linked : 'photo_orphan=' + photos.storeId + '/' + photos.date + '/' + photos.driver);
     } catch (e) {
       note(ctx, 'photo_link_failed=' + e.message);
-    }
-    if (targets.legacy) {
-      try {
-        note(ctx, 'legacy_photo_rows=' + legacyLinkPhotos(photos, saved));
-      } catch (e) {
-        note(ctx, 'legacy_photo_failed=' + e.message);
-      }
     }
   }
 

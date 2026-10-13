@@ -24,3 +24,5 @@
   matching secret on each deploy. `ADMIN_TOKEN` is the sole exception, copied by hand because
   the endpoint that sets properties authenticates with it. Do not introduce a setting that is
   configured by hand in the Apps Script project.
+- **The monthly files are the only store.** The single-spreadsheet system they replaced is
+  retired: nothing reads or writes it. Do not reintroduce a second write target.

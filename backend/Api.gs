@@ -16,18 +16,6 @@ function jsonResponse(body) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function openSpreadsheet() {
-  const id = getSpreadsheetId();
-  Logger.log(`[INIT] Using SPREADSHEET_ID: ${id}`);
-  return SpreadsheetApp.openById(id);
-}
-
-function requireSheet(ss, name) {
-  const sheet = ss.getSheetByName(name);
-  if (!sheet) throw new Error(`Sheet "${name}" not found. Upload the provided Google Sheet file first.`);
-  return sheet;
-}
-
 function doPost(e) {
   const ctx = newRequestContext(new Date());
 
@@ -109,7 +97,7 @@ function action_rotateAdminToken(e) {
   }
 }
 
-/** Idempotent set-up: the legacy control tabs, and the current month's file so the first write of the month never has to create it. */
+/** Idempotent set-up: the current month's file, so the first write of the month never has to create it. */
 function action_init(e) {
   try {
     const monthKey = monthKeyOfInstant(new Date());
@@ -138,15 +126,9 @@ function action_test(e) {
   }
 }
 
-/**
- * Health check. Reports both stores while the legacy sheet is a write target, and reports
- * WRITE_TARGETS raw rather than validating it, so CI can name what is wrong.
- */
+/** Health check: the operations folder this deployment is bound to and the current month's file. */
 function action_ping(e) {
   const now = new Date();
-  const sheetId = getSpreadsheetId();
-  const ss = SpreadsheetApp.openById(sheetId);
-  const writeTargets = PropertiesService.getScriptProperties().getProperty('WRITE_TARGETS') || null;
 
   let folder = null;
   let folderError = null;
@@ -170,13 +152,11 @@ function action_ping(e) {
 
   return jsonResponse({
     status: 'ok',
-    environment: ss.getName(),
-    sheet_id: sheetId,
+    environment: folder ? folder.name : null,
     folder_id: folder ? folder.id : null,
     folder_name: folder ? folder.name : null,
     folder_error: folderError,
     current_month: current,
-    write_targets: writeTargets,
     timestamp: formatInstant(now)
   });
 }
@@ -240,12 +220,9 @@ function action_storageStatus(e) {
       });
       return { month: monthKey, file: { name: monthlyFileName(monthKey), id: opened.fileId, url: monthlyFileUrl(opened.fileId) }, rows: rows };
     });
-    let writeTargets = null;
-    try { writeTargets = getWriteTargets().raw; } catch (err) { writeTargets = null; }
     return jsonResponse({
       status: 'ok',
       folder: { id: folder.getId(), name: folder.getName() },
-      write_targets: writeTargets,
       months: months,
       timestamp: formatInstant(now)
     });
@@ -268,7 +245,6 @@ function authorize() {
   check('properties', () => Object.keys(PropertiesService.getScriptProperties().getProperties()).sort().join(', '));
   check('operations folder', () => getSpreadsheetFolder().getName());
   check('photo folder', () => getPhotoRootFolder().getName());
-  check('legacy spreadsheet', () => SpreadsheetApp.openById(getSpreadsheetId()).getName());
   check('mail quota remaining', () => MailApp.getRemainingDailyQuota());
   check('sending account', () => Session.getEffectiveUser().getEmail());
   check('verified aliases', () => (GmailApp.getAliases() || []).join(', ') || '(none)');
