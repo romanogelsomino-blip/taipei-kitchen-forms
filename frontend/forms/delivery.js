@@ -190,6 +190,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   dishEntry.buildList();
   driverPicker.load();
   lastSubmission.offerIfRecent();
+  reportAbandonedSubmissions();
 });
 
 // ── Photo handling ─────────────────────────────────────────
@@ -299,13 +300,41 @@ function buildPayload() {
 // ═══════════════════════════════════════════════════════════════════════════
 // T-007: Offline Queue System
 // ═══════════════════════════════════════════════════════════════════════════
+// ─── Retry pacing ──────────────────────────────────────────
+// Both queues back off: the wait doubles from the queue's own tick up to a half-hour ceiling,
+// inside a four-hour window. A flat tick is wrong in both directions — too slow for the case
+// that clears in seconds, and hundreds of pointless re-posts for the case that does not. The
+// ceiling stops the doubling running away: without it the tenth wait is over eight hours, so
+// something stuck overnight would sit untried until the middle of the next day.
+const RETRY_CEILING_MS = 30 * 60 * 1000;
+const RETRY_WINDOW_MS  = 4 * 60 * 60 * 1000;
+
+/** When an entry that has failed `attempts` times should next be tried, in epoch ms. */
+function nextAttemptAt(attempts, baseMs) {
+  return Date.now() + Math.min(baseMs * Math.pow(2, Math.max(0, attempts - 1)), RETRY_CEILING_MS);
+}
+
+/** Whether an entry is due. One that has never been tried is due at once. */
+function retryDue(entry) {
+  return !entry.nextAttempt || entry.nextAttempt <= Date.now();
+}
+
+/** Whether something queued at `queuedAtMs` has outlived the window. An unreadable stamp
+ *  reads as not expired, so a parse failure never throws work away. */
+function pastRetryWindow(queuedAtMs) {
+  return Date.now() - queuedAtMs > RETRY_WINDOW_MS;
+}
+
 // Returns false when the write failed, which on a phone means the storage quota is full.
 // The caller has to say so: an unhandled throw here leaves the overlay stuck on "Submitting"
 // with the button disabled, and the driver with no way to tell the delivery was not kept.
+// The queued-at time is the key's own suffix, so an entry carries no second copy of it.
+const SUBMISSION_RETRY_BASE_MS = 30 * 1000;
+
 function queueSubmission(payload) {
   const queueKey = 'tk_queue_' + Date.now();
   try {
-    localStorage.setItem(queueKey, JSON.stringify(payload));
+    localStorage.setItem(queueKey, JSON.stringify({ payload: payload, attempts: 0, nextAttempt: 0 }));
   } catch (e) {
     console.error('[Queue] Could not save submission offline:', e);
     return false;
@@ -315,36 +344,72 @@ function queueSubmission(payload) {
 }
 
 function getQueuedSubmissions() {
-  const keys = Object.keys(localStorage).filter(k => k.startsWith('tk_queue_'));
-  return keys.map(k => ({ key: k, data: JSON.parse(localStorage.getItem(k)) }));
+  return Object.keys(localStorage).filter(k => k.startsWith('tk_queue_')).map(key => {
+    try {
+      return { key: key, queuedAt: Number(key.slice('tk_queue_'.length)), entry: JSON.parse(localStorage.getItem(key)) };
+    } catch (e) {
+      console.error('[Queue] Unreadable entry, dropping:', key, e);
+      localStorage.removeItem(key);
+      return null;
+    }
+  }).filter(Boolean);
+}
+
+/**
+ * Four hours without a connection is not a blip. Stop re-posting, but keep the payload under
+ * its own key and say so on the next page load: this delivery was never recorded and has to
+ * be entered again, and dropping it in silence is how a store visit goes missing.
+ */
+function abandonSubmission(item) {
+  try {
+    localStorage.setItem('tk_failed_' + item.queuedAt, JSON.stringify(item.entry));
+  } catch (e) {
+    console.error('[Queue] Could not keep the abandoned submission:', e);
+  }
+  localStorage.removeItem(item.key);
+  console.warn('[Queue] Past the retry window, no longer retrying:', item.key);
+}
+
+/** Tell the driver about any delivery the retry window ran out on, once. */
+function reportAbandonedSubmissions() {
+  const keys = Object.keys(localStorage).filter(k => k.startsWith('tk_failed_'));
+  if (!keys.length) return;
+  const when = keys
+    .map(k => new Date(Number(k.slice('tk_failed_'.length))).toLocaleString())
+    .join('\n• ');
+  keys.forEach(k => localStorage.removeItem(k));
+  alert('A delivery could not be sent and is no longer being retried:\n\n• ' + when +
+        '\n\nNothing was recorded for it. Please enter that delivery again.');
 }
 
 async function retryQueuedSubmissions() {
   const queued = getQueuedSubmissions();
   if (queued.length === 0) return;
 
-  console.log(`[Queue] Retrying ${queued.length} queued submissions...`);
   for (const item of queued) {
+    if (pastRetryWindow(item.queuedAt)) { abandonSubmission(item); continue; }
+    if (!retryDue(item.entry)) continue;
+
     // Only drop it once the backend confirms. A submission the backend already holds is
     // reported as a duplicate, which counts as confirmed: the rows are there.
-    const sent = await postToBackend(item.data);
+    const sent = await postToBackend(item.entry.payload);
     if (sent.ok) {
       localStorage.removeItem(item.key);
       console.log('[Queue] Confirmed:', item.key, sent.data && sent.data.duplicate ? '(already recorded)' : '');
     } else {
-      console.log('[Queue] Still failing:', item.key, sent.error);
+      item.entry.attempts += 1;
+      item.entry.nextAttempt = nextAttemptAt(item.entry.attempts, SUBMISSION_RETRY_BASE_MS);
+      localStorage.setItem(item.key, JSON.stringify(item.entry));
+      console.log(`[Queue] Still failing (attempt ${item.entry.attempts}):`, item.key, sent.error);
     }
   }
 }
 
-// Auto-retry queued submissions every 30 seconds
+// The tick only decides how often the queue is looked at; nextAttempt decides what is due.
 setInterval(retryQueuedSubmissions, 30000);
 
 // ─── T-044: Photo Retry Queue ─────────────────────────────
-// A queued upload is kept for a day. The delivery rows retry until they land, and the photos
-// have to outlive that: the ten-attempt cap this replaced gave up after twenty minutes, which
-// is shorter than a bad stretch of store Wi-Fi.
-const PHOTO_RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
+const PHOTO_RETRY_BASE_MS = 2 * 60 * 1000;
 
 /** Keep a photo upload for the retry loop. Returns false when the device has no room left. */
 function queuePhotoRetry(photoPayload) {
@@ -353,7 +418,8 @@ function queuePhotoRetry(photoPayload) {
     queue.push({
       payload: photoPayload,
       timestamp: new Date().toISOString(),
-      attempts: 0
+      attempts: 0,
+      nextAttempt: 0
     });
     localStorage.setItem('tk_delivery_photo_queue', JSON.stringify(queue));
     console.log('[Photo Retry] Queued photo upload for retry. Queue size:', queue.length);
@@ -375,13 +441,17 @@ async function retryQueuedPhotos() {
 
   console.log(`[Photo Retry] Attempting to upload ${queue.length} queued photo batch(es)`);
 
-  const stillFailed = [];
+  // Everything that is to stay queued, whether it was tried this pass or is not due yet.
+  const remaining = [];
 
   for (const item of queue) {
-    if (Date.now() - Date.parse(item.timestamp) > PHOTO_RETRY_WINDOW_MS) {
-      console.log('[Photo Retry] Past the retry window, dropping:', item.timestamp);
+    // Photos are the recoverable half: the delivery rows carry the HACCP record, and a driver
+    // can retake a shelf photo. So the window expiring drops them rather than raising an alarm.
+    if (pastRetryWindow(Date.parse(item.timestamp))) {
+      console.warn('[Photo Retry] Past the retry window, dropping:', item.timestamp);
       continue;
     }
+    if (!retryDue(item)) { remaining.push(item); continue; }
 
     const sent = await postToBackend(item.payload);
     // `pending` means the files are stored but the delivery rows are not there yet to carry
@@ -392,15 +462,16 @@ async function retryQueuedPhotos() {
       console.log('[Photo Retry] Confirmed upload from', item.timestamp);
     } else {
       item.attempts++;
-      stillFailed.push(item);
+      item.nextAttempt = nextAttemptAt(item.attempts, PHOTO_RETRY_BASE_MS);
+      remaining.push(item);
       console.log(`[Photo Retry] ${pending ? 'Waiting on the delivery rows' : 'Still failing'} (attempt ${item.attempts}):`,
         item.timestamp, sent.error || '');
     }
   }
 
-  if (stillFailed.length > 0) {
-    localStorage.setItem('tk_delivery_photo_queue', JSON.stringify(stillFailed));
-    console.log(`[Photo Retry] ${stillFailed.length} photo batch(es) still pending`);
+  if (remaining.length > 0) {
+    localStorage.setItem('tk_delivery_photo_queue', JSON.stringify(remaining));
+    console.log(`[Photo Retry] ${remaining.length} photo batch(es) still queued`);
   } else {
     clearPhotoRetryQueue();
     console.log('[Photo Retry] All queued photos successfully uploaded!');
