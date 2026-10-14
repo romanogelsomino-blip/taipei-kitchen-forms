@@ -42,14 +42,13 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
    App URL never changes. Without `-i` clasp would mint a new deployment and a new URL.
 4. Waits until the web app answers with JSON. An in-place redeploy can serve Google's
    "unable to open the file" page for several minutes before the new version is live.
-5. Sets the `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID`, `SPREADSHEET_ID`, `WRITE_TARGETS`,
-   `ALERT_RECIPIENTS`, `SUPPORT_RECIPIENTS` and `ALERT_FROM` Script Properties through
-   the `setScriptProperty` admin action, so the secrets are authoritative. `ALERT_FROM` is
-   the one that may be empty, which means alerts send as the deploying account.
-6. Pings the deployment and asserts the operations folder id, the current month's file
-   name, a valid `WRITE_TARGETS`, and, while `legacy` is a target, the legacy spreadsheet
-   id. The month file itself is created by the first record written in the month, never
-   by the workflow.
+5. Sets the `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID`, `ALERT_RECIPIENTS`,
+   `SUPPORT_RECIPIENTS` and `ALERT_FROM` Script Properties through the `setScriptProperty`
+   admin action, so the secrets are authoritative. `ALERT_FROM` is the one that may be empty,
+   which means alerts send as the deploying account.
+6. Pings the deployment and asserts the operations folder id and the current month's file
+   name. The month file itself is created by the first record written in the month, never by
+   the workflow.
 7. On `dev` only, submits a real production row and then a real delivery row, both dated
    today and marked `ZZ-CI-SMOKE` (store `0000`), requires the current month file's Production
    and Deliveries tabs to each grow by one row, and reads the delivery row back by its
@@ -77,16 +76,33 @@ must stay backward-compatible for one release cycle.
 
 ## Releasing to production
 
-Every production release is tagged.
+Releases are made by hand on GitHub, never by pushing `prod` from a terminal. A release is a
+pull request from `dev` to `prod`, merged there, then published as a GitHub Release.
 
-```bash
-git checkout prod
-git merge dev                       # or merge the dev → prod pull request
-git tag v2.2.0
-git push origin prod --tags         # the push to prod triggers the production deploy
-```
+1. Confirm staging is healthy: `npm run ping:staging` and `npm run mail:staging`, and open
+   `/staging/dashboard/`. Whatever is wrong on staging will be wrong on production.
+2. Confirm the production secrets exist for anything the release adds. The reconcile step
+   fails the deploy if a Script Property it pushes has no secret behind it.
+3. Open a pull request from `dev` to `prod`. No checks run on it: the workflow triggers on
+   pushes to `dev` and `prod` and on manual dispatch, so a pull request produces no run.
+   Review the diff on its own merits.
+4. Merge it with a merge commit. This is the moment the production deploy starts. Squash and
+   rebase are both wrong here, because `prod` is a record of what was released and its
+   history should keep the shape of the branch it came from.
+5. Watch the run under Actions until the backend and site jobs are both green.
+6. Confirm production directly: `npm run ping:production`, then load the live dashboard and
+   one form.
+7. Publish a GitHub Release against `prod`, continuing the existing tag sequence. Creating
+   the release creates the tag, so do not also push one from a terminal. Auto-generated notes
+   list the merged commits; add a line for anything an operator must do by hand, such as
+   re-authorising the Apps Script project, since the commit titles will not say so.
 
-Check the run under Actions, then confirm the live forms and dashboard load.
+A release tag records which commit went live. Publish it even when something outside the
+repository still needs attention, because the next rollback resets to it.
+
+`prod` gains one merge commit per release that `dev` never has, so it reads as several
+commits ahead with identical content. The figure to watch is the other direction: `dev`
+ahead of `prod` is what means a release is pending.
 
 ## Rolling back
 
@@ -95,7 +111,7 @@ republishes the site from that tree.
 
 ```bash
 git checkout prod
-git reset --hard v2.1.0
+git reset --hard Release-2          # the previous release tag
 git push --force-with-lease origin prod
 ```
 
@@ -103,9 +119,7 @@ Reset rather than revert: a revert commit on `prod` would make the next merge fr
 the reverted changes. Fix forward on `dev`, then release normally.
 
 Spreadsheet schema changes do not roll back. A column or sheet tab added by the newer code
-stays; only the code goes back. Monthly operations files and Script Properties stay too. A
-backend from before the monthly store reads and writes the legacy sheet only; rows written
-after `WRITE_TARGETS` is `monthly` are invisible to it.
+stays; only the code goes back. Monthly operations files and Script Properties stay too.
 
 ## Required GitHub secrets
 
@@ -115,10 +129,8 @@ PROD_SCRIPT_ID              STAGING_SCRIPT_ID
 PROD_DEPLOYMENT_ID          STAGING_DEPLOYMENT_ID
 PROD_WEB_APP_URL            STAGING_WEB_APP_URL
 PROD_ADMIN_TOKEN            STAGING_ADMIN_TOKEN
-PROD_SPREADSHEET_ID         STAGING_SPREADSHEET_ID
 PROD_PHOTO_FOLDER_ID        STAGING_PHOTO_FOLDER_ID
 PROD_SPREADSHEET_FOLDER_ID  STAGING_SPREADSHEET_FOLDER_ID
-PROD_WRITE_TARGETS          STAGING_WRITE_TARGETS
 PROD_ALERT_RECIPIENTS       STAGING_ALERT_RECIPIENTS
 PROD_SUPPORT_RECIPIENTS     STAGING_SUPPORT_RECIPIENTS
 PROD_ALERT_FROM             STAGING_ALERT_FROM
@@ -172,10 +184,3 @@ account the deployment runs as. A non-empty value works only if that address is 
 "Send mail as" alias on that account; otherwise the deploy logs a warning, alerts still go
 out from the account address, and the fallback is recorded on the execution row. Check with
 `npm run mail:<env>` before relying on a new address.
-
-### Write targets
-
-The `WRITE_TARGETS` secret selects where records are written: `legacy,monthly` writes the
-legacy sheet alongside the monthly files, `monthly` writes the monthly files alone. CI
-pushes it to the Script Property on every deploy and rejects any other value before pushing
-anything. Changing it is a secret change followed by a deploy; no code changes.

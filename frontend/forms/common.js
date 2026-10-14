@@ -47,6 +47,43 @@ function flagTemp(el) {
   el.style.background  = value > TEMP_LIMIT_F ? 'var(--red-lt)' : '';
 }
 
+// ─── Talking to the backend ──────────────────────────────────────────────────
+
+/**
+ * POST a payload and report what the backend said.
+ *
+ * `Content-Type: text/plain` is load-bearing. It keeps this a "simple request", so the
+ * browser sends no preflight; Apps Script does not answer OPTIONS, and a preflighted request
+ * fails outright. The web app returns `Access-Control-Allow-Origin: *`, so with `mode: cors`
+ * the reply is readable and a submission can be confirmed rather than assumed.
+ *
+ * Returns { ok, data, error }. Never throws: the caller decides what a failure means.
+ */
+async function postToBackend(payload) {
+  try {
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method:  'POST',
+      mode:    'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body:    JSON.stringify(payload)
+    });
+    if (!response.ok) return { ok: false, error: 'HTTP ' + response.status };
+
+    const text = await response.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      // Apps Script serves an error page for a few minutes after a redeploy.
+      return { ok: false, error: 'the server did not answer with JSON' };
+    }
+    if (data.status !== 'ok') return { ok: false, data: data, error: data.message || 'the server rejected the submission' };
+    return { ok: true, data: data };
+  } catch (e) {
+    return { ok: false, error: e.message || 'no connection' };
+  }
+}
+
 // ─── Stores, kitchens & dishes ───────────────────────────────────────────────
 // data/stores.json holds the kitchen, store and dish lists. Cached in localStorage for an
 // hour so a phone on store Wi-Fi is not refetching it at every stop.

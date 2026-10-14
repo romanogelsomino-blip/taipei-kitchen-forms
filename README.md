@@ -71,7 +71,13 @@ To run against the staging backend instead, write the staging config once with
 `npm run env:staging`, then use `npm run serve`. The dashboard reads live staging data, and
 a form submission writes a real row to the staging sheet.
 
+Both trees are built, production at the root and staging under `/staging/`, so the
+environment banner and the environment toggle behave the way they will once published.
+
 The server serves the copy in `_site/`, so stop it and run the command again after editing.
+
+`tmp/` is a gitignored scratch directory. Screenshots and captures go there rather than the
+repository root.
 Push to `dev` to check `/staging/`, then merge to `prod`.
 
 ---
@@ -116,10 +122,13 @@ order: Production, Deliveries, Violations, Executions.
   a month boundary therefore lands in two files.
 - Every row of one submission shares a submission id, which is also how a delivery's photos
   find their rows.
-- `WRITE_TARGETS` selects the stores that are written. There is no backfill: the legacy
-  spreadsheet holds everything logged before the cutover and nothing after it.
+- The monthly files are the only store. Deliveries logged before 1 October 2026 live in the
+  previous single-spreadsheet system, which is no longer written or read.
 
-Photos live under `PHOTO_FOLDER_ID` as `<YYYY>/<MM>/<DD>/`.
+Photos live under `PHOTO_FOLDER_ID` as `<YYYY>/<MM>/<DD>/`, named
+`<store>_<date>_<before|after>_<submission>.jpg`. The submission in the name is what ties a
+file back to the delivery it documents, and lets a retry reuse a photo already saved
+instead of storing it twice.
 
 Reads take a date window, `from` and `to` as `YYYY-MM-DD`, defaulting to the first of last
 month through today and capped at six months because that is six files to open. A month with
@@ -167,9 +176,7 @@ PROD_DEPLOYMENT_ID             STAGING_DEPLOYMENT_ID
 PROD_PHOTO_FOLDER_ID           STAGING_PHOTO_FOLDER_ID
 PROD_SCRIPT_ID                 STAGING_SCRIPT_ID
 PROD_SPREADSHEET_FOLDER_ID     STAGING_SPREADSHEET_FOLDER_ID
-PROD_SPREADSHEET_ID            STAGING_SPREADSHEET_ID
 PROD_WEB_APP_URL               STAGING_WEB_APP_URL
-PROD_WRITE_TARGETS             STAGING_WRITE_TARGETS
 PROD_ALERT_RECIPIENTS          STAGING_ALERT_RECIPIENTS
 PROD_SUPPORT_RECIPIENTS        STAGING_SUPPORT_RECIPIENTS
 PROD_ALERT_FROM                STAGING_ALERT_FROM
@@ -179,12 +186,11 @@ Nothing reads `.env` at runtime. It is the reference copy everything else is pop
 
 - **GitHub Actions secrets** — the same keys, pasted by hand.
 - **Apps Script Script Properties** — `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID`,
-  `SPREADSHEET_ID`, `WRITE_TARGETS`, `ALERT_RECIPIENTS`, `SUPPORT_RECIPIENTS` and
-  `ALERT_FROM` are pushed by the deploy workflow on every deploy.
+  `ALERT_RECIPIENTS`, `SUPPORT_RECIPIENTS` and `ALERT_FROM` are pushed by the deploy workflow
+  on every deploy.
   `ADMIN_TOKEN` is copied by hand in Project Settings, because the endpoint that sets
   properties authenticates with it. None have defaults: an unset property throws instead of
-  falling back. `WRITE_TARGETS` selects the stores records are written to; see
-  `deployment/README.md`.
+  falling back.
 - **`frontend/config.js`** — the only place a Web App URL exists. The forms and dashboard
   are static files with no environment to read, so the URL is written into this gitignored
   file at build time: by `npm run env:staging|production` locally, by the workflow per
@@ -198,11 +204,15 @@ Run `npm run env:staging` before `npm run serve`, or the forms show "Not Configu
 
 ## Releases
 
-Every production release is tagged in GitHub. Merge `dev` into `prod`, then tag the merge
-commit (`v2.1.0`, `v2.2.0`, …) and push the tag.
+Releases are made by hand on GitHub. Open a pull request from `dev` to `prod`, merge it with
+a merge commit, and publish a GitHub Release against `prod` once the deploy is green. Merging
+is what starts the production deploy, and publishing the release creates its tag.
 
-To roll back, revert `prod` to the previous release tag and push. The workflow redeploys the
-backend and republishes the site from that tree.
+Never push `prod` from a terminal to release. To roll back, reset `prod` to the previous
+release tag and force-push; the workflow redeploys the backend and republishes the site from
+that tree.
+
+Full steps, including what to check before and after, are in `deployment/README.md`.
 
 ---
 

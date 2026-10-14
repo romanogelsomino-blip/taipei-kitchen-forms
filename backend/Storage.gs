@@ -238,13 +238,22 @@ function ensureMonthlyTabs(ss) {
  * not atomic across concurrent requests. Formats are set before the values, or Sheets
  * coerces text that looks like a date or a number. Lines and row colours go on after, so both
  * end at the last written row and the table has a closing edge.
+ *
+ * `opts.ifAbsentSubmissionId` makes the write idempotent: the tab is searched for that id
+ * inside the lock and the append is skipped if it is already there. A form that cannot
+ * confirm its first attempt replays the same payload, and without this a lost reply becomes
+ * a duplicated delivery.
  */
-function appendMonthlyRows(monthKey, tab, values) {
+function appendMonthlyRows(monthKey, tab, values, opts) {
   if (!values.length) return { monthKey, fileId: null, firstRow: 0, count: 0 };
   const opened = openMonthly(monthKey, true);
   const sheet = opened.ss.getSheetByName(tab);
   const schemaFormats = writeFormats(schemaFor(tab));
+  const guardId = (opts && opts.ifAbsentSubmissionId) || null;
   return withScriptLock(() => {
+    if (guardId && submissionIdPresent(sheet, tab, guardId)) {
+      return { monthKey, fileId: opened.fileId, firstRow: 0, count: 0, skipped: true, duplicateOf: guardId };
+    }
     const columns = sheetColumns(sheet, tab);
     const width = Math.max(sheet.getLastColumn(), ...columns);
     const place = (row, fill) => { const out = Array(width).fill(fill); row.forEach((v, i) => { out[columns[i] - 1] = v; }); return out; };
@@ -266,6 +275,18 @@ function appendMonthlyRows(monthKey, tab, values) {
     boxRows(sheet);                           // and so does the outer edge
     return { monthKey, fileId: opened.fileId, firstRow: start, count: placed.length };
   });
+}
+
+/** Whether a tab already holds a row for this submission. Reads one column, not the sheet. */
+function submissionIdPresent(sheet, tab, submissionId) {
+  const last = sheet.getLastRow();
+  if (last < 2) return false;
+  const headers = sheetHeaders(sheet);
+  const column = headerIndex(headers, schemaFor(tab)).idx.submissionId;
+  if (column === undefined || column < 0) return false;
+  const wanted = String(submissionId);
+  return sheet.getRange(2, column + 1, last - 1, 1).getValues()
+    .some(row => String(row[0]) === wanted);
 }
 
 /** Records from one tab across several months. Months with no file are reported, not errors. */

@@ -36,24 +36,57 @@ function photoDayFolder(isoDate, create) {
  * Save the before and after photos of one delivery into its day folder.
  * Returns { date, beforeUrl, afterUrl, savedCount }; `date` is the day they filed under.
  */
+/**
+ * The name one photo is stored under: store, date, which shot, and the first 8 characters of
+ * the submission id, in the same short form the violation ids use.
+ *
+ * The id is what makes the name identify one delivery. Without it two deliveries to the same
+ * store on one day produce the same name, so a stray file cannot be traced back and a saved
+ * file cannot safely be reused. Payloads queued before the forms sent ids fall back to the
+ * older name.
+ */
+function photoFileName(photos, filedDate, which) {
+  const id = photos.submissionId ? String(photos.submissionId).replace(/-/g, '').slice(0, 8) : '';
+  return photos.storeId + '_' + filedDate + '_' + which + (id ? '_' + id : '') + '.jpg';
+}
+
+/** The file of that exact name already in the folder, or null. */
+function findPhotoFile(folder, name) {
+  return firstNamed(folder.getFilesByName(name), name);
+}
+
+/**
+ * Save the before and after photos of one delivery into its day folder.
+ * Returns { date, beforeUrl, afterUrl, savedCount }; `date` is the day they filed under.
+ *
+ * A photo already saved under this name is reused rather than written again. That is what
+ * makes a retry safe when the first attempt stored the files but failed to link them: the
+ * rows get their links without a second copy appearing in Drive.
+ */
 function savePhotosToDrive(photos, ctx) {
   const filed = partitionDateFor(photos.date);
   if (filed.fallback) note(ctx, 'photo_date_fallback=' + filed.fallback + ':' + String(photos.date));
-  const saved = { date: filed.date, beforeUrl: null, afterUrl: null, savedCount: 0 };
+  const saved = { date: filed.date, beforeUrl: null, afterUrl: null, savedCount: 0, reusedCount: 0 };
   let folder = null;
   ['before', 'after'].forEach(which => {
     const photo = photos[which];
     if (!photo || !photo.data) return;
     if (!folder) folder = photoDayFolder(filed.date, true);
+
+    const name = photoFileName(photos, filed.date, which);
+    const existing = photos.submissionId ? findPhotoFile(folder, name) : null;
+    if (existing) {
+      saved[which + 'Url'] = existing.getUrl();
+      saved.reusedCount += 1;
+      return;
+    }
+
     const base64 = String(photo.data).replace(/^data:[^,]*,/, '');
-    const blob = Utilities.newBlob(
-      Utilities.base64Decode(base64),
-      photo.mimeType || 'image/jpeg',
-      photos.storeId + '_' + filed.date + '_' + which + '.jpg'
-    );
+    const blob = Utilities.newBlob(Utilities.base64Decode(base64), photo.mimeType || 'image/jpeg', name);
     saved[which + 'Url'] = folder.createFile(blob).getUrl();
     saved.savedCount += 1;
   });
+  if (saved.reusedCount) note(ctx, 'photos_reused=' + saved.reusedCount);
   return saved;
 }
 
@@ -74,6 +107,22 @@ function findPhotoRows(photos, filedDate) {
     : r => String(r.storeId) === String(photos.storeId) && String(r.date) === String(photos.date) &&
            String(r.driver) === String(photos.driver) && !r.beforePhotoLink && !r.afterPhotoLink;
   return { sheet, idx, rows: readRows(values, schema).records.filter(wanted).map(r => r._row) };
+}
+
+/**
+ * Whether this submission's delivery rows already carry photo links. A replayed upload would
+ * otherwise create a second set of files in Drive and leave the first set orphaned.
+ */
+function photosAlreadyLinked(photos) {
+  if (!photos.submissionId) return false;   // no id: fall back to the store/date/driver match
+  const filed = partitionDateFor(photos.date);
+  const opened = openMonthly(monthKeyOfDate(filed.date), false);
+  const sheet = opened && opened.ss.getSheetByName('Deliveries');
+  if (!sheet || sheet.getLastRow() < 2) return false;
+  const schema = schemaFor('Deliveries');
+  return readRows(sheet.getDataRange().getValues(), schema).records
+    .some(r => String(r.submissionId) === String(photos.submissionId) &&
+               (r.beforePhotoLink || r.afterPhotoLink));
 }
 
 /** Write the links onto every matched row of the monthly Deliveries tab. Returns the row count. */

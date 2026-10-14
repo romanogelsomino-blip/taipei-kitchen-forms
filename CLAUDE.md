@@ -1,8 +1,11 @@
 # Notes
 
 - **Never deploy by hand.** Do not run `clasp push` or `clasp deploy` locally, and do not
-  edit code in the Apps Script editor. Git is the source of truth, and every deployment runs
-  through CI on a push to `dev` or `prod`. See `deployment/README.md`.
+  edit code in the Apps Script editor. Git is the source of truth, and CI deploys on a push
+  to `dev` or `prod`. See `deployment/README.md`.
+- **Releases are made on GitHub, not from a terminal.** A production release is a pull
+  request from `dev` to `prod`, merged with a merge commit, then published as a GitHub
+  Release. Never propose pushing `prod` or a tag directly.
 - **Production precedes delivery.** Food is cooked before it is delivered, so wherever the
   two appear together — navigation, lists, data files, documentation, code — production
   comes first.
@@ -21,3 +24,5 @@
   matching secret on each deploy. `ADMIN_TOKEN` is the sole exception, copied by hand because
   the endpoint that sets properties authenticates with it. Do not introduce a setting that is
   configured by hand in the Apps Script project.
+- **The monthly files are the only store.** The single-spreadsheet system they replaced is
+  retired: nothing reads or writes it. Do not reintroduce a second write target.

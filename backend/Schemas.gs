@@ -104,7 +104,6 @@ function executionsSchema() {
     { header: 'Duration (ms)',   key: 'durationMs',   type: 'number',  width: 110 },
     { header: 'Error Message',   key: 'errorMessage', type: 'text',    width: 340 },
     { header: 'Notes',           key: 'notes',        type: 'text',    width: 340 },
-    { header: 'Write Targets',   key: 'writeTargets', type: 'text',    width: 120 },
     { header: 'Submission ID',   key: 'submissionId', type: 'text',    width: 290 },
     { header: 'Timestamp',       key: 'timestamp',    type: 'instant' }
   ];

@@ -205,6 +205,7 @@ function createMultiSelect(containerId, options, placeholder, onChange) {
 
 window.addEventListener('DOMContentLoaded', async () => {
   loadConfig();
+  setupEnvironmentToggle();
   setupNavigation();
   loadHomeLocations();
   updateCurrentDate();
@@ -226,6 +227,54 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 // Update current date/time in header
+/**
+ * The same page in the other environment. Production is published at the site root and
+ * staging under /staging/, so the two differ by one path segment. The query and hash come
+ * along, which keeps you on the panel you were looking at.
+ */
+function otherEnvironment() {
+  const path = window.location.pathname;
+  const onStaging = path.indexOf('/staging/') !== -1;
+  const target = onStaging
+    ? path.replace('/staging/', '/')
+    : path.replace('/dashboard/', '/staging/dashboard/');
+  return {
+    name: onStaging ? 'production' : 'staging',
+    href: target + window.location.search + window.location.hash
+  };
+}
+
+/**
+ * Offer the other environment, in the place that suits who needs it.
+ *
+ * On staging the question goes in the warning banner, because someone there may be looking
+ * at test data believing it is real and the banner is already interrupting them. On
+ * production it goes quietly at the foot of the home panel: the only person who wants
+ * staging is looking for it on purpose, and the production header stays clean.
+ */
+function setupEnvironmentToggle() {
+  const other = otherEnvironment();
+  const link = document.createElement('a');
+  link.href = other.href;
+
+  if (other.name === 'production') {
+    const banner = document.getElementById('env-banner');
+    if (!banner) return;
+    link.className = 'env-banner-link';
+    link.textContent = 'Open production';
+    banner.appendChild(document.createTextNode(' \u00b7 Looking for the real dashboard? '));
+    banner.appendChild(link);
+    return;
+  }
+
+  const note = document.getElementById('home-env-note');
+  if (!note) return;
+  link.textContent = 'Open the staging dashboard';
+  note.appendChild(document.createTextNode('Want to test features? '));
+  note.appendChild(link);
+  note.hidden = false;
+}
+
 function updateCurrentDate() {
   const now = new Date();
   const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };

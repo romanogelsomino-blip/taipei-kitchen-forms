@@ -24,7 +24,10 @@ frontend/config.js
 *.swo
 
 # Scratch space — not part of the project
-/tmp/
+# Scratch space: screenshots, captures, anything worth keeping while working and not
+# worth committing. The directory itself is tracked so it exists in a fresh clone.
+/tmp/*
+!/tmp/.gitkeep
 
 # The published site as `npm run serve` assembles it locally
 _site/
