@@ -24,13 +24,12 @@ function submissionIdOf(row, ctx) {
   return row.submissionId || ctx.submissionId || '';
 }
 
-/** One row per dish per production run. */
+/** One row per dish per production run. Batches cool overnight from cook end, so no cooling interval is recorded. */
 function productionSchema() {
   return [
     { header: 'Date',                key: 'date',            type: 'date' },
     { header: 'Production Kitchen',  key: 'kitchen',         type: 'text',    width: 170 },
     { header: 'Supervisor',          key: 'supervisor',      type: 'text',    width: 140 },
-    { header: 'Shift',               key: 'shift',           type: 'text',    width: 80 },
     { header: 'Dish',                key: 'dish',            type: 'text',    width: 220 },
     { header: 'Qty Produced',        key: 'qtyProduced',     type: 'number',  width: 110 },
     { header: 'Qty Discarded',       key: 'qtyDiscarded',    type: 'number',  width: 110 },
@@ -39,9 +38,6 @@ function productionSchema() {
     { header: 'Cook Start',          key: 'cookStart',       type: 'time' },
     { header: 'Cook End',            key: 'cookEnd',         type: 'time' },
     { header: 'Cook Time (min)',     key: 'cookTime',        type: 'number',  width: 120 },
-    { header: 'Cool Start',          key: 'coolStart',       type: 'time' },
-    { header: 'Cool End',            key: 'coolEnd',         type: 'time',    width: 110 },  // or 'Next Morning'
-    { header: 'Cool Time (min)',     key: 'coolTime',        type: 'number',  width: 120 },  // or 'Overnight'
     { header: 'Final Batch Temp °F', key: 'finalTemp',       type: 'number',  width: 150 },
     { header: 'Submission ID',       key: 'submissionId',    type: 'text',    width: 290, value: submissionIdOf },
     { header: 'Submitted At',        key: 'clientTimestamp', type: 'instant' },

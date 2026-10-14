@@ -348,11 +348,11 @@ function loadDemoData() {
       { submittedAt: `${yesterday}T09:20:55.000Z`, date: yesterday, driver: 'Sam Blumenthal', store: '6564', arrivalTime: '09:15', coolerTemp: 39, dish: 'Spring Roll (Veg)', qtyAdded: 25, removed: 0, reason: '', receivedBy: 'Emily' }
     ],
     production: [
-      { submittedAt: `${today}T06:15:33.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Spring Roll (Veg)', qtyProduced: 120, qtyDiscarded: 2, discardReason: 'Quality Issue' },
-      { submittedAt: `${today}T06:45:10.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Shrimp Egg Roll', qtyProduced: 96, qtyDiscarded: 0, discardReason: '' },
-      { submittedAt: `${today}T07:20:47.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Anna', dish: 'Chicken Lo Mein', qtyProduced: 48, qtyDiscarded: 1, discardReason: 'Temperature' },
-      { submittedAt: `${yesterday}T06:30:12.000Z`, date: yesterday, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Beef Chow Fun', qtyProduced: 36, qtyDiscarded: 0, discardReason: '' },
-      { submittedAt: `${yesterday}T07:05:28.000Z`, date: yesterday, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Pork Dumpling', qtyProduced: 72, qtyDiscarded: 1, discardReason: 'Out of date' }
+      { submittedAt: `${today}T06:15:33.000Z`, date: today, kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Spring Roll (Veg)', qtyProduced: 120, qtyDiscarded: 2, discardReason: 'Quality Issue' },
+      { submittedAt: `${today}T06:45:10.000Z`, date: today, kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Shrimp Egg Roll', qtyProduced: 96, qtyDiscarded: 0, discardReason: '' },
+      { submittedAt: `${today}T07:20:47.000Z`, date: today, kitchen: 'Store 6112', supervisor: 'Anna', dish: 'Chicken Lo Mein', qtyProduced: 48, qtyDiscarded: 1, discardReason: 'Temperature' },
+      { submittedAt: `${yesterday}T06:30:12.000Z`, date: yesterday, kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Beef Chow Fun', qtyProduced: 36, qtyDiscarded: 0, discardReason: '' },
+      { submittedAt: `${yesterday}T07:05:28.000Z`, date: yesterday, kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Pork Dumpling', qtyProduced: 72, qtyDiscarded: 1, discardReason: 'Out of date' }
     ],
     waste: [
       { date: today, store: '6006', dish: 'Spring Roll (Veg)', removed: 2, qtyRemoved: 2, reason: 'Out of date' },
@@ -1467,7 +1467,6 @@ const PRODUCTION_STATE = {
   chart: null,
   isInitialized: false,
   advancedFilters: {
-    shift: '',
     kitchen: '',
     supervisor: '',
     dish: '',
@@ -1637,7 +1636,6 @@ function populateProductionFilters() {
   // Normalize supervisor names to remove duplicates with trailing spaces
   const normalizeName = (name) => name ? name.trim() : '';
 
-  populateSelect('production-shift-filter', new Set(filtered.map(p => p.shift).filter(Boolean)));
   populateSelect('production-kitchen-filter', new Set(filtered.map(p => p.kitchen).filter(Boolean)));
   populateSelect('production-supervisor-filter', new Set(filtered.map(p => normalizeName(p.supervisor)).filter(Boolean)));
   populateSelect('production-dish-filter', new Set(filtered.map(p => p.dish).filter(Boolean)));
@@ -1645,7 +1643,6 @@ function populateProductionFilters() {
 
 function applyProductionAdvancedFilters() {
   PRODUCTION_STATE.advancedFilters = {
-    shift: document.getElementById('production-shift-filter').value,
     kitchen: document.getElementById('production-kitchen-filter').value,
     supervisor: document.getElementById('production-supervisor-filter').value,
     dish: document.getElementById('production-dish-filter').value,
@@ -1656,13 +1653,11 @@ function applyProductionAdvancedFilters() {
 }
 
 function clearAllProductionFilters() {
-  document.getElementById('production-shift-filter').value = '';
   document.getElementById('production-kitchen-filter').value = '';
   document.getElementById('production-supervisor-filter').value = '';
   document.getElementById('production-dish-filter').value = '';
   document.getElementById('production-search').value = '';
   PRODUCTION_STATE.advancedFilters = {
-    shift: '',
     kitchen: '',
     supervisor: '',
     dish: '',
@@ -1677,14 +1672,12 @@ function displayProductionTable() {
 
   // Apply advanced filters
   const filters = PRODUCTION_STATE.advancedFilters;
-  if (filters.shift) filtered = filtered.filter(p => p.shift === filters.shift);
   if (filters.kitchen) filtered = filtered.filter(p => p.kitchen === filters.kitchen);
   if (filters.supervisor) filtered = filtered.filter(p => p.supervisor === filters.supervisor);
   if (filters.dish) filtered = filtered.filter(p => p.dish === filters.dish);
   if (filters.search) {
     filtered = filtered.filter(p => {
       return (p.date && p.date.toLowerCase().includes(filters.search)) ||
-             (p.shift && p.shift.toLowerCase().includes(filters.search)) ||
              (p.kitchen && p.kitchen.toLowerCase().includes(filters.search)) ||
              (p.supervisor && p.supervisor.toLowerCase().includes(filters.search)) ||
              (p.dish && p.dish.toLowerCase().includes(filters.search)) ||
@@ -1713,7 +1706,6 @@ function displayProductionTable() {
   const rows = pageData.map(p => `
       <tr>
         <td>${normalizeDate(p.date)}</td>
-        <td>${p.shift || ''}</td>
         <td>${p.kitchen || ''}</td>
         <td>${p.supervisor || ''}</td>
         <td>${p.dish || ''}</td>
@@ -1728,7 +1720,6 @@ function displayProductionTable() {
       <thead>
         <tr>
           <th>Date</th>
-          <th>Shift</th>
           <th>Kitchen</th>
           <th>Supervisor</th>
           <th>Dish</th>

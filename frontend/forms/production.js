@@ -86,7 +86,7 @@ function applyKitchenParam() {
   if (kitchen) document.getElementById('f-kitchen').value = kitchen.name;
 }
 
-// ─── Batch cook & cool times ─────────────────────────────
+// ─── Batch cook times ────────────────────────────────────
 function timeDiff(t1, t2) {
   const [h1, m1] = t1.split(':').map(Number);
   const [h2, m2] = t2.split(':').map(Number);
@@ -105,43 +105,12 @@ function calcBatchCook() {
   }
 }
 
-function calcBatchCool() {
-  const nextAM = document.getElementById('b-cool-next-am').checked;
-  const cell   = document.getElementById('b-cool-time');
-  if (nextAM) { cell.textContent = 'Overnight'; cell.style.color = 'var(--green)'; return; }
-  const start = document.getElementById('b-cool-start').value;
-  const end   = document.getElementById('b-cool-end').value;
-  if (start && end) {
-    let diff = timeDiff(start, end);
-    if (diff < 0) diff += 1440;
-    cell.textContent = diff + ' min';
-    if (diff > 360)      cell.style.color = 'var(--red)';
-    else if (diff > 240) cell.style.color = 'var(--orange)';
-    else                 cell.style.color = 'var(--green)';
-  }
-}
-
-function toggleBatchNextAM() {
-  const checked = document.getElementById('b-cool-next-am').checked;
-  const coolEnd = document.getElementById('b-cool-end');
-  coolEnd.disabled = checked;
-  coolEnd.style.opacity = checked ? '0.3' : '1';
-  if (checked) {
-    document.getElementById('b-cool-time').textContent = 'Overnight';
-    document.getElementById('b-cool-time').style.color = 'var(--green)';
-  } else {
-    document.getElementById('b-cool-time').textContent = '—';
-    document.getElementById('b-cool-time').style.color = 'var(--orange)';
-  }
-}
-
 // ─── Payload ──────────────────────────────────────────────
 // One row per dish, keyed to match the Production tab's schema in backend/Schemas.gs.
 // One submission id covers the whole batch.
 function buildPayload() {
   const submissionId = newSubmissionId();
   const date       = document.getElementById('f-date').value;
-  const shift      = document.getElementById('f-shift').value;
   const kitchen    = document.getElementById('f-kitchen').value;
   const supervisor = supervisorPicker.value();
 
@@ -150,10 +119,6 @@ function buildPayload() {
   const cookStart  = document.getElementById('b-cook-start').value;
   const cookEnd    = document.getElementById('b-cook-end').value;
   const cookTime   = document.getElementById('b-cook-time').textContent.replace(' min','').replace('—','');
-  const coolStart  = document.getElementById('b-cool-start').value;
-  const nextAM     = document.getElementById('b-cool-next-am').checked;
-  const coolEnd    = nextAM ? 'Next Morning' : document.getElementById('b-cool-end').value;
-  const coolTime   = nextAM ? 'Overnight' : document.getElementById('b-cool-time').textContent.replace(' min','').replace('—','');
   const finalTemp  = document.getElementById('b-final-temp').value;
 
   const rows = [];
@@ -161,7 +126,7 @@ function buildPayload() {
     const data = dishEntry.get(dish);
     rows.push({
       submissionId,
-      date, shift, kitchen, supervisor,
+      date, kitchen, supervisor,
       dish:          dish,
       qtyProduced:   data.produced || '0',
       qtyDiscarded:  data.discarded || '0',
@@ -170,9 +135,6 @@ function buildPayload() {
       cookStart:     cookStart,
       cookEnd:       cookEnd,
       cookTime:      cookTime,
-      coolStart:     coolStart,
-      coolEnd:       coolEnd,
-      coolTime:      coolTime,
       finalTemp:     finalTemp,
       formType:      'production',
       clientTimestamp: new Date().toISOString()
@@ -230,13 +192,11 @@ function clearAll() {
   dishEntry.reset();
 
   // Reset batch display fields
-  ['b-cook-time','b-cool-time'].forEach(id => {
+  ['b-cook-time'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.textContent = '—'; el.style.color = 'var(--orange)'; }
   });
   document.getElementById('b-final-temp').style.borderColor = '';
   document.getElementById('b-final-temp').style.background  = '';
-  document.getElementById('b-cool-end').disabled = false;
-  document.getElementById('b-cool-end').style.opacity = '1';
   document.getElementById('f-date').value = localDateISO();
 }
