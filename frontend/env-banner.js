@@ -15,7 +15,7 @@
     if (!document.body || document.getElementById('env-banner')) return;
     var bar = document.createElement('div');
     bar.id = 'env-banner';
-    bar.textContent = '⚠ ' + env.toUpperCase() + ' — not production data';
+    bar.textContent = '⚠ ' + env.toUpperCase() + ' — Not production data!';
     bar.setAttribute(
       'style',
       'position:sticky;top:0;z-index:99999;background:#b45309;color:#fff;' +

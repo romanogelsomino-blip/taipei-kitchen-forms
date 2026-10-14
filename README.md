@@ -71,7 +71,13 @@ To run against the staging backend instead, write the staging config once with
 `npm run env:staging`, then use `npm run serve`. The dashboard reads live staging data, and
 a form submission writes a real row to the staging sheet.
 
+Both trees are built, production at the root and staging under `/staging/`, so the
+environment banner and the environment toggle behave the way they will once published.
+
 The server serves the copy in `_site/`, so stop it and run the command again after editing.
+
+`tmp/` is a gitignored scratch directory. Screenshots and captures go there rather than the
+repository root.
 Push to `dev` to check `/staging/`, then merge to `prod`.
 
 ---

@@ -1770,3 +1770,15 @@ body {
   word-break: break-all;
   margin-bottom: 14px;
 }
+
+/* ── Environment switching ─────────────────────────────────────────────── */
+/* In the staging banner: part of the sentence, not a button. */
+.env-banner-link { color: #fff; text-underline-offset: 3px; }
+/* On production: the foot of the home panel, for whoever goes looking. */
+.home-env-note {
+  margin-top: 18px;
+  font-size: 0.82rem;
+  color: var(--soft);
+}
+.home-env-note a { color: var(--mid); }
+.home-env-note a:hover { color: var(--dark); }
