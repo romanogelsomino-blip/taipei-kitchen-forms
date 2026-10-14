@@ -299,11 +299,19 @@ function buildPayload() {
 // ═══════════════════════════════════════════════════════════════════════════
 // T-007: Offline Queue System
 // ═══════════════════════════════════════════════════════════════════════════
+// Returns false when the write failed, which on a phone means the storage quota is full.
+// The caller has to say so: an unhandled throw here leaves the overlay stuck on "Submitting"
+// with the button disabled, and the driver with no way to tell the delivery was not kept.
 function queueSubmission(payload) {
   const queueKey = 'tk_queue_' + Date.now();
-  localStorage.setItem(queueKey, JSON.stringify(payload));
+  try {
+    localStorage.setItem(queueKey, JSON.stringify(payload));
+  } catch (e) {
+    console.error('[Queue] Could not save submission offline:', e);
+    return false;
+  }
   console.log('[Queue] Saved submission offline:', queueKey);
-  return queueKey;
+  return true;
 }
 
 function getQueuedSubmissions() {
@@ -333,6 +341,12 @@ async function retryQueuedSubmissions() {
 setInterval(retryQueuedSubmissions, 30000);
 
 // ─── T-044: Photo Retry Queue ─────────────────────────────
+// A queued upload is kept for a day. The delivery rows retry until they land, and the photos
+// have to outlive that: the ten-attempt cap this replaced gave up after twenty minutes, which
+// is shorter than a bad stretch of store Wi-Fi.
+const PHOTO_RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** Keep a photo upload for the retry loop. Returns false when the device has no room left. */
 function queuePhotoRetry(photoPayload) {
   try {
     const queue = JSON.parse(localStorage.getItem('tk_delivery_photo_queue') || '[]');
@@ -343,8 +357,10 @@ function queuePhotoRetry(photoPayload) {
     });
     localStorage.setItem('tk_delivery_photo_queue', JSON.stringify(queue));
     console.log('[Photo Retry] Queued photo upload for retry. Queue size:', queue.length);
+    return true;
   } catch (e) {
     console.error('[Photo Retry] Failed to queue photos:', e);
+    return false;
   }
 }
 
@@ -362,19 +378,23 @@ async function retryQueuedPhotos() {
   const stillFailed = [];
 
   for (const item of queue) {
-    // Skip if too many attempts (max 10)
-    if (item.attempts >= 10) {
-      console.log('[Photo Retry] Max attempts reached, dropping:', item.timestamp);
+    if (Date.now() - Date.parse(item.timestamp) > PHOTO_RETRY_WINDOW_MS) {
+      console.log('[Photo Retry] Past the retry window, dropping:', item.timestamp);
       continue;
     }
 
     const sent = await postToBackend(item.payload);
-    if (sent.ok) {
+    // `pending` means the files are stored but the delivery rows are not there yet to carry
+    // the links. The backend reuses the stored files on the next attempt, so retrying costs
+    // nothing in Drive and is the only thing that finishes the upload.
+    const pending = sent.ok && sent.data && sent.data.pending;
+    if (sent.ok && !pending) {
       console.log('[Photo Retry] Confirmed upload from', item.timestamp);
     } else {
       item.attempts++;
       stillFailed.push(item);
-      console.log(`[Photo Retry] Still failing (attempt ${item.attempts}/10):`, item.timestamp, sent.error);
+      console.log(`[Photo Retry] ${pending ? 'Waiting on the delivery rows' : 'Still failing'} (attempt ${item.attempts}):`,
+        item.timestamp, sent.error || '');
     }
   }
 
@@ -491,9 +511,22 @@ async function submitForm() {
 
   const wrote = await postToBackend(dataPayload);
   if (!wrote.ok) {
-    queueSubmission(dataPayload);
+    if (!queueSubmission(dataPayload)) {
+      showStatus('❌', 'Not Saved',
+        'This delivery could not be kept for retry: storage on this device is full. Leave this ' +
+        `page open and press Submit again once you have a connection. (${wrote.error})`);
+      showStatusDone();
+      document.getElementById('submit-btn').disabled = false;
+      return;
+    }
+    // The photos go to their own queue rather than riding along with the rows, which carry
+    // only photo metadata. An upload that reaches the backend before its rows is answered
+    // `pending` and stays queued, so the two queues may drain in either order.
+    const photosKept = queuePhotoRetry({ formType: 'photos_only', photos: payload.photos });
     showStatus('❌', 'Offline Mode',
-      `Submission queued and will retry automatically every 30 seconds. Leave this page open. (${wrote.error})`);
+      'Submission queued and will retry automatically every 30 seconds. Leave this page open.' +
+      (photosKept ? '' : ' The photos could not be kept — storage on this device is full — so retake them once the delivery has saved.') +
+      ` (${wrote.error})`);
     showStatusDone();
     document.getElementById('submit-btn').disabled = false;
     return;
@@ -523,12 +556,13 @@ async function submitForm() {
       driver: photoPayload.photos?.driver
     }));
     const sent = await postToBackend(photoPayload);
-    if (sent.ok) {
+    // Anything but a linked upload goes to the queue, `pending` included: the rows were just
+    // written, so pending here means they were not found and the links still have to land.
+    if (sent.ok && !(sent.data && sent.data.pending)) {
       showStatus('✅', 'All Done!',
         payload.rows.length + ' dish rows saved for ' +
         (storeData ? storeData.name : 'store ' + storeId) + '. ' +
         `${photoCount} photo${photoCount > 1 ? 's' : ''} uploaded. You can close this page.`);
-      clearPhotoRetryQueue();
     } else {
       queuePhotoRetry(photoPayload);
       showStatus('⚠️', 'Mostly Done',
