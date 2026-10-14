@@ -210,6 +210,11 @@ function createPeoplePicker({ selectId, customId, file, key, fallback, addLabel 
     return select().value === '__custom__' ? custom().value.trim() : select().value;
   }
 
+  /** The control a validation message should point at: the typed input when "+ Add new" is chosen. */
+  function activeId() {
+    return select().value === '__custom__' ? customId : selectId;
+  }
+
   /** Raw select and custom-input values, for last-submission recall. */
   function snapshot() {
     return { select: select().value, custom: custom().value };
@@ -225,7 +230,7 @@ function createPeoplePicker({ selectId, customId, file, key, fallback, addLabel 
     }
   }
 
-  return { load, handleChange, value, snapshot, restore };
+  return { load, handleChange, value, activeId, snapshot, restore };
 }
 
 // ─── Last-submission recall ──────────────────────────────────────────────────
@@ -295,6 +300,53 @@ function showStatusDone() {
   document.getElementById('s-btn').style.display = 'block';
 }
 
+// ─── Required values ─────────────────────────────────────────────────────────
+// Every field on both forms is required except the delivery notes and, inside a dish, the
+// counts that stand at zero. A blank one is outlined, the first is scrolled to and focused,
+// and one message names them all: a phone in a cooler aisle should not be answering alerts
+// one at a time.
+
+const INVALID_CLASS = 'invalid';
+
+/** Drop a control's missing-value outline. */
+function clearMissing(el) {
+  if (el && el.classList) el.classList.remove(INVALID_CLASS);
+}
+
+// Filling anything in clears its outline, so the form quietens as it is completed.
+document.addEventListener('input',  e => clearMissing(e.target));
+document.addEventListener('change', e => clearMissing(e.target));
+
+/**
+ * The labels of every required field still blank, each outlined and the first one focused.
+ * A spec is { id, label, value?, when? }: `value` replaces the control's own, for the people
+ * pickers and photo zones which hold their value elsewhere; `when` makes the rule conditional.
+ * List the specs in page order, so the field scrolled to is the topmost one outstanding.
+ */
+function missingFields(specs) {
+  const labels = [];
+  let first = null;
+  specs.forEach(spec => {
+    const el = document.getElementById(spec.id);
+    const value = spec.value !== undefined ? spec.value : (el ? el.value : '');
+    if ((spec.when && !spec.when()) || String(value).trim() !== '') { clearMissing(el); return; }
+    labels.push(spec.label);
+    if (el) { el.classList.add(INVALID_CLASS); if (!first) first = el; }
+  });
+  if (first) {
+    first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    first.focus({ preventScroll: true });
+  }
+  return labels;
+}
+
+/** One alert naming everything still outstanding, capped so it stays readable on a phone. */
+function reportMissing(intro, items) {
+  const shown = items.slice(0, 8);
+  const rest  = items.length - shown.length;
+  alert(intro + '\n\n• ' + shown.join('\n• ') + (rest > 0 ? '\n• …and ' + rest + ' more' : ''));
+}
+
 // ─── Card + modal dish entry ─────────────────────────────────────────────────
 // One card per dish. Tapping a card opens the modal on that dish's fields and Save & Next
 // walks down the list. The engine owns the per-dish records, the card list, the progress
@@ -303,13 +355,16 @@ function showStatusDone() {
 //   dishes()       current dish name list (changes once stores.json loads)
 //   fields         [{ key, id, default }]: record key, modal input id, empty value ('')
 //   status(record) 'complete' | 'partial' | 'empty'
+//   validate(record) optional { id, message } naming the first thing the dish still needs,
+//                  or null when it is good; Save & Next will not leave a dish that fails it,
+//                  and submit re-checks every dish through it
 //   summary(record) optional card status line when the record has data
 //                  (default: "Complete" / "Partial")
 //   totals         [{ key, id }]: record key summed into the element with that id
 //   storageKey     optional localStorage key; when set, records survive a page reload
 //   onOpen()       optional hook after the modal is populated
 //   onClear()      optional hook after the modal is cleared
-function createDishEntry({ dishes, fields, status, summary, totals = [], storageKey, onOpen, onClear }) {
+function createDishEntry({ dishes, fields, status, summary, validate, totals = [], storageKey, onOpen, onClear }) {
   const records = {};
   let currentIndex = -1;
 
@@ -420,12 +475,25 @@ function createDishEntry({ dishes, fields, status, summary, totals = [], storage
 
   function saveAndNext() {
     if (currentIndex < 0) return;
+    const record = readModal();
+    const problem = validate && validate(record);
+    if (problem) {
+      const el = document.getElementById(problem.id);
+      if (el) { el.classList.add(INVALID_CLASS); el.focus(); }
+      alert(problem.message);
+      return;
+    }
     const list = dishes();
-    records[list[currentIndex]] = readModal();
+    records[list[currentIndex]] = record;
     persist();
     buildList();
     if (currentIndex < list.length - 1) open(currentIndex + 1);
     else close();
+  }
+
+  /** Dish names whose record still fails `validate`, in list order. */
+  function invalidDishes() {
+    return validate ? dishes().filter(dish => validate(get(dish))) : [];
   }
 
   /** Forget every dish, drop the stored copy, and redraw. */
@@ -435,5 +503,5 @@ function createDishEntry({ dishes, fields, status, summary, totals = [], storage
     buildList();
   }
 
-  return { get, buildList, open, close, clear, saveAndNext, readModal, reset };
+  return { get, buildList, open, close, clear, saveAndNext, readModal, invalidDishes, reset };
 }

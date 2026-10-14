@@ -88,7 +88,24 @@ async function compressImage(file) {
 // previous stop would be worse than retyping them.
 
 function effectiveReason(data) {
-  return data.reason === '__other__' ? data.reasonCustom.trim() : data.reason;
+  return data.reason === '__other__' ? (data.reasonCustom || '').trim() : data.reason;
+}
+
+/**
+ * What one dish still needs, or null. Only the added count is required outright — the rest
+ * stand at zero — but a removal has to say why the product came off the shelf.
+ */
+function dishProblem(data) {
+  if (data.added === '') {
+    return { id: 'modal-added', message: 'Enter how many were added to the shelf. Enter 0 if none.' };
+  }
+  if ((parseInt(data.removed) || 0) > 0 && !effectiveReason(data)) {
+    return {
+      id: data.reason === '__other__' ? 'modal-reason-custom' : 'modal-reason',
+      message: 'Say why this product was removed from the shelf.'
+    };
+  }
+  return null;
 }
 
 /** Same output the old table's calc cell produced: '—' until something is entered, '⚠ Check' if negative. */
@@ -119,11 +136,11 @@ const dishEntry = createDishEntry({
     { key: 'reasonCustom', id: 'modal-reason-custom' }
   ],
   status(data) {
-    const hasData = data.added !== '' || data.before !== '' || data.removed !== '' || effectiveReason(data);
-    if (data.added !== '' && data.before !== '') return 'complete';
-    return hasData ? 'partial' : 'empty';
+    if (data.added !== '') return 'complete';
+    return (data.before !== '' || data.removed !== '' || effectiveReason(data)) ? 'partial' : 'empty';
   },
   summary: dishCardSummary,
+  validate: dishProblem,
   totals: [
     { key: 'added',   id: 'total-added' },
     { key: 'removed', id: 'total-removed' }
@@ -202,6 +219,7 @@ async function previewPhoto(input, previewId, zoneId) {
     };
 
     zone.classList.add('has-photo');
+    clearMissing(zone);
     document.getElementById('icon-'  + which).textContent = '✅';
     document.getElementById('label-' + which).textContent = `Photo ready (${compressed.compressedSize}KB)`;
   } catch (e) {
@@ -218,6 +236,7 @@ async function previewPhoto(input, previewId, zoneId) {
         name: file.name
       };
       zone.classList.add('has-photo');
+      clearMissing(zone);
       document.getElementById('icon-' + which).textContent = '✅';
       document.getElementById('label-' + which).textContent = 'Photo ready';
     };
@@ -376,11 +395,39 @@ window.addEventListener('DOMContentLoaded', () => {
   setTimeout(retryQueuedPhotos, 5000); // Wait 5s after page load to retry
 });
 
+// ─── Validation ────────────────────────────────────────────
+// Everything the delivery record needs. Store notes are the one optional field. Specs run in
+// page order so the field scrolled to is the topmost one outstanding.
+function formIsComplete() {
+  const missing = missingFields([
+    { id: 'f-date',                label: 'Date' },
+    { id: driverPicker.activeId(), label: 'Driver', value: driverPicker.value() },
+    { id: 'f-arrive',              label: 'Arrival Time' },
+    { id: 'f-arrival-temp',        label: 'Arrival Product Temp °F' },
+    { id: 'f-cooler-temp',         label: 'Store Cooler Temp °F' },
+    { id: 'zone-before',           label: 'Before Stocking Photo', value: photoData.before ? 'taken' : '' },
+    { id: 'f-case-prefill',        label: 'Case Fill Level Before Stocking' },
+    { id: 'zone-after',            label: 'After Stocking Photo',  value: photoData.after  ? 'taken' : '' },
+    { id: 'f-received-by',         label: 'Received By' }
+  ]);
+  if (missing.length) {
+    reportMissing('Fill these in before submitting:', missing);
+    return false;
+  }
+
+  const dishes = dishEntry.invalidDishes();
+  if (dishes.length) {
+    reportMissing('Every dish needs an added count, 0 included. Still to enter:', dishes);
+    return false;
+  }
+  return true;
+}
+
 // ─── T-045: Trip Summary Screen ───────────────────────────
 function showSummary() {
-  const driver = driverPicker.value();
-  if (!driver) { alert('Please select a driver before submitting.'); return; }
+  if (!formIsComplete()) return;
 
+  const driver = driverPicker.value();
   const payload = buildPayload();
   const storeData = STORES.find(s => s.id === storeId);
   const date = document.getElementById('f-date').value;
@@ -421,8 +468,7 @@ function confirmSubmit() {
 
 // ─── Submit ────────────────────────────────────────────────
 async function submitForm() {
-  const driver = driverPicker.value();
-  if (!driver) { alert('Please select a driver before submitting.'); return; }
+  if (!formIsComplete()) return;
 
   if (!GOOGLE_SCRIPT_URL) {
     showStatus('⚠️', 'Not Configured', 'config.js is missing or has no webAppUrl. Locally, run: npm run env:staging');
@@ -505,6 +551,7 @@ function clearAll() {
   if (!confirm('Clear all entries?')) return;
   document.querySelectorAll('input:not([type=file]), select, textarea').forEach(el => el.value = '');
   dishEntry.reset();
+  document.querySelectorAll('.' + INVALID_CLASS).forEach(clearMissing);
   document.getElementById('before-previews').innerHTML = '';
   document.getElementById('after-previews').innerHTML  = '';
   ['before','after'].forEach(w => {

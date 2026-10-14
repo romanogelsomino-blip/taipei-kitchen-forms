@@ -30,6 +30,20 @@ const lastSubmission = createRecall({
   }
 });
 
+/**
+ * What one dish still needs, or null. Only the produced count is required outright — the
+ * rest stand at zero — but a discard has to say why it was discarded.
+ */
+function dishProblem(data) {
+  if (data.produced === '') {
+    return { id: 'modal-produced', message: 'Enter a produced count for this dish. Enter 0 if none were made.' };
+  }
+  if ((parseInt(data.discarded) || 0) > 0 && !(data.discardReason || '').trim()) {
+    return { id: 'modal-discard-reason', message: 'Say why this dish was discarded.' };
+  }
+  return null;
+}
+
 // Per-dish entries survive a reload: a production session can run for hours in the kitchen.
 const dishEntry = createDishEntry({
   dishes: () => DISHES,
@@ -42,6 +56,7 @@ const dishEntry = createDishEntry({
     if (data.produced !== '') return 'complete';
     return (data.discarded !== '' || data.discardReason) ? 'partial' : 'empty';
   },
+  validate: dishProblem,
   totals: [
     { key: 'produced',  id: 'total-produced' },
     { key: 'discarded', id: 'total-discarded' }
@@ -143,12 +158,35 @@ function buildPayload() {
   return rows;
 }
 
+// ─── Validation ───────────────────────────────────────────
+// Everything the batch record needs. Specs run in page order so the field scrolled to is
+// the topmost one outstanding.
+function formIsComplete() {
+  const missing = missingFields([
+    { id: 'f-date',                    label: 'Date' },
+    { id: 'f-kitchen',                 label: 'Production Kitchen' },
+    { id: supervisorPicker.activeId(), label: 'Head Chef / Supervisor', value: supervisorPicker.value() },
+    { id: 'b-cook-temp',               label: 'Cook Temp °F' },
+    { id: 'b-cook-start',              label: 'Cook Start' },
+    { id: 'b-cook-end',                label: 'Cook End' },
+    { id: 'b-final-temp',              label: 'Final Batch Temp °F' }
+  ]);
+  if (missing.length) {
+    reportMissing('Fill these in before submitting:', missing);
+    return false;
+  }
+
+  const dishes = dishEntry.invalidDishes();
+  if (dishes.length) {
+    reportMissing('Every dish needs a produced count, 0 included. Still to enter:', dishes);
+    return false;
+  }
+  return true;
+}
+
 // ─── Submit ───────────────────────────────────────────────
 async function submitForm() {
-  const supervisor = supervisorPicker.value();
-  const kitchen    = document.getElementById('f-kitchen').value;
-  if (!supervisor) { alert('Please select a supervisor before submitting.'); return; }
-  if (!kitchen)    { alert('Please select the production kitchen before submitting.'); return; }
+  if (!formIsComplete()) return;
 
   showStatus('⏳', 'Submitting…', 'Sending to Google Sheets…');
   document.getElementById('submit-btn').disabled = true;
@@ -190,6 +228,7 @@ function clearAll() {
   });
 
   dishEntry.reset();
+  document.querySelectorAll('.' + INVALID_CLASS).forEach(clearMissing);
 
   // Reset batch display fields
   ['b-cook-time'].forEach(id => {

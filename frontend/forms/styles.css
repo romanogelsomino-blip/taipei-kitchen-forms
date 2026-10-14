@@ -96,6 +96,11 @@ body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--dark);mi
 .btn-modal-secondary{background:transparent;color:var(--soft);border:1.5px solid var(--border);}
 .btn-modal-secondary:hover{border-color:var(--mid);color:var(--mid);}
 
+/* ── Missing required values ── */
+.field input.invalid,.field select.invalid,.field textarea.invalid,
+.modal-field input.invalid,.modal-field select.invalid,
+.upload-zone.invalid{border-color:var(--red);background:var(--red-lt);}
+
 /* ── Submit ── */
 .submit-area{padding:20px;display:flex;flex-direction:column;gap:10px;}
 .btn-submit{
