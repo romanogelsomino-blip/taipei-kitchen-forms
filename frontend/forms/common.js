@@ -451,7 +451,15 @@ function createDishEntry({ dishes, fields, status, summary, validate, totals = [
 
     document.getElementById('save-next-btn').textContent = index === list.length - 1 ? 'Save & Close' : 'Save & Next';
     document.getElementById('dish-modal').classList.add('show');
-    setTimeout(() => document.getElementById(fields[0].id).focus(), 300);
+
+    // Focus synchronously, inside the tap that opened the modal. Both mobile browsers gate the
+    // on-screen keyboard on user activation, so deferring this to a timer leaves the caret in
+    // the field with no keypad and the driver tapping the box a second time. `.show` sets
+    // display in this same task, so the field is focusable by now; preventScroll keeps the
+    // slide-up animation from jumping.
+    const first = document.getElementById(fields[0].id);
+    first.focus({ preventScroll: true });
+    first.select();   // a count already entered is replaced by what is typed, not appended to
   }
 
   function close() {
