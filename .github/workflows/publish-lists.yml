@@ -1,0 +1,25 @@
+name: Publish lists
+
+# A save on the dashboard's Config tab writes the Reference sheet, then Apps Script sends a
+# repository_dispatch so the forms' static data/<list>.json are republished. The site job
+# alone: the backend is untouched, so a dish rename does not redeploy Apps Script.
+
+on:
+  repository_dispatch:
+    types: [reference-changed]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# The deploy workflow's group, so a save during a code deploy queues behind it rather than
+# publishing a half-assembled site over it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  site:
+    uses: ./.github/workflows/site.yml
+    secrets: inherit

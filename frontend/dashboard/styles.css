@@ -1624,25 +1624,30 @@ body {
   to { transform: translateY(0); opacity: 1; }
 }
 
-.violation-modal-header {
+/* The .modal-* names are the same parts as used by the violation-details and config modals. */
+.violation-modal-header,
+.modal-header {
   padding: 24px 24px 16px;
   border-bottom: 1px solid var(--border);
 }
 
-.violation-modal-header h2 {
+.violation-modal-header h2,
+.modal-header h2 {
   margin: 0 0 8px;
   color: var(--dark);
   font-size: 1.5rem;
   font-weight: 700;
 }
 
-.violation-modal-header p {
+.violation-modal-header p,
+.modal-header p {
   margin: 0;
   color: var(--mid);
   font-size: 0.95rem;
 }
 
-.violation-modal-body {
+.violation-modal-body,
+.modal-body {
   padding: 24px;
   overflow-x: auto;
 }
@@ -1651,12 +1656,36 @@ body {
   margin: 0;
 }
 
-.violation-modal-footer {
+.violation-modal-footer,
+.modal-footer {
   padding: 16px 24px;
   border-top: 1px solid var(--border);
   display: flex;
   gap: 12px;
   justify-content: flex-end;
+}
+
+.btn,
+.btn-primary,
+.btn-secondary {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--red);
+  color: #fff;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--mid);
+  border: 1.5px solid var(--border);
 }
 
 /* Clickable violation count */
@@ -1683,19 +1712,26 @@ body {
   }
 
   .violation-modal-header,
-  .violation-modal-body {
+  .violation-modal-body,
+  .modal-header,
+  .modal-body {
     padding: 16px;
   }
 
-  .violation-modal-header h2 {
+  .violation-modal-header h2,
+  .modal-header h2 {
     font-size: 1.25rem;
   }
 
-  .violation-modal-footer {
+  .violation-modal-footer,
+  .modal-footer {
     flex-direction: column;
   }
 
-  .violation-modal-footer .btn {
+  .violation-modal-footer .btn,
+  .modal-footer .btn,
+  .modal-footer .btn-primary,
+  .modal-footer .btn-secondary {
     width: 100%;
   }
 }
@@ -1729,7 +1765,7 @@ body {
   color: var(--soft);
 }
 
-/* Eight sections share a phone-width bar: compact labels, and scroll rather than clip if
+/* Seven sections share a phone-width bar: compact labels, and scroll rather than clip if
    a screen is narrower still. */
 .mobile-nav { overflow-x: auto; }
 .mobile-nav-link { flex: 1 0 auto; padding: 12px 3px; }
@@ -1782,3 +1818,114 @@ body {
 }
 .home-env-note a { color: var(--mid); }
 .home-env-note a:hover { color: var(--dark); }
+
+/* ── Config panel ──────────────────────────────────────────────────────── */
+/* One list at a time, chosen on the .btn-time-range strip; rows in the .store-item shape so
+   they stay editable on a phone, where .data-table becomes a horizontal scroller. */
+.config-lists { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.config-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.config-dirty { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--red); white-space: nowrap; }
+.config-rows { display: flex; flex-direction: column; gap: 8px; }
+.config-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--row-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.config-row.inactive { opacity: 0.55; }
+.config-row.inactive .config-name { text-decoration: line-through; }
+.config-row.invalid .config-name { border-color: var(--red); background: var(--red-lt); }
+.config-row-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.config-row-side { display: flex; align-items: center; gap: 8px; }
+.config-row input[type="text"],
+.config-add input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.88rem;
+  color: var(--dark);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.config-row input[type="text"]:focus,
+.config-add input[type="text"]:focus { border-color: var(--red); }
+.config-row input[type="text"][readonly] { background: transparent; border-color: transparent; }
+.config-location { flex: 1.4; }
+.config-id { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--soft); white-space: nowrap; min-width: 90px; }
+.config-active { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--mid); white-space: nowrap; cursor: pointer; }
+.config-move {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1.5px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--mid);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+.config-move:disabled { opacity: 0.35; cursor: default; }
+.config-move:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+.config-warn {
+  font-size: 0.78rem;
+  color: var(--mid);
+  line-height: 1.45;
+  border-left: 3px solid var(--yellow);
+  padding: 4px 0 4px 10px;
+  margin: -2px 0 8px;
+}
+.config-warn.safe { border-left-color: var(--green); }
+.config-add {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.config-add input[type="text"] { background: var(--row-alt); min-width: 160px; }
+.config-add input[type="text"]:focus { background: #fff; }
+.config-add .config-id-input { flex: 0 1 140px; font-family: 'DM Mono', monospace; }
+.config-add-help { flex-basis: 100%; font-size: 0.78rem; color: var(--soft); line-height: 1.45; }
+.config-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+.config-status { margin-top: 12px; font-size: 0.85rem; color: var(--mid); line-height: 1.5; }
+.config-status.ok { color: var(--green); }
+.config-status.bad { color: var(--red-dk); }
+.config-unlisted-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--row-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.config-unlisted-name { flex: 1; font-weight: 600; color: var(--dark); }
+.config-unlisted-meta { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--soft); white-space: nowrap; }
+.config-unlisted-row .btn-clear-filters { margin-right: 0; padding: 6px 12px; font-size: 0.8rem; }
+.config-modal-content { max-width: 640px; }
+.config-modal-item { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; line-height: 1.5; color: var(--mid); }
+.config-modal-item:last-child { border-bottom: none; }
+.config-modal-item strong { color: var(--dark); }
+.config-modal-item.caution { border-left: 3px solid var(--yellow); padding-left: 10px; }
+.config-modal-item.safe { border-left: 3px solid var(--green); padding-left: 10px; }
+
+@media (max-width: 768px) {
+  .config-row,
+  .config-row-main { flex-direction: column; align-items: stretch; }
+  .config-row-side { justify-content: space-between; }
+  .config-lists .btn-time-range { flex: 1 0 auto; }
+  .config-add { flex-direction: column; align-items: stretch; }
+  .config-add .config-id-input { flex-basis: auto; }
+  .config-actions .btn-apply-filters,
+  .config-actions .btn-clear-filters { width: 100%; margin-right: 0; }
+}

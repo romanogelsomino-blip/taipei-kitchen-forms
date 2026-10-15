@@ -24,5 +24,15 @@
   matching secret on each deploy. `ADMIN_TOKEN` is the sole exception, copied by hand because
   the endpoint that sets properties authenticates with it. Do not introduce a setting that is
   configured by hand in the Apps Script project.
-- **The monthly files are the only store.** The single-spreadsheet system they replaced is
-  retired: nothing reads or writes it. Do not reintroduce a second write target.
+- **The monthly files are the only store for records.** The single-spreadsheet system they
+  replaced is retired: nothing reads or writes it. Do not reintroduce a second write target
+  for submissions.
+- **Reference lists live in the `Reference` sheet.** Kitchens, supervisors, dishes, stores
+  and drivers are one tab each in a spreadsheet at the root of `SPREADSHEET_FOLDER_ID`,
+  edited from the dashboard's Config tab and published to `data/<list>.json` by the site
+  build; a form only ever reads those static files. Ids are immutable and never reused;
+  nothing is deleted, only deactivated. The git copies of `data/*.json` are seeds for local
+  runs, not a source.
+- **The lists are a picker source, not a constraint.** Nothing validates a submitted
+  kitchen, dish, driver or supervisor against them, and nothing may: the pickers allow free
+  text, and a delivery is never refused over a dropdown.

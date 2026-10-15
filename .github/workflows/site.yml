@@ -1,0 +1,139 @@
+name: Site
+
+# Assembles and publishes the GitHub Pages site: prod's tree at the root, dev's under
+# /staging/, each with its own config.js and its own copy of the reference lists fetched
+# from its backend. Called by deploy.yml after the backend job, and by publish-lists.yml
+# when a save on the dashboard's Config tab changes the lists.
+#
+# A Pages deploy replaces the ENTIRE site, so the artifact always carries both trees
+# regardless of what triggered the run.
+
+on:
+  workflow_call:
+
+jobs:
+  site:
+    name: Site (prod at /, dev at /staging/)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      # A Pages deploy replaces the ENTIRE site, so the artifact must always contain both
+      # halves regardless of which branch triggered this run.
+      - name: Check out prod
+        uses: actions/checkout@v4
+        with:
+          ref: prod
+          path: prod-src
+
+      - name: Check out dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: dev-src
+
+      - name: Assemble site
+        env:
+          PROD_URL: ${{ secrets.PROD_WEB_APP_URL }}
+          STAGING_URL: ${{ secrets.STAGING_WEB_APP_URL }}
+        run: |
+          set -euo pipefail
+
+          for b in prod-src dev-src; do
+            [ -d "$b/frontend" ] || { echo "::error::$b has no frontend/ — restructure that branch first."; exit 1; }
+          done
+
+          # prod -> site root. frontend/ is FLATTENED: every printed QR code depends on
+          # the served URL containing no /frontend/ segment.
+          mkdir -p _site
+          cp -r prod-src/frontend/. _site/
+          cp -r prod-src/data       _site/data
+
+          # dev -> /staging/
+          mkdir -p _site/staging
+          cp -r dev-src/frontend/. _site/staging/
+          cp -r dev-src/data       _site/staging/data
+
+          # Each tree gets its own config.js. The browser has no environment to read, so
+          # the endpoint is written into a file here and every page reads window.APP_CONFIG
+          # from it. Nothing in git holds a Web App URL, so a form cannot inherit the wrong
+          # backend by being copied to the wrong directory.
+          if [ -z "$PROD_URL" ] || [ -z "$STAGING_URL" ]; then
+            echo "::error::PROD_WEB_APP_URL / STAGING_WEB_APP_URL secrets are not set."
+            exit 1
+          fi
+          write_config() {
+            printf 'window.APP_CONFIG = {\n  "environment": "%s",\n  "webAppUrl": "%s"\n};\n' "$1" "$2" > "$3"
+          }
+          write_config production "$PROD_URL"    _site/config.js
+          write_config staging    "$STAGING_URL" _site/staging/config.js
+
+          # The reference lists, one file per list, from each tree's own backend. The git
+          # copies of data/*.json just copied in stand until the fetch succeeds: a backend
+          # that does not answer, or does not know the action yet, leaves that tree on its
+          # committed copies with a warning rather than failing the whole site. The Config
+          # tab shows when the forms' copy is behind, so a stale publish is never silent.
+          source dev-src/.github/scripts/webapp.sh
+          NOW=$(TZ=America/New_York date +%Y-%m-%dT%H:%M:%S%:z)
+          publish_lists() {
+            local dir=$1 out list
+            URL=$2
+            TOKEN=
+            if ! out=$(webapp_get reference); then
+              echo "::warning::$dir: the backend never answered the reference lists with JSON; keeping the committed data/*.json for this tree."
+              return 0
+            fi
+            if [ "$(webapp_field "$out" .status)" != ok ]; then
+              echo "::warning::$dir: the backend did not serve the reference lists ($(webapp_field "$out" .message)); keeping the committed data/*.json for this tree."
+              return 0
+            fi
+            for list in kitchens supervisors dishes stores drivers; do
+              jq --arg l "$list" --arg now "$NOW" '{($l): (.[$l] // []), version: .version, generatedAt: $now}' <<<"$out" \
+                > "$dir/data/$list.json"
+              echo "$dir/data/$list.json: $(jq -r --arg l "$list" '(.[$l] // []) | length' <<<"$out") entries"
+            done
+            echo "$dir: reference $(webapp_field "$out" .version) from $(webapp_field "$out" .source)"
+          }
+          publish_lists _site         "$PROD_URL"
+          publish_lists _site/staging "$STAGING_URL"
+
+          # No page may carry its own endpoint. This is the guard the old string-replace
+          # lacked: it caught only the exact production URL, so the bug-report handler's
+          # stale one survived into both trees unnoticed.
+          if grep -rn --include='*.html' --include='*.js' -F 'script.google.com/macros' _site \
+               | grep -v '^_site/config.js:' | grep -v '^_site/staging/config.js:'; then
+            echo "::error::Hardcoded Apps Script URL above. Read it from window.APP_CONFIG instead."
+            exit 1
+          fi
+
+          # Stamp cache-busters. __BUILD_ID__ has no valid runtime value, so both a missing
+          # token and a surviving one are build failures rather than something that ships
+          # looking fine. This replaces the hand-bumped ?v=N nobody remembered to change.
+          STAMP=$(grep -rl -F '__BUILD_ID__' _site || true)
+          if [ -z "$STAMP" ]; then
+            echo "::error::No __BUILD_ID__ tokens found — cache-busting would silently no-op."
+            exit 1
+          fi
+          echo "$STAMP" | xargs sed -i "s|__BUILD_ID__|${GITHUB_SHA}|g"
+          if grep -rq -F '__BUILD_ID__' _site; then
+            echo "::error::__BUILD_ID__ survived stamping."
+            exit 1
+          fi
+
+          # The /staging/ banner is not injected here — frontend/env-banner.js renders it
+          # from APP_CONFIG.environment. See the comment in that file for why.
+
+          # Actions mode does not run Jekyll, but be explicit.
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

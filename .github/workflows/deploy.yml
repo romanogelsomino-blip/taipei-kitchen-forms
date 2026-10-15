@@ -6,6 +6,9 @@ name: Deploy
 # Backend deploys BEFORE the frontend, so a still-cached old frontend talks to a backend
 # that already understands the new contract (expand/contract). The two platforms cannot be
 # made atomic, so contract changes must stay backward-compatible for one release cycle.
+#
+# The site job lives in site.yml, shared with publish-lists.yml: a save on the dashboard's
+# Config tab republishes the site alone, without redeploying the backend.
 
 on:
   push:
@@ -89,6 +92,10 @@ jobs:
       # not in this repo. They used to be set by hand in the Apps Script UI, which meant two
       # uncontrolled copies of each id and nothing keeping them in step. Pushing them here
       # makes the secrets authoritative — the same values, applied every deploy.
+      # GITHUB_REPOSITORY and DISPATCH_TOKEN are what a Config-tab save uses to ask GitHub
+      # to republish the lists (publish-lists.yml). The repository comes from the runner's
+      # default environment; the token is one shared secret, named without the GITHUB_
+      # prefix because secret names may not carry it.
       #
       # ADMIN_TOKEN is deliberately NOT pushed: this endpoint authenticates *with* it, so it
       # cannot bootstrap itself. It stays a manual Script Property. That also means a brand
@@ -134,6 +141,7 @@ jobs:
           ALERT_RECIPIENTS: ${{ github.ref_name == 'prod' && secrets.PROD_ALERT_RECIPIENTS || secrets.STAGING_ALERT_RECIPIENTS }}
           ALERT_FROM: ${{ github.ref_name == 'prod' && secrets.PROD_ALERT_FROM || secrets.STAGING_ALERT_FROM }}
           SUPPORT_RECIPIENTS: ${{ github.ref_name == 'prod' && secrets.PROD_SUPPORT_RECIPIENTS || secrets.STAGING_SUPPORT_RECIPIENTS }}
+          DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
         run: |
           set -euo pipefail
           source .github/scripts/webapp.sh
@@ -141,7 +149,7 @@ jobs:
             echo "::error::admin token secret is not set for ${{ steps.env.outputs.name }}."
             exit 1
           fi
-          for KEY in SPREADSHEET_FOLDER_ID PHOTO_FOLDER_ID ALERT_RECIPIENTS SUPPORT_RECIPIENTS ALERT_FROM; do
+          for KEY in SPREADSHEET_FOLDER_ID PHOTO_FOLDER_ID ALERT_RECIPIENTS SUPPORT_RECIPIENTS ALERT_FROM GITHUB_REPOSITORY DISPATCH_TOKEN; do
             VALUE="${!KEY}"
             if [ -z "$VALUE" ] && [ "$KEY" != ALERT_FROM ]; then
               echo "::error::${{ steps.env.outputs.name }} $KEY secret is not set."
@@ -155,6 +163,37 @@ jobs:
               exit 1
             fi
             if [ -n "$VALUE" ]; then echo "set $KEY"; else echo "cleared $KEY (secret is empty)"; fi
+          done
+
+      # The Reference sheet: created and seeded on the first run, repaired on every run
+      # (init is idempotent and never overwrites a populated tab). Then the lists it serves,
+      # which the site job publishes, must all be non-empty.
+      - name: Create and seed the reference store
+        env:
+          URL: ${{ steps.env.outputs.web_app_url }}
+          TOKEN: ${{ github.ref_name == 'prod' && secrets.PROD_ADMIN_TOKEN || secrets.STAGING_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          source .github/scripts/webapp.sh
+          OUT=$(webapp_get init) \
+            || { echo "::error::init never answered with JSON."; exit 1; }
+          [ "$(webapp_field "$OUT" .status)" = ok ] \
+            || { echo "$OUT"; echo "::error::init failed: $(webapp_field "$OUT" .message)"; exit 1; }
+          REF_URL=$(webapp_field "$OUT" .reference.url)
+          REF=$(webapp_get reference) \
+            || { echo "::error::reference never answered with JSON."; exit 1; }
+          [ "$(webapp_field "$REF" .status)" = ok ] \
+            || { echo "$REF"; echo "::error::reference failed: $(webapp_field "$REF" .message)"; exit 1; }
+          {
+            echo "### ${{ steps.env.outputs.name }} reference lists"
+            echo "- version $(webapp_field "$REF" .version), from the $(webapp_field "$REF" .source)"
+            echo "- [Reference sheet]($REF_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for LIST in kitchens supervisors dishes stores drivers; do
+            N=$(jq -r --arg l "$LIST" '(.[$l] // []) | length' <<<"$REF")
+            [ "$N" -gt 0 ] || { echo "::error::the reference store has no $LIST."; exit 1; }
+            echo "$LIST: $N"
+            echo "- $LIST: $N" >> "$GITHUB_STEP_SUMMARY"
           done
 
       - name: Verify deployment is live and bound to the right store
@@ -210,7 +249,8 @@ jobs:
       # Rows are dated today in New York so they file into the current month, and each tab
       # must grow by exactly one row: that is what proves the write reached the monthly store
       # and not only the legacy sheet. Each write is sent once; if its reply is Google's
-      # error page, the row count decides whether it landed.
+      # error page, the row count decides whether it landed. Last, one config write against
+      # the reserved store row proves the reference store's write path and its cache.
       - name: Verify writes (staging only)
         if: github.ref_name == 'dev'
         env:
@@ -260,97 +300,25 @@ jobs:
             || { echo "::error::the smoke row is not readable back by its submission id ($(webapp_field "$BACK" .matched) matched)."; exit 1; }
           echo "read back 1 row for $DELIVERY_ID"
 
+          # An update is idempotent, so webapp_post's single attempt is enough; publish:false
+          # keeps a routine dev push from firing a second Pages publish behind itself. The
+          # name carries the attempt as well as the run, so a re-run still changes something.
+          BEFORE=$(webapp_get reference) \
+            || { echo "::error::reference never answered with JSON."; exit 1; }
+          jq -n --arg run "${{ github.run_id }}-${{ github.run_attempt }}" \
+            '{type:"config", list:"stores", actor:"ci", publish:false,
+              ops:[{op:"update", entry:{id:"0000", name:("(reserved) CI smoke test " + $run)}}]}' > config.json
+          OUT=$(webapp_post config.json) \
+            || { echo "::error::the config write's reply was not JSON."; exit 1; }
+          jq '{status, code, message, applied, version, published, publishError}' <<<"$OUT"
+          [ "$(webapp_field "$OUT" .status)" = ok ] \
+            || { echo "::error::the config write was rejected: $(webapp_field "$OUT" .message)"; exit 1; }
+          [ "$(webapp_field "$OUT" .version)" != "$(webapp_field "$BEFORE" .version)" ] \
+            || { echo "::error::the config write did not change the reference version; the cache was not invalidated."; exit 1; }
+          echo "config write ok: $(webapp_field "$BEFORE" .version) -> $(webapp_field "$OUT" .version)"
+
   # ───────────────────────────────────────────────────────────────────────────────
   frontend:
-    name: Site (prod at /, dev at /staging/)
     needs: backend
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      # A Pages deploy replaces the ENTIRE site, so the artifact must always contain both
-      # halves regardless of which branch triggered this run.
-      - name: Check out prod
-        uses: actions/checkout@v4
-        with:
-          ref: prod
-          path: prod-src
-
-      - name: Check out dev
-        uses: actions/checkout@v4
-        with:
-          ref: dev
-          path: dev-src
-
-      - name: Assemble site
-        env:
-          PROD_URL: ${{ secrets.PROD_WEB_APP_URL }}
-          STAGING_URL: ${{ secrets.STAGING_WEB_APP_URL }}
-        run: |
-          set -euo pipefail
-
-          for b in prod-src dev-src; do
-            [ -d "$b/frontend" ] || { echo "::error::$b has no frontend/ — restructure that branch first."; exit 1; }
-          done
-
-          # prod -> site root. frontend/ is FLATTENED: every printed QR code depends on
-          # the served URL containing no /frontend/ segment.
-          mkdir -p _site
-          cp -r prod-src/frontend/. _site/
-          cp -r prod-src/data       _site/data
-
-          # dev -> /staging/
-          mkdir -p _site/staging
-          cp -r dev-src/frontend/. _site/staging/
-          cp -r dev-src/data       _site/staging/data
-
-          # Each tree gets its own config.js. The browser has no environment to read, so
-          # the endpoint is written into a file here and every page reads window.APP_CONFIG
-          # from it. Nothing in git holds a Web App URL, so a form cannot inherit the wrong
-          # backend by being copied to the wrong directory.
-          if [ -z "$PROD_URL" ] || [ -z "$STAGING_URL" ]; then
-            echo "::error::PROD_WEB_APP_URL / STAGING_WEB_APP_URL secrets are not set."
-            exit 1
-          fi
-          write_config() {
-            printf 'window.APP_CONFIG = {\n  "environment": "%s",\n  "webAppUrl": "%s"\n};\n' "$1" "$2" > "$3"
-          }
-          write_config production "$PROD_URL"    _site/config.js
-          write_config staging    "$STAGING_URL" _site/staging/config.js
-
-          # No page may carry its own endpoint. This is the guard the old string-replace
-          # lacked: it caught only the exact production URL, so the bug-report handler's
-          # stale one survived into both trees unnoticed.
-          if grep -rn --include='*.html' --include='*.js' -F 'script.google.com/macros' _site \
-               | grep -v '^_site/config.js:' | grep -v '^_site/staging/config.js:'; then
-            echo "::error::Hardcoded Apps Script URL above. Read it from window.APP_CONFIG instead."
-            exit 1
-          fi
-
-          # Stamp cache-busters. __BUILD_ID__ has no valid runtime value, so both a missing
-          # token and a surviving one are build failures rather than something that ships
-          # looking fine. This replaces the hand-bumped ?v=N nobody remembered to change.
-          STAMP=$(grep -rl -F '__BUILD_ID__' _site || true)
-          if [ -z "$STAMP" ]; then
-            echo "::error::No __BUILD_ID__ tokens found — cache-busting would silently no-op."
-            exit 1
-          fi
-          echo "$STAMP" | xargs sed -i "s|__BUILD_ID__|${GITHUB_SHA}|g"
-          if grep -rq -F '__BUILD_ID__' _site; then
-            echo "::error::__BUILD_ID__ survived stamping."
-            exit 1
-          fi
-
-          # The /staging/ banner is not injected here — frontend/env-banner.js renders it
-          # from APP_CONFIG.environment. See the comment in that file for why.
-
-          # Actions mode does not run Jekyll, but be explicit.
-          touch _site/.nojekyll
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-      - id: deploy
-        uses: actions/deploy-pages@v4
+    uses: ./.github/workflows/site.yml
+    secrets: inherit

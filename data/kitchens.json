@@ -1,0 +1,9 @@
+{
+  "kitchens": [
+    { "id": "legacy-park", "name": "Legacy Park", "active": true, "sortOrder": 1 },
+    { "id": "6112",        "name": "Store 6112",  "active": true, "sortOrder": 2 },
+    { "id": "other",       "name": "Other",       "active": true, "sortOrder": 3 }
+  ],
+  "version": "seed",
+  "generatedAt": ""
+}

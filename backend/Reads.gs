@@ -6,21 +6,12 @@
 // month has no file until the first record of that month is written.
 
 /**
- * Store list for the dashboard's filters. Mirror of data/stores.json, which is the source of
- * truth: the forms read that file directly. Kept in sync by hand, so a new store needs a
- * backend deploy to reach the dashboard.
+ * Store list for the dashboard's filters and for naming a violation's store. Comes from the
+ * Reference sheet, which the dashboard's Config tab edits. Inactive stores are included: a
+ * closed store still has rows and violations that need its name.
  */
 function storeList() {
-  return [
-    { id: '6006', name: 'Store 6006', location: 'Kline Village, Harrisburg, PA' },
-    { id: '6061', name: 'Store 6061', location: 'Shippensburg, PA' },
-    { id: '6112', name: 'Store 6112', location: '255 S Spring Garden St, Carlisle, PA' },
-    { id: '6253', name: 'Store 6253', location: 'New Cumberland, PA' },
-    { id: '6331', name: 'Store 6331', location: 'Mechanicsburg, PA' },
-    { id: '6443', name: 'Store 6443', location: 'Chambersburg, PA' },
-    { id: '6542', name: 'Store 6542', location: 'Carlisle, PA' },
-    { id: '6564', name: 'Store 6564', location: 'Harrisburg (Gayson Rd), PA' }
-  ];
+  return referencePayload().stores.map(s => ({ id: s.id, name: s.name, location: s.location, active: s.active }));
 }
 
 /**
@@ -88,6 +79,7 @@ function action_dashboard(e) {
       deliveries: deliveries,
       waste: waste,
       stores: storeList(),
+      reference: referencePayload(),   // the five lists, for the Config tab; same memo as storeList()
       window: { from: win.from, to: win.to, months: win.months, missingMonths: deliveryRead.missing },
       lastUpdated: formatInstant(new Date())
     });

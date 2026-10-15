@@ -84,89 +84,100 @@ async function postToBackend(payload) {
   }
 }
 
-// ─── Stores, kitchens & dishes ───────────────────────────────────────────────
-// data/stores.json holds the kitchen, store and dish lists. Cached in localStorage for an
-// hour so a phone on store Wi-Fi is not refetching it at every stop.
+// ─── Reference lists ─────────────────────────────────────────────────────────
+// Kitchens, supervisors, dishes, stores and drivers come from data/<list>.json, one file per
+// list, published by the site build from the dashboard's Config tab. They are static files
+// on the same host as this page, so they cost what the page cost. An entry is
+// { id, name, active, sortOrder } (stores add location); the forms show active ones only.
 
-// Used when stores.json cannot be fetched: offline, or a local server started from
-// frontend/ where data/ is not reachable. Keep in step with data/stores.json.
+// Used when a list cannot be fetched: offline past the browser's cache, or a local server
+// started from frontend/ where data/ is not reachable. A last resort that only has to let a
+// driver log a delivery; the published files are what is current.
 const FALLBACK_DATA = {
   kitchens: [
-    { id: 'legacy-park', name: 'Legacy Park' },
-    { id: '6112',        name: 'Store 6112' },
-    { id: 'other',       name: 'Other' }
+    { id: 'legacy-park', name: 'Legacy Park', active: true, sortOrder: 1 },
+    { id: '6112',        name: 'Store 6112',  active: true, sortOrder: 2 },
+    { id: 'other',       name: 'Other',       active: true, sortOrder: 3 }
   ],
-  stores: [
-    { id: '6006', name: 'Store 6006', location: 'Kline Village, Harrisburg, PA' },
-    { id: '6061', name: 'Store 6061', location: 'Shippensburg, PA' },
-    { id: '6112', name: 'Store 6112', location: '255 S Spring Garden St, Carlisle, PA' },
-    { id: '6253', name: 'Store 6253', location: 'New Cumberland, PA' },
-    { id: '6331', name: 'Store 6331', location: 'Mechanicsburg, PA' },
-    { id: '6443', name: 'Store 6443', location: 'Chambersburg, PA' },
-    { id: '6542', name: 'Store 6542', location: 'Carlisle, PA' },
-    { id: '6564', name: 'Store 6564', location: 'Harrisburg (Gayson Rd), PA' }
+  supervisors: [
+    { id: 'anna',  name: 'Anna',  active: true, sortOrder: 1 },
+    { id: 'lucia', name: 'Lucia', active: true, sortOrder: 2 },
+    { id: 'jiang', name: 'Jiang', active: true, sortOrder: 3 },
+    { id: 'guy',   name: 'Guy',   active: true, sortOrder: 4 }
   ],
   dishes: [
-    'General Tso Chicken Bento', 'Sesame Chicken Bento', 'Bento Chicken Lo Mein',
-    'Bento Shrimp Lo Mein', 'Bento Smoked Pork Lo Mein', 'Bento Sweet & Sour Chicken',
-    'Bourbon Chicken Bento', 'Broccoli Chicken Bento', 'Hot Spicy Chicken Bento',
-    'Bento Steamed Dumplings', 'Chicken Egg Roll', 'Pork Egg Roll', 'Shrimp Egg Roll'
+    { id: 'gen-tso',          name: 'General Tso Chicken Bento',  active: true, sortOrder: 1 },
+    { id: 'sesame',           name: 'Sesame Chicken Bento',       active: true, sortOrder: 2 },
+    { id: 'lo-mein-chicken',  name: 'Bento Chicken Lo Mein',      active: true, sortOrder: 3 },
+    { id: 'lo-mein-shrimp',   name: 'Bento Shrimp Lo Mein',       active: true, sortOrder: 4 },
+    { id: 'lo-mein-pork',     name: 'Bento Smoked Pork Lo Mein',  active: true, sortOrder: 5 },
+    { id: 'sweet-sour',       name: 'Bento Sweet & Sour Chicken', active: true, sortOrder: 6 },
+    { id: 'bourbon',          name: 'Bourbon Chicken Bento',      active: true, sortOrder: 7 },
+    { id: 'broccoli',         name: 'Broccoli Chicken Bento',     active: true, sortOrder: 8 },
+    { id: 'hot-spicy',        name: 'Hot Spicy Chicken Bento',    active: true, sortOrder: 9 },
+    { id: 'dumplings',        name: 'Bento Steamed Dumplings',    active: true, sortOrder: 10 },
+    { id: 'egg-roll-chicken', name: 'Chicken Egg Roll',           active: true, sortOrder: 11 },
+    { id: 'egg-roll-pork',    name: 'Pork Egg Roll',              active: true, sortOrder: 12 },
+    { id: 'egg-roll-shrimp',  name: 'Shrimp Egg Roll',            active: true, sortOrder: 13 }
+  ],
+  stores: [
+    { id: '6006', name: 'Store 6006', location: 'Kline Village, Harrisburg, PA',        active: true, sortOrder: 1 },
+    { id: '6061', name: 'Store 6061', location: 'Shippensburg, PA',                     active: true, sortOrder: 2 },
+    { id: '6112', name: 'Store 6112', location: '255 S Spring Garden St, Carlisle, PA', active: true, sortOrder: 3 },
+    { id: '6253', name: 'Store 6253', location: 'New Cumberland, PA',                   active: true, sortOrder: 4 },
+    { id: '6331', name: 'Store 6331', location: 'Mechanicsburg, PA',                    active: true, sortOrder: 5 },
+    { id: '6443', name: 'Store 6443', location: 'Chambersburg, PA',                     active: true, sortOrder: 6 },
+    { id: '6542', name: 'Store 6542', location: 'Carlisle, PA',                         active: true, sortOrder: 7 },
+    { id: '6564', name: 'Store 6564', location: 'Harrisburg (Gayson Rd), PA',           active: true, sortOrder: 8 }
+  ],
+  drivers: [
+    { id: 'owen',           name: 'Owen',           active: true, sortOrder: 1 },
+    { id: 'sam-blumenthal', name: 'Sam Blumenthal', active: true, sortOrder: 2 },
+    { id: 'andy',           name: 'Andy',           active: true, sortOrder: 3 }
   ]
 };
 
-async function loadStoresData() {
-  const CACHE_KEY = 'tk_stores_data';
-  const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
-
-  const cached = localStorage.getItem(CACHE_KEY);
-  if (cached) {
+/**
+ * The lists a form needs, keyed by name: { kitchens: [...], dishes: [...] }. Fetched in
+ * parallel; a list that cannot be fetched falls back to FALLBACK_DATA for that list alone,
+ * so one missing file does not take the others down with it.
+ */
+async function loadReferenceLists(keys) {
+  const lists = {};
+  await Promise.all(keys.map(async key => {
     try {
-      const { data, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp < CACHE_TTL) {
-        console.log('[Stores] Loaded from cache (expires in ' + Math.round((CACHE_TTL - (Date.now() - timestamp)) / 60000) + ' min)');
-        return data;
-      }
+      const response = await fetch('data/' + key + '.json');
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const data = await response.json();
+      if (!Array.isArray(data[key])) throw new Error('no ' + key + ' array in the file');
+      lists[key] = data[key];
+      console.log('[Reference] ' + key + ': ' + data[key].length + ' entries, ' + (data.version || 'no version'));
     } catch (e) {
-      console.warn('[Stores] Cache parse error, fetching fresh data');
+      console.warn('[Reference] ' + key + '.json unavailable, using the built-in fallback:', e.message);
+      lists[key] = FALLBACK_DATA[key] || [];
     }
-  }
-
-  try {
-    const response = await fetch('data/stores.json');
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    const data = await response.json();
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
-    console.log('[Stores] Fetched from server and cached');
-    return data;
-  } catch (e) {
-    console.warn('[Stores] Could not fetch stores.json. Using fallback hardcoded list. Error:', e.message);
-    return null;
-  }
+  }));
+  return lists;
 }
 
-/** Active entries of one stores.json list (kitchens, stores), or `fallback` when unavailable. */
-function activeEntries(storesData, key, fallback) {
-  if (!storesData || !storesData[key]) return fallback;
-  const entries = storesData[key].filter(e => e.active);
-  console.log('[Stores] Loaded ' + entries.length + ' active ' + key + ' from JSON');
-  return entries;
+/** Active entries of one list in display order. */
+function activeEntries(lists, key) {
+  return ((lists && lists[key]) || [])
+    .filter(entry => entry.active)
+    .slice()
+    .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
 }
 
-/** Active dish names in display order, or `fallback` when stores.json was unavailable. */
-function activeDishNames(storesData, fallback) {
-  if (!storesData || !storesData.dishes) return fallback;
-  const names = storesData.dishes
-    .filter(d => d.active)
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map(d => d.name);
-  console.log('[Stores] Loaded ' + names.length + ' active dishes from JSON');
-  return names;
+/** Active names of one list in display order: what the pickers and the dish cards show. */
+function activeNames(lists, key) {
+  return activeEntries(lists, key).map(entry => entry.name);
 }
 
 // ─── People picker ───────────────────────────────────────────────────────────
-// A <select> of names from data/<file>, ending in a "+ Add new…" option that reveals a
-// free-text input. Drivers on the delivery form, supervisors on the production form.
-function createPeoplePicker({ selectId, customId, file, key, fallback, addLabel }) {
+// A <select> of names, ending in a "+ Add new…" option that reveals a free-text input.
+// Drivers on the delivery form, supervisors on the production form. A name typed under
+// "+ Add new" is recorded as typed; it joins the list only when added on the dashboard.
+function createPeoplePicker({ selectId, customId, addLabel }) {
   const select = () => document.getElementById(selectId);
   const custom = () => document.getElementById(customId);
   let people = [];
@@ -186,15 +197,9 @@ function createPeoplePicker({ selectId, customId, file, key, fallback, addLabel 
     sel.appendChild(other);
   }
 
-  async function load() {
-    try {
-      const response = await fetch('data/' + file);
-      const data = await response.json();
-      people = data[key] || [];
-    } catch (e) {
-      console.error('Failed to load ' + key + ':', e);
-      people = fallback;
-    }
+  /** Fill the picker from the names the form loaded. */
+  function load(names) {
+    people = names || [];
     populate();
   }
 
@@ -205,9 +210,9 @@ function createPeoplePicker({ selectId, customId, file, key, fallback, addLabel 
     else custom().value = '';
   }
 
-  /** The chosen name: the typed one when "+ Add new" is selected. */
+  /** The chosen name: the typed one when "+ Add new" is selected, with its spacing normalised so one person cannot become two. */
   function value() {
-    return select().value === '__custom__' ? custom().value.trim() : select().value;
+    return select().value === '__custom__' ? custom().value.replace(/\s+/g, ' ').trim() : select().value;
   }
 
   /** The control a validation message should point at: the typed input when "+ Add new" is chosen. */
@@ -352,7 +357,7 @@ function reportMissing(intro, items) {
 // walks down the list. The engine owns the per-dish records, the card list, the progress
 // counter and the totals; each form describes its fields and its completeness rule.
 //
-//   dishes()       current dish name list (changes once stores.json loads)
+//   dishes()       current dish name list (set once the reference lists load)
 //   fields         [{ key, id, default }]: record key, modal input id, empty value ('')
 //   status(record) 'complete' | 'partial' | 'empty'
 //   validate(record) optional { id, message } naming the first thing the dish still needs,
@@ -415,13 +420,22 @@ function createDishEntry({ dishes, fields, status, summary, validate, totals = [
       card.className = 'dish-card' + (state === 'complete' ? ' completed' : '');
       card.dataset.index = index;
       card.onclick = () => open(index);
-      card.innerHTML = `
-      <div class="dish-card-left">
-        <div class="dish-card-name">${dish}</div>
-        <div class="dish-card-status ${cls}">${text}</div>
-      </div>
-      <div class="dish-card-icon">${icon}</div>
-    `;
+
+      // Built with textContent, never innerHTML: dish names are edited on the dashboard and
+      // must render as text whatever they contain.
+      const left = document.createElement('div');
+      left.className = 'dish-card-left';
+      const name = document.createElement('div');
+      name.className = 'dish-card-name';
+      name.textContent = dish;
+      const statusLine = document.createElement('div');
+      statusLine.className = 'dish-card-status' + (cls ? ' ' + cls : '');
+      statusLine.textContent = text;
+      left.append(name, statusLine);
+      const iconBox = document.createElement('div');
+      iconBox.className = 'dish-card-icon';
+      iconBox.textContent = icon;
+      card.append(left, iconBox);
       container.appendChild(card);
     });
 

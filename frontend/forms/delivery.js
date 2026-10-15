@@ -1,7 +1,7 @@
 // forms/delivery.js — the driver's per-store delivery form. Loads after forms/common.js.
 
-let DISHES = FALLBACK_DATA.dishes;
-let STORES = FALLBACK_DATA.stores;
+let DISHES = [];   // active dish names, set once the reference lists load
+let STORES = [];   // active store entries, likewise
 
 // The QR code at each store opens this page with ?store=<id>.
 const params = new URLSearchParams(window.location.search);
@@ -14,9 +14,6 @@ const photoData = { before: null, after: null };
 const driverPicker = createPeoplePicker({
   selectId: 'f-driver',
   customId: 'f-driver-custom',
-  file:     'drivers.json',
-  key:      'drivers',
-  fallback: ["Owen", "Sam Blumenthal", "Andy"],
   addLabel: '+ Add new driver'
 });
 
@@ -169,9 +166,9 @@ function recalcModal() {
 // Page load
 // ═══════════════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
-  const data = await loadStoresData();
-  STORES = activeEntries(data, 'stores', STORES);
-  DISHES = activeDishNames(data, DISHES);
+  const lists = await loadReferenceLists(['stores', 'drivers', 'dishes']);
+  STORES = activeEntries(lists, 'stores');
+  DISHES = activeNames(lists, 'dishes');
 
   storeData = STORES.find(s => s.id === storeId);
   if (storeData) {
@@ -188,7 +185,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('f-arrive').value = hh + ':' + mm;
 
   dishEntry.buildList();
-  driverPicker.load();
+  driverPicker.load(activeNames(lists, 'drivers'));
   lastSubmission.offerIfRecent();
   reportAbandonedSubmissions();
 });
@@ -529,20 +526,33 @@ function showSummary() {
     weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
   });
 
+  // Built with textContent, never innerHTML: dish names are edited on the dashboard and must
+  // render as text whatever they contain.
   const dishContainer = document.getElementById('sum-dishes');
+  dishContainer.textContent = '';
   if (payload.rows.length === 0) {
-    dishContainer.innerHTML = '<div style="color:var(--mid);font-style:italic;">No dishes entered</div>';
+    const none = document.createElement('div');
+    none.style.cssText = 'color:var(--mid);font-style:italic;';
+    none.textContent = 'No dishes entered';
+    dishContainer.appendChild(none);
   } else {
-    const dishLines = payload.rows.map(row => {
+    payload.rows.forEach(row => {
+      const line = document.createElement('div');
+      line.style.cssText = 'padding:4px 0;border-bottom:1px solid #f0f0f0;';
       const parts = [];
-      if (row.dish) parts.push(`<strong>${row.dish}</strong>`);
       if (row.added) parts.push(`+${row.added} added`);
       if (row.before) parts.push(`${row.before} before`);
       if (row.removed) parts.push(`−${row.removed} removed`);
       if (row.after && row.after !== '—') parts.push(`→ ${row.after} after`);
-      return `<div style="padding:4px 0;border-bottom:1px solid #f0f0f0;">${parts.join(' · ')}</div>`;
+      if (row.dish) {
+        const name = document.createElement('strong');
+        name.textContent = row.dish;
+        line.appendChild(name);
+        if (parts.length) line.appendChild(document.createTextNode(' · '));
+      }
+      line.appendChild(document.createTextNode(parts.join(' · ')));
+      dishContainer.appendChild(line);
     });
-    dishContainer.innerHTML = dishLines.join('');
   }
 
   document.getElementById('summary-overlay').classList.add('show');

@@ -3,8 +3,12 @@
 // Header text is the read contract; column position is not. A column entry is
 // { header, key, type, width?, value? }: `key` is the payload field on write and the output key
 // on read; `width` is the column's pixel width; `value(row, ctx)` overrides the payload for server-derived cells; `type` is one of
-// date | time | text | number | instant and drives cell handling both ways. Renaming a
+// date | time | text | number | bool | instant and drives cell handling both ways. Renaming a
 // header requires adding the old text to `aliases` so old files still read.
+//
+// tabNames() and schemaFor() name the monthly tabs only. The reference lists have their own
+// tabs and schemas in Reference.gs; the helpers below the Writing fold take a schema and
+// serve both.
 
 function tabNames() {
   return ['Production', 'Deliveries', 'Violations', 'Executions'];
@@ -120,7 +124,7 @@ function tabLayout(tab) {
 
 /** Pixel width for a column: its own, else a default for its type. */
 function columnWidth(col) {
-  return col.width || { date: 100, time: 90, number: 90, instant: 175, text: 130 }[col.type] || 130;
+  return col.width || { date: 100, time: 90, number: 90, bool: 80, instant: 175, text: 130 }[col.type] || 130;
 }
 
 // ─── Writing ─────────────────────────────────────────────────────────────────
@@ -134,10 +138,18 @@ function writeFormats(schema) {
   return schema.map(col => (col.type === 'number' ? 'General' : '@'));
 }
 
-/** A cell value for one column: numeric strings become numbers, instants are normalised, everything else is text. */
+/** A stored boolean cell: a real boolean, TRUE/true/yes/1, or anything else (an empty cell included) as false. */
+function boolFromCell(value) {
+  if (value === true || value === false) return value;
+  const s = String(value === null || value === undefined ? '' : value).trim().toLowerCase();
+  return s === 'true' || s === 'yes' || s === '1';
+}
+
+/** A cell value for one column: numeric strings become numbers, instants are normalised, booleans the words TRUE/FALSE, everything else is text. */
 function cellForWrite(col, value) {
   if (value === undefined || value === null) return '';
   if (col.type === 'instant') return normaliseInstant(value);
+  if (col.type === 'bool') return boolFromCell(value) ? 'TRUE' : 'FALSE';   // text under the '@' format, so Sheets stores the word
   if (col.type === 'number') {
     if (typeof value === 'number') return value;
     const s = String(value).trim();
@@ -169,6 +181,7 @@ function headerIndex(headerRow, schema) {
 
 /** A cell as the API returns it. Date objects only appear in cells someone reformatted by hand. */
 function normaliseCell(value, type) {
+  if (type === 'bool') return boolFromCell(value);   // before the null check: an empty Active cell reads as false, not ''
   if (value === null || value === undefined) return '';
   if (value instanceof Date) {
     if (type === 'date') return Utilities.formatDate(value, NY_TZ, 'yyyy-MM-dd');

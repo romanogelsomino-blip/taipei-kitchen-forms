@@ -16,7 +16,7 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 | `frontend/dashboard/` | Live web dashboard. Opens on a home page that explains the system and launches either form; then metrics, production, deliveries, waste analysis, HACCP compliance. |
 | `frontend/assets/` | Branding used by the forms. |
 | `backend/` | Google Apps Script handling form submissions and serving the dashboard API. One script, several files split by domain; `Api.gs` holds the two entry points. |
-| `data/` | JSON for drivers, supervisors, stores, kitchens, and dishes — fetched at page load. |
+| `data/` | The reference lists as the forms read them, one JSON file per list. Published by the site build from the backend; the git copies are seeds for local runs. |
 | `deployment/` | Deployment guide — start here for how either half reaches production. |
 | `scripts/` | Admin-endpoint helpers, driven by the single root `.env`. |
 
@@ -82,14 +82,24 @@ Push to `dev` to check `/staging/`, then merge to `prod`.
 
 ---
 
-## Stores
+## Reference data
 
-The store and kitchen lists are in `data/stores.json`. To add one: add it there, mirror the
-entry into the fallback in `frontend/forms/common.js`, and release. The store list is
-also duplicated in `backend/Reads.gs` (the dashboard store filter) —
-those need a backend deploy to pick up a new store. QR codes point at
-`taipei_delivery_form3.html?store=<id>`. The dashboard's home page opens the production form the
-same way, with `taipei_production_form3.html?kitchen=<id>`.
+The kitchen, supervisor, dish, store and driver lists live in a `Reference` spreadsheet at
+the root of the operations folder, one tab per list, and are edited from the dashboard's
+Config tab. A save writes the sheet and asks GitHub to republish the site, which writes each
+list to `data/<list>.json` for the forms; a phone has it within about ten minutes. The
+Config tab shows whether the forms' copy is current.
+
+Ids never change and are never reused; an entry no longer in use is deactivated, not
+deleted. A store's id is its store number: QR codes point at
+`taipei_delivery_form3.html?store=<id>` and every delivery row carries it, so a store can be
+renamed freely. The other four lists are stored in the records by name, so renaming one
+leaves past records under the old name, and the Config tab says so before saving. The
+dashboard's home page opens the production form the same way, with
+`taipei_production_form3.html?kitchen=<id>`.
+
+The copies of `data/*.json` in git are seeds for local runs only; `npm run
+reference:snapshot:staging` refreshes them from the staging backend.
 
 ---
 

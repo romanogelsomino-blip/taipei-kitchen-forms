@@ -1,14 +1,11 @@
 // forms/production.js — the kitchen's per-batch production log. Loads after forms/common.js.
 
-let DISHES   = FALLBACK_DATA.dishes;
-let KITCHENS = FALLBACK_DATA.kitchens;
+let DISHES   = [];   // active dish names, set once the reference lists load
+let KITCHENS = [];   // active kitchen entries, likewise
 
 const supervisorPicker = createPeoplePicker({
   selectId: 'f-supervisor',
   customId: 'f-supervisor-custom',
-  file:     'supervisors.json',
-  key:      'supervisors',
-  fallback: ["Anna", "Lucia", "Jiang", "Guy"],
   addLabel: '+ Add new supervisor'
 });
 
@@ -68,15 +65,15 @@ const dishEntry = createDishEntry({
 // Page load
 // ═══════════════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
-  const data = await loadStoresData();
-  DISHES   = activeDishNames(data, DISHES);
-  KITCHENS = activeEntries(data, 'kitchens', KITCHENS);
+  const lists = await loadReferenceLists(['kitchens', 'supervisors', 'dishes']);
+  DISHES   = activeNames(lists, 'dishes');
+  KITCHENS = activeEntries(lists, 'kitchens');
   populateKitchens();
   applyKitchenParam();
 
   document.getElementById('f-date').value = localDateISO();
   dishEntry.buildList();
-  supervisorPicker.load();
+  supervisorPicker.load(activeNames(lists, 'supervisors'));
   lastSubmission.offerIfRecent();
 });
 

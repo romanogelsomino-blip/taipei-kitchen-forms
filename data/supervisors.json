@@ -1,10 +1,10 @@
 {
   "supervisors": [
-    "Anna",
-    "Lucia",
-    "Jiang",
-    "Guy"
+    { "id": "anna",  "name": "Anna",  "active": true, "sortOrder": 1 },
+    { "id": "lucia", "name": "Lucia", "active": true, "sortOrder": 2 },
+    { "id": "jiang", "name": "Jiang", "active": true, "sortOrder": 3 },
+    { "id": "guy",   "name": "Guy",   "active": true, "sortOrder": 4 }
   ],
-  "allowCustom": true,
-  "lastUpdated": "2026-05-07"
+  "version": "seed",
+  "generatedAt": ""
 }

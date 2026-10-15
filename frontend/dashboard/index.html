@@ -87,6 +87,20 @@
       </svg>
       <span class="nav-label">Food Safety</span>
     </a>
+    <a href="#config" class="nav-link" data-panel="config">
+      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="4" y1="21" x2="4" y2="14"></line>
+        <line x1="4" y1="10" x2="4" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12" y2="3"></line>
+        <line x1="20" y1="21" x2="20" y2="16"></line>
+        <line x1="20" y1="12" x2="20" y2="3"></line>
+        <line x1="1" y1="14" x2="7" y2="14"></line>
+        <line x1="9" y1="8" x2="15" y2="8"></line>
+        <line x1="17" y1="16" x2="23" y2="16"></line>
+      </svg>
+      <span class="nav-label">Config</span>
+    </a>
   </nav>
 
   <!-- Mobile Bottom Navigation -->
@@ -108,6 +122,9 @@
     </a>
     <a href="#food-safety" class="mobile-nav-link" data-panel="food-safety">
       <span class="mobile-nav-label">Safety</span>
+    </a>
+    <a href="#config" class="mobile-nav-link" data-panel="config">
+      <span class="mobile-nav-label">Config</span>
     </a>
   </nav>
 
@@ -586,7 +603,37 @@
       </div>
     </section>
 
-    <!-- Settings Panel -->
+    <!-- Config Panel: the reference lists the forms offer. Rendered by renderConfig() in app.js. -->
+    <section id="panel-config" class="panel">
+      <h1 class="panel-title">Configuration</h1>
+      <p class="panel-subtitle">The kitchen, supervisor, dish, store and driver lists the forms offer. Nothing here is deleted: an entry no longer in use is deactivated, and its history stays readable.</p>
+
+      <div class="config-lists" id="config-lists"></div>
+
+      <div class="section-card">
+        <div class="config-head">
+          <h2 class="section-title" id="config-list-title">Kitchens</h2>
+          <span class="config-dirty" id="config-dirty"></span>
+        </div>
+        <p class="home-launcher-blurb" id="config-list-blurb"></p>
+        <div class="config-rows" id="config-rows"></div>
+        <div class="config-add" id="config-add"></div>
+        <div class="config-actions">
+          <button class="btn-apply-filters" id="config-save" onclick="configSave()" disabled>Save changes</button>
+          <button class="btn-clear-filters" id="config-discard" onclick="configDiscard()" disabled>Discard</button>
+          <button class="btn-clear-filters" id="config-reload" onclick="configReload()">Reload from server</button>
+        </div>
+        <p class="config-status" id="config-status"></p>
+      </div>
+
+      <div class="section-card">
+        <h2 class="section-title">Seen in records, not on this list</h2>
+        <p class="home-status" id="config-unlisted-scope"></p>
+        <div class="config-rows" id="config-unlisted"></div>
+      </div>
+
+      <p class="home-status" id="config-published"></p>
+    </section>
 
   </main>
 </div>
@@ -756,6 +803,11 @@ ${lastError ? `
   <div class="modal-content" id="violation-modal-content">
     <!-- Content populated by openViolationModal() -->
   </div>
+</div>
+
+<!-- Config confirmation: what a Save will change, built by configConfirm() in app.js -->
+<div id="config-modal" class="modal" onclick="if(event.target === this) configModalResolve(false)">
+  <div class="modal-content config-modal-content" id="config-modal-content"></div>
 </div>
 
 </body>

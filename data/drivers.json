@@ -1,9 +1,9 @@
 {
   "drivers": [
-    "Owen",
-    "Sam Blumenthal",
-    "Andy"
+    { "id": "owen",           "name": "Owen",           "active": true, "sortOrder": 1 },
+    { "id": "sam-blumenthal", "name": "Sam Blumenthal", "active": true, "sortOrder": 2 },
+    { "id": "andy",           "name": "Andy",           "active": true, "sortOrder": 3 }
   ],
-  "allowCustom": true,
-  "lastUpdated": "2026-05-07"
+  "version": "seed",
+  "generatedAt": ""
 }

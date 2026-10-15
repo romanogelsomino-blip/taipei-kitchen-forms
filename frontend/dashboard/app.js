@@ -15,6 +15,7 @@ let DATA = {
   production: [],
   waste: [],
   stores: [],
+  reference: null,   // the five reference lists plus their version, for the Config panel
   violations: [],
   window: null,
   lastUpdated: null
@@ -218,7 +219,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     watchTabVisibility();
   } else {
     // Demo mode: use mock data for local development
-    loadDemoData();
+    await loadDemoData();
     updateStatus('demo', 'Demo Mode (sample data)');
     renderProduction();
     renderDeliveries();
@@ -324,20 +325,19 @@ function showConfigInstructions() {
 // Demo Data (for local development)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function loadDemoData() {
+async function loadDemoData() {
   const today = new Date().toISOString().split('T')[0];
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
+  // The store list and the Config panel's lists come from the same published data/*.json
+  // the forms read, so demo mode shows real ids rather than a second copy of them.
+  const published = await loadStaticReference();
+  const reference = { version: published.version, updatedAt: '', source: 'static' };
+  CONFIG_LISTS.forEach(def => { reference[def.key] = published.lists[def.key].entries; });
+
   DATA = {
-    stores: [
-      { id: '6006', name: 'Store 6006', location: 'Lancaster, PA' },
-      { id: '6061', name: 'Store 6061', location: 'York, PA' },
-      { id: '6253', name: 'Store 6253', location: 'Harrisburg, PA' },
-      { id: '6331', name: 'Store 6331', location: 'Camp Hill, PA' },
-      { id: '6443', name: 'Store 6443', location: 'Mechanicsburg, PA' },
-      { id: '6542', name: 'Store 6542', location: 'Carlisle, PA' },
-      { id: '6564', name: 'Store 6564', location: 'Hershey, PA' }
-    ],
+    stores: reference.stores.map(s => ({ id: s.id, name: s.name, location: s.location, active: s.active })),
+    reference: reference,
     deliveries: [
       { submittedAt: `${today}T08:32:15.000Z`, date: today, driver: 'Owen', store: '6006', arrivalTime: '08:30', coolerTemp: 38, dish: 'Spring Roll (Veg)', qtyAdded: 24, removed: 2, reason: 'Out of date', receivedBy: 'Amanda' },
       { submittedAt: `${today}T09:15:42.000Z`, date: today, driver: 'Owen', store: '6061', arrivalTime: '09:10', coolerTemp: 39, dish: 'Shrimp Egg Roll', qtyAdded: 30, removed: 0, reason: '', receivedBy: 'Michael' },
@@ -428,6 +428,7 @@ async function fetchData(opts) {
     DATA.production = data.production || [];
     DATA.waste = data.waste || [];
     DATA.stores = data.stores || [];
+    DATA.reference = data.reference || null;
     DATA.window = data.window || null;   // absent until the backend serves windows
     DATA.lastUpdated = data.lastUpdated || null;
     LAST_FETCH_AT = Date.now();
@@ -443,6 +444,7 @@ async function fetchData(opts) {
     renderProduction();
     renderDeliveries();
     renderFoodSafety();
+    configOnDataRefresh();   // the Config panel decides for itself what a poll may touch
   } catch (e) {
     console.error('[Data] Fetch failed:', e);
     updateStatus('error', `Fetch failed: ${e.message}`);
@@ -577,6 +579,7 @@ function showPanel(panelName) {
     populateShrinkFilters(); // Populate filter dropdowns
     renderShrinkDashboard();
   }
+  if (panelName === 'config') renderConfig();
 
   // Scroll to top on mobile when switching panels
   if (window.innerWidth <= 768) {
@@ -589,7 +592,7 @@ function showPanel(panelName) {
 // ═══════════════════════════════════════════════════════════════════════════
 // One launcher per form so the two cannot be confused. A kitchen opens the production
 // log with ?kitchen=<id>; a store opens the delivery form with ?store=<id>. The lists come
-// from data/stores.json, the same file the forms read.
+// from data/kitchens.json and data/stores.json, the same files the forms read.
 
 const HOME_FORMS = {
   production: { page: '../taipei_production_form3.html', param: 'kitchen', selectId: 'home-kitchen', buttonId: 'home-open-production', label: 'Open Production Log', prompt: 'Select a kitchen' },
@@ -599,11 +602,13 @@ const HOME_FORMS = {
 async function loadHomeLocations() {
   const status = document.getElementById('home-locations-status');
   try {
-    const response = await fetch('../data/stores.json');
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    const data = await response.json();
-    const kitchens = (data.kitchens || []).filter(k => k.active);
-    const stores = (data.stores || []).filter(s => s.active);
+    const [kitchens, stores] = await Promise.all(['kitchens', 'stores'].map(async key => {
+      const response = await fetch('../data/' + key + '.json');
+      if (!response.ok) throw new Error(key + '.json: HTTP ' + response.status);
+      const data = await response.json();
+      return (data[key] || []).filter(entry => entry.active)
+        .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+    }));
     const storeText = s => s.location ? `${s.name} · ${s.location}` : s.name;
 
     fillHomeSelect('home-kitchen', kitchens, k => k.name);
@@ -611,7 +616,7 @@ async function loadHomeLocations() {
     fillHomeSelect('home-qr-store', stores, storeText);
     status.textContent = '';
   } catch (e) {
-    console.error('[Home] Could not load data/stores.json:', e);
+    console.error('[Home] Could not load the kitchen and store lists:', e);
     status.textContent = 'The kitchen and store lists could not be loaded. Reload to try again.';
   }
   homeUpdateLaunchers();
@@ -2512,10 +2517,689 @@ function exportShrinkToCSV() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Settings Panel Functions
+// Config panel: the reference lists
 // ═══════════════════════════════════════════════════════════════════════════════
+// Five lists, one on screen at a time. The owner edits a buffer per list and saves it as a
+// batch of ops (type: 'config'); the backend writes the Reference sheet and asks GitHub to
+// republish data/<list>.json for the forms. Nothing here is deleted: an entry no longer in
+// use is deactivated, and ids never change once saved. Store ids are on printed QR codes,
+// and the other four lists are stored in the records by name, so a rename there splits
+// history and the panel says so before it happens.
+//
+// Every server-supplied string is set with textContent or .value, never innerHTML: these
+// names are edited on a web page and reach every form.
 
-// Settings object with defaults
+const CONFIG_LISTS = [   // production precedes delivery; the order of the backend payload and of the strip
+  { key: 'kitchens',    label: 'Kitchens',    noun: 'kitchen',    byName: true,  records: [{ source: 'production', field: 'kitchen' }],
+    blurb: 'Where batches are cooked. The production form offers these, and its records carry the kitchen name.' },
+  { key: 'supervisors', label: 'Supervisors', noun: 'supervisor', byName: true,  records: [{ source: 'production', field: 'supervisor' }],
+    blurb: 'Who signs off a batch. The production form offers these and also accepts a typed name.' },
+  { key: 'dishes',      label: 'Dishes',      noun: 'dish',       byName: true,  records: [{ source: 'production', field: 'dish' }, { source: 'deliveries', field: 'dish' }],
+    blurb: 'What is cooked and delivered. Both forms show these as cards, in this order.' },
+  { key: 'stores',      label: 'Stores',      noun: 'store',      byName: false, records: [{ source: 'deliveries', field: 'store' }],
+    blurb: 'Where deliveries go. The store number is in the QR code posted at the store and in every delivery record; the name is a label and can be changed freely.' },
+  { key: 'drivers',     label: 'Drivers',     noun: 'driver',     byName: true,  records: [{ source: 'deliveries', field: 'driver' }],
+    blurb: 'Who delivers. The delivery form offers these and also accepts a typed name.' }
+];
+
+const CONFIG_PANEL = {
+  list: 'kitchens',
+  loaded: null,     // the reference payload the buffers were taken from; its version goes back with a save
+  buffer: {},       // list key -> entries as the owner has edited them; new ones carry _new: true
+  busy: false
+};
+let CONFIG_MODAL_RESOLVE = null;
+
+function configEl(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function configListDef(key) {
+  return CONFIG_LISTS.find(def => def.key === key) || CONFIG_LISTS[0];
+}
+
+/** Trimmed, internal whitespace collapsed: the form the backend stores and compares on. */
+function configNormalise(value) {
+  return String(value === undefined || value === null ? '' : value).replace(/\s+/g, ' ').trim();
+}
+
+function configSetStatus(text, cls) {
+  const status = document.getElementById('config-status');
+  status.textContent = text;
+  status.className = 'config-status' + (cls ? ' ' + cls : '');
+}
+
+/** The five published data/<list>.json files, as the forms read them. */
+async function loadStaticReference() {
+  const out = { version: null, lists: {} };
+  await Promise.all(CONFIG_LISTS.map(async def => {
+    try {
+      const response = await fetch('../data/' + def.key + '.json', { cache: 'no-cache' });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const data = await response.json();
+      out.lists[def.key] = { entries: data[def.key] || [], version: data.version || null, generatedAt: data.generatedAt || null };
+      if (!out.version && data.version) out.version = data.version;
+    } catch (e) {
+      out.lists[def.key] = { entries: [], version: null, generatedAt: null, error: e.message };
+    }
+  }));
+  return out;
+}
+
+// ─── Buffers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Take the buffers from a reference payload. A list with unsaved edits keeps them, except
+ * the one just saved (`savedKey`), which is replaced by what the server wrote.
+ */
+function configLoadFrom(reference, savedKey) {
+  const keep = {};
+  if (CONFIG_PANEL.loaded) CONFIG_LISTS.forEach(def => { keep[def.key] = def.key !== savedKey && configDiffOps(def.key).length > 0; });
+  CONFIG_PANEL.loaded = reference;
+  CONFIG_LISTS.forEach(def => {
+    if (keep[def.key]) return;
+    CONFIG_PANEL.buffer[def.key] = (reference[def.key] || []).map(entry => Object.assign({}, entry));
+  });
+}
+
+function configAnyDirty() {
+  return !!CONFIG_PANEL.loaded && CONFIG_LISTS.some(def => configDiffOps(def.key).length > 0);
+}
+
+/**
+ * The ops that take the loaded list to the buffer: adds, updates, setActives, and one
+ * reorder when the existing entries moved. A new entry lands at the end on the server and
+ * has no id until then, so it cannot be moved before it is saved.
+ */
+function configDiffOps(key) {
+  const loaded = (CONFIG_PANEL.loaded && CONFIG_PANEL.loaded[key]) || [];
+  const buffer = CONFIG_PANEL.buffer[key] || [];
+  const before = {};
+  loaded.forEach(entry => { before[entry.id] = entry; });
+  const ops = [];
+
+  buffer.forEach(entry => {
+    if (entry._new) {
+      const add = { name: configNormalise(entry.name) };
+      if (key === 'stores') { add.id = entry.id; add.location = configNormalise(entry.location); }
+      ops.push({ op: 'add', entry: add });
+      return;
+    }
+    const was = before[entry.id];
+    if (!was) return;
+    const patch = {};
+    if (configNormalise(entry.name) !== configNormalise(was.name)) patch.name = configNormalise(entry.name);
+    if (key === 'stores' && configNormalise(entry.location) !== configNormalise(was.location)) patch.location = configNormalise(entry.location);
+    if (Object.keys(patch).length) ops.push({ op: 'update', entry: Object.assign({ id: entry.id }, patch) });
+    if (!!entry.active !== !!was.active) ops.push({ op: 'setActive', id: entry.id, active: !!entry.active });
+  });
+
+  const existing = buffer.filter(entry => !entry._new).map(entry => entry.id);
+  if (existing.join('\n') !== loaded.map(entry => entry.id).join('\n')) ops.push({ op: 'reorder', order: existing });
+  return ops;
+}
+
+/** Problems in one list's buffer, mirroring what the backend refuses: [{ index?, message }]. */
+function configValidate(key) {
+  const def = configListDef(key);
+  const buffer = CONFIG_PANEL.buffer[key] || [];
+  const problems = [];
+  const seen = {};
+  buffer.forEach((entry, index) => {
+    const name = configNormalise(entry.name);
+    if (!name) { problems.push({ index: index, message: 'A name is required.' }); return; }
+    if (name.length > 80) problems.push({ index: index, message: 'Names are at most 80 characters.' });
+    if (/[\u0000-\u001F\u007F]/.test(name) || name.charAt(0) === '=') problems.push({ index: index, message: 'That name cannot be stored as written.' });
+    const lower = name.toLowerCase();
+    if (seen[lower] !== undefined) problems.push({ index: index, message: 'Another ' + def.noun + ' on this list already has this name.' });
+    seen[lower] = index;
+    if (entry._new && key === 'stores') {
+      const id = String(entry.id || '');
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || id.length > 40) problems.push({ index: index, message: 'A store needs its store number as the id: digits, or lowercase letters and digits with single hyphens.' });
+      else if (buffer.some((other, j) => j !== index && String(other.id).toLowerCase() === id)) problems.push({ index: index, message: 'This store number is already on the list. Ids are never reused.' });
+    }
+  });
+  if (buffer.length && !buffer.some(entry => entry.active)) problems.push({ message: 'At least one ' + def.noun + ' must stay active.' });
+  return problems;
+}
+
+// ─── Rendering ───────────────────────────────────────────────────────────────
+
+/**
+ * The showPanel hook. The panel never re-renders on a poll: fetchData refreshes
+ * DATA.reference every fifteen minutes, and that would wipe an unsaved buffer. A fresher
+ * payload is adopted only while nothing is dirty.
+ */
+function renderConfig() {
+  const fresh = DATA.reference;
+  if (fresh && (!CONFIG_PANEL.loaded || (fresh.version !== CONFIG_PANEL.loaded.version && !configAnyDirty()))) {
+    configLoadFrom(fresh);
+  }
+  if (!CONFIG_PANEL.loaded) {
+    configSetStatus(CONFIG.webAppUrl ? 'Waiting for the dashboard data to load…' : 'Demo mode: the published lists could not be read.', '');
+    return;
+  }
+  configRenderStrip();
+  configRenderList();
+  configRenderAdd();
+  configRefreshActions();
+  configRenderUnlisted();
+  configRenderPublished();
+  if (!CONFIG.webAppUrl) configSetStatus('Demo mode: no backend configured. These are the published lists, read-only.', '');
+}
+
+/** After a poll: with unsaved edits on screen, only the unlisted-names card may change. */
+function configOnDataRefresh() {
+  if (!document.getElementById('panel-config').classList.contains('active')) return;
+  if (configAnyDirty()) configRenderUnlisted();
+  else renderConfig();
+}
+
+function configRenderStrip() {
+  const strip = document.getElementById('config-lists');
+  strip.textContent = '';
+  CONFIG_LISTS.forEach(def => {
+    const pending = configDiffOps(def.key).length;
+    const button = configEl('button', 'btn-time-range' + (def.key === CONFIG_PANEL.list ? ' active' : ''), pending ? def.label + ' (' + pending + ')' : def.label);
+    button.onclick = () => configSelectList(def.key);
+    strip.appendChild(button);
+  });
+}
+
+function configSelectList(key) {
+  CONFIG_PANEL.list = key;
+  configSetStatus('', '');
+  renderConfig();
+}
+
+function configMoveButton(glyph, disabled, onclick, readOnly) {
+  const button = configEl('button', 'config-move', glyph);
+  button.type = 'button';
+  button.disabled = disabled || readOnly;
+  button.onclick = onclick;
+  return button;
+}
+
+/** One list's rows from its buffer. Inputs are live; the id is text and never editable. */
+function configRenderList() {
+  const def = configListDef(CONFIG_PANEL.list);
+  const readOnly = !CONFIG.webAppUrl;
+  document.getElementById('config-list-title').textContent = def.label;
+  document.getElementById('config-list-blurb').textContent = def.blurb;
+
+  const container = document.getElementById('config-rows');
+  container.textContent = '';
+  const buffer = CONFIG_PANEL.buffer[def.key] || [];
+  const loadedById = {};
+  (CONFIG_PANEL.loaded[def.key] || []).forEach(entry => { loadedById[entry.id] = entry; });
+  const problems = {};
+  configValidate(def.key).forEach(problem => { if (problem.index !== undefined && !problems[problem.index]) problems[problem.index] = problem.message; });
+  const lastExisting = buffer.reduce((last, entry, i) => (entry._new ? last : i), -1);
+
+  buffer.forEach((entry, index) => {
+    const wrap = configEl('div', 'config-entry');
+    wrap.dataset.index = index;
+    const row = configEl('div', 'config-row' + (entry.active ? '' : ' inactive') + (problems[index] ? ' invalid' : ''));
+    const main = configEl('div', 'config-row-main');
+    const side = configEl('div', 'config-row-side');
+
+    main.appendChild(configMoveButton('↑', entry._new || index === 0, () => configMove(def.key, index, -1), readOnly));
+    main.appendChild(configMoveButton('↓', entry._new || index >= lastExisting, () => configMove(def.key, index, 1), readOnly));
+
+    const name = configEl('input', 'config-name');
+    name.type = 'text';
+    name.value = entry.name || '';
+    name.placeholder = 'Name';
+    name.maxLength = 80;
+    name.readOnly = readOnly;
+    name.oninput = () => configEdit(def.key, index, 'name', name.value);
+    main.appendChild(name);
+
+    if (def.key === 'stores') {
+      const location = configEl('input', 'config-location');
+      location.type = 'text';
+      location.value = entry.location || '';
+      location.placeholder = 'Location';
+      location.maxLength = 120;
+      location.readOnly = readOnly;
+      location.oninput = () => configEdit(def.key, index, 'location', location.value);
+      main.appendChild(location);
+    }
+
+    const activeLabel = configEl('label', 'config-active');
+    const active = configEl('input');
+    active.type = 'checkbox';
+    active.checked = !!entry.active;
+    active.disabled = readOnly;
+    active.onchange = () => configEdit(def.key, index, 'active', active.checked);
+    activeLabel.append(active, document.createTextNode('Active'));
+    side.append(activeLabel, configEl('code', 'config-id', entry._new ? (def.key === 'stores' ? entry.id || '(store number)' : '(assigned on save)') : entry.id));
+
+    row.append(main, side);
+    wrap.appendChild(row);
+    const warn = configRowWarning(def, entry, loadedById[entry.id], problems[index]);
+    if (warn) wrap.appendChild(warn);
+    container.appendChild(wrap);
+  });
+
+  if (!buffer.length) container.appendChild(configEl('p', 'home-status', 'Nothing on this list yet.'));
+}
+
+/** The note under a row: a validation problem, or what the pending change means for history. */
+function configRowWarning(def, entry, was, problem) {
+  if (problem) return configEl('div', 'config-warn', problem);
+  if (entry._new || !was) return null;
+  const oldName = configNormalise(was.name);
+  const newName = configNormalise(entry.name);
+  if (oldName && oldName !== newName) {
+    if (def.byName) {
+      return configEl('div', 'config-warn', 'Renaming splits this ' + def.noun + '\'s history: records already filed as "' + oldName + '" keep that name and will show separately in reports. To retire a ' + def.noun + ' instead, add the new one and deactivate the old.');
+    }
+    return configEl('div', 'config-warn safe', 'Safe: delivery records carry the store number, so renaming only changes the label.');
+  }
+  if (!entry.active && was.active) {
+    if (def.key === 'stores') return configEl('div', 'config-warn', 'Its printed QR code will still open the delivery form, which will no longer recognise the store. Print a replacement before the next delivery, or leave it active.');
+    return configEl('div', 'config-warn', 'Removed from the forms on their next load. Past records keep it.');
+  }
+  return null;
+}
+
+/** Update one row's class and note after a keystroke, without rebuilding the inputs under the caret. */
+function configRefreshEntry(key, index) {
+  const def = configListDef(key);
+  const wrap = document.querySelector('#config-rows .config-entry[data-index="' + index + '"]');
+  if (!wrap) return;
+  const entry = CONFIG_PANEL.buffer[key][index];
+  const problem = configValidate(key).find(p => p.index === index);
+  const row = wrap.querySelector('.config-row');
+  row.classList.toggle('invalid', !!problem);
+  row.classList.toggle('inactive', !entry.active);
+  const old = wrap.querySelector('.config-warn');
+  if (old) old.remove();
+  const was = (CONFIG_PANEL.loaded[key] || []).find(e => e.id === entry.id);
+  const warn = configRowWarning(def, entry, was, problem && problem.message);
+  if (warn) wrap.appendChild(warn);
+}
+
+function configRenderAdd() {
+  const def = configListDef(CONFIG_PANEL.list);
+  const add = document.getElementById('config-add');
+  add.textContent = '';
+  add.hidden = !CONFIG.webAppUrl;
+  if (add.hidden) return;
+
+  if (def.key === 'stores') {
+    const id = configEl('input', 'config-id-input');
+    id.type = 'text';
+    id.id = 'config-add-id';
+    id.placeholder = 'Store number';
+    id.maxLength = 40;
+    add.appendChild(id);
+  }
+  const name = configEl('input');
+  name.type = 'text';
+  name.id = 'config-add-name';
+  name.placeholder = 'New ' + def.noun + ' name';
+  name.maxLength = 80;
+  name.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); configAdd(); } };
+  add.appendChild(name);
+  if (def.key === 'stores') {
+    const location = configEl('input');
+    location.type = 'text';
+    location.id = 'config-add-location';
+    location.placeholder = 'Location (optional)';
+    location.maxLength = 120;
+    add.appendChild(location);
+  }
+  const button = configEl('button', 'btn-clear-filters', 'Add');
+  button.type = 'button';
+  button.onclick = configAdd;
+  add.appendChild(button);
+  add.appendChild(configEl('div', 'config-add-help', def.key === 'stores'
+    ? 'The store number goes in the QR code posted at the store and in every delivery record, and cannot be changed later.'
+    : 'The id is made from the name when you save and never changes afterwards.'));
+}
+
+function configRefreshActions() {
+  const key = CONFIG_PANEL.list;
+  const readOnly = !CONFIG.webAppUrl;
+  const ops = CONFIG_PANEL.loaded ? configDiffOps(key) : [];
+  const problems = CONFIG_PANEL.loaded ? configValidate(key) : [];
+  document.getElementById('config-dirty').textContent = ops.length ? ops.length + ' unsaved change' + (ops.length === 1 ? '' : 's') : '';
+  const save = document.getElementById('config-save');
+  const discard = document.getElementById('config-discard');
+  const reload = document.getElementById('config-reload');
+  save.hidden = discard.hidden = reload.hidden = readOnly;
+  save.disabled = readOnly || CONFIG_PANEL.busy || !ops.length || problems.length > 0;
+  discard.disabled = readOnly || CONFIG_PANEL.busy || !ops.length;
+  reload.disabled = readOnly || CONFIG_PANEL.busy;
+  configRenderStrip();
+}
+
+// ─── Editing ─────────────────────────────────────────────────────────────────
+
+function configEdit(key, index, field, value) {
+  const entry = CONFIG_PANEL.buffer[key] && CONFIG_PANEL.buffer[key][index];
+  if (!entry) return;
+  entry[field] = value;
+  if (field === 'active') configRenderList();   // the row's look and the last-active guard both change
+  else configRefreshEntry(key, index);
+  configRefreshActions();
+}
+
+function configMove(key, index, delta) {
+  const buffer = CONFIG_PANEL.buffer[key];
+  const target = index + delta;
+  if (target < 0 || target >= buffer.length || buffer[index]._new || buffer[target]._new) return;
+  const [moved] = buffer.splice(index, 1);
+  buffer.splice(target, 0, moved);
+  configRenderList();
+  configRefreshActions();
+}
+
+function configAdd() {
+  const key = CONFIG_PANEL.list;
+  const nameInput = document.getElementById('config-add-name');
+  const name = configNormalise(nameInput.value);
+  if (!name) { configSetStatus('Type a name first.', 'bad'); nameInput.focus(); return; }
+  const entry = { _new: true, name: name, active: true, sortOrder: 0 };
+  if (key === 'stores') {
+    entry.id = configNormalise(document.getElementById('config-add-id').value).toLowerCase();
+    entry.location = configNormalise(document.getElementById('config-add-location').value);
+  }
+  CONFIG_PANEL.buffer[key].push(entry);
+  configRenderList();
+  configRenderAdd();
+  configRefreshActions();
+  configSetStatus('', '');
+  document.getElementById('config-add-name').focus();
+}
+
+/** Put a name seen in the records onto the list, pending Save. For stores it fills in the store number instead. */
+function configUnlistedAdd(name) {
+  const key = CONFIG_PANEL.list;
+  if (key === 'stores') {
+    configRenderAdd();
+    document.getElementById('config-add-id').value = name;
+    document.getElementById('config-add-name').focus();
+    return;
+  }
+  if ((CONFIG_PANEL.buffer[key] || []).some(entry => configNormalise(entry.name).toLowerCase() === name.toLowerCase())) return;
+  CONFIG_PANEL.buffer[key].push({ _new: true, name: name, active: true, sortOrder: 0 });
+  configRenderList();
+  configRefreshActions();
+  configRenderUnlisted();
+}
+
+async function configDiscard() {
+  const key = CONFIG_PANEL.list;
+  const ops = configDiffOps(key);
+  if (!ops.length) return;
+  const def = configListDef(key);
+  const ok = await configConfirm('Discard ' + ops.length + ' unsaved change' + (ops.length === 1 ? '' : 's') + ' to ' + def.label + '?',
+    [{ cls: '', text: 'The list goes back to what the server has. Nothing is sent.' }], 'Discard');
+  if (!ok) return;
+  CONFIG_PANEL.buffer[key] = (CONFIG_PANEL.loaded[key] || []).map(entry => Object.assign({}, entry));
+  renderConfig();
+  configSetStatus('', '');
+}
+
+async function configReload() {
+  if (!CONFIG.webAppUrl || CONFIG_PANEL.busy) return;
+  if (configAnyDirty()) {
+    const ok = await configConfirm('Reload from the server?', [{ cls: 'caution', text: 'Unsaved changes on every list are discarded.' }], 'Reload');
+    if (!ok) return;
+  }
+  configSetStatus('Reloading…', '');
+  try {
+    const response = await fetch(CONFIG.webAppUrl + '?action=reference', { mode: 'cors' });
+    const data = await response.json();
+    if (data.status !== 'ok') throw new Error(data.message || 'the server returned an error');
+    DATA.reference = data;
+    CONFIG_PANEL.buffer = {};
+    configLoadFrom(data);
+    renderConfig();
+    configSetStatus('Reloaded.', 'ok');
+  } catch (e) {
+    configSetStatus('Reload failed: ' + e.message, 'bad');
+  }
+}
+
+// ─── Saving ──────────────────────────────────────────────────────────────────
+
+/** What a Save will do, one line per change, for the confirmation. */
+function configChangeSummary(key) {
+  const def = configListDef(key);
+  const loaded = CONFIG_PANEL.loaded[key] || [];
+  const buffer = CONFIG_PANEL.buffer[key] || [];
+  const before = {};
+  loaded.forEach(entry => { before[entry.id] = entry; });
+  const items = [];
+
+  buffer.forEach(entry => {
+    const name = configNormalise(entry.name);
+    if (entry._new) {
+      items.push({ cls: 'safe', text: key === 'stores'
+        ? 'Add "' + name + '" as store ' + entry.id + '. The number is permanent. Generate its QR code from the Home tab after saving.'
+        : 'Add "' + name + '". Its id is made from the name on save and never changes.' });
+      return;
+    }
+    const was = before[entry.id];
+    if (!was) return;
+    const oldName = configNormalise(was.name);
+    if (oldName !== name) {
+      items.push(def.byName
+        ? { cls: 'caution', text: 'Rename "' + oldName + '" to "' + name + '". Records already filed under "' + oldName + '" keep that name, so reports will show the two as separate ' + def.noun + 's.' }
+        : { cls: 'safe', text: 'Rename "' + oldName + '" to "' + name + '". Safe: delivery records carry the store number, so history stays together.' });
+    }
+    if (key === 'stores' && configNormalise(entry.location) !== configNormalise(was.location)) {
+      items.push({ cls: 'safe', text: 'Change the location of "' + name + '" to "' + configNormalise(entry.location) + '".' });
+    }
+    if (!!entry.active !== !!was.active) {
+      if (entry.active) items.push({ cls: 'safe', text: 'Reactivate "' + name + '". The forms will offer it again on their next load.' });
+      else if (key === 'stores') items.push({ cls: 'caution', text: 'Deactivate "' + name + '" (' + entry.id + '). Its QR code is printed and posted at the store. Scanning it will still open the delivery form, but the form will not recognise the store: the header will be blank and the delivery will be filed under store ' + entry.id + ' with no name. Print a replacement code before the next delivery, or leave this store active.' });
+      else if (key === 'kitchens') items.push({ cls: 'caution', text: 'Deactivate "' + name + '". The Home tab\'s launcher and the production form will no longer offer it. Past records keep it.' });
+      else items.push({ cls: 'caution', text: 'Deactivate "' + name + '". Removed from the forms on their next load. Past records keep it.' });
+    }
+  });
+
+  const existing = buffer.filter(entry => !entry._new).map(entry => entry.id);
+  if (existing.join('\n') !== loaded.map(entry => entry.id).join('\n')) items.push({ cls: '', text: 'Change the order the forms show them in.' });
+  return items;
+}
+
+/** The confirmation modal. Resolves true on confirm; false on cancel, Escape or a click outside. Focus lands on Cancel. */
+function configConfirm(title, items, okLabel) {
+  return new Promise(resolve => {
+    CONFIG_MODAL_RESOLVE = resolve;
+    const content = document.getElementById('config-modal-content');
+    content.textContent = '';
+    const header = configEl('div', 'modal-header');
+    header.appendChild(configEl('h2', '', title));
+    const body = configEl('div', 'modal-body');
+    items.forEach(item => body.appendChild(configEl('div', 'config-modal-item' + (item.cls ? ' ' + item.cls : ''), item.text)));
+    const footer = configEl('div', 'modal-footer');
+    const cancel = configEl('button', 'btn-secondary', 'Cancel');
+    cancel.type = 'button';
+    cancel.onclick = () => configModalResolve(false);
+    const ok = configEl('button', 'btn-primary', okLabel || 'Save changes');
+    ok.type = 'button';
+    ok.onclick = () => configModalResolve(true);
+    footer.append(cancel, ok);
+    content.append(header, body, footer);
+    document.getElementById('config-modal').style.display = 'flex';
+    cancel.focus();
+  });
+}
+
+function configModalResolve(result) {
+  document.getElementById('config-modal').style.display = 'none';
+  const resolve = CONFIG_MODAL_RESOLVE;
+  CONFIG_MODAL_RESOLVE = null;
+  if (resolve) resolve(result);
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && CONFIG_MODAL_RESOLVE) configModalResolve(false); });
+
+window.addEventListener('beforeunload', e => {
+  if (configAnyDirty()) { e.preventDefault(); e.returnValue = ''; }
+});
+
+/**
+ * POST as the forms do: text/plain so the browser sends no preflight, which Apps Script
+ * cannot answer, and the body read whatever the HTTP status, since Apps Script answers 200
+ * for everything and puts the outcome in `status`. Never throws.
+ */
+async function configPost(payload) {
+  try {
+    const response = await fetch(CONFIG.webAppUrl, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    const text = await response.text();
+    let data;
+    try { data = JSON.parse(text); } catch (e) { return { ok: false, error: 'the server did not answer with JSON; it may be redeploying' }; }
+    if (data.status !== 'ok') return { ok: false, data: data, error: data.message || 'the server rejected the change' };
+    return { ok: true, data: data };
+  } catch (e) {
+    return { ok: false, error: e.message || 'no connection' };
+  }
+}
+
+async function configSave() {
+  const key = CONFIG_PANEL.list;
+  const def = configListDef(key);
+  if (CONFIG_PANEL.busy || !CONFIG.webAppUrl || !CONFIG_PANEL.loaded) return;
+  const problems = configValidate(key);
+  if (problems.length) { configSetStatus(problems[0].message, 'bad'); return; }
+  const ops = configDiffOps(key);
+  if (!ops.length) { configSetStatus('Nothing to save.', ''); return; }
+
+  const items = configChangeSummary(key);
+  const ok = await configConfirm('Save ' + items.length + ' change' + (items.length === 1 ? '' : 's') + ' to ' + def.label + '?', items);
+  if (!ok) return;
+
+  CONFIG_PANEL.busy = true;
+  configRefreshActions();
+  configSetStatus('Saving…', '');
+  const result = await configPost({ type: 'config', list: key, baseVersion: CONFIG_PANEL.loaded.version, actor: 'Dashboard User', publish: true, ops: ops });
+  CONFIG_PANEL.busy = false;
+
+  if (!result.ok) {
+    const code = result.data && result.data.code;
+    configSetStatus(code === 'conflict'
+      ? 'These lists changed somewhere else since this page loaded. Your edits are still here: Reload from server to see the current lists, then redo what still applies.'
+      : 'Not saved: ' + (result.error || 'unknown error') + '. Your edits are still here.', 'bad');
+    configRefreshActions();
+    return;
+  }
+
+  const data = result.data;
+  DATA.reference = data.reference;
+  configLoadFrom(data.reference, key);
+  renderConfig();
+
+  let message = 'Saved.';
+  if (data.warning) message += ' ' + data.warning;
+  if (data.published) message += ' Publishing to the forms now; they will have it within about ten minutes.';
+  else if (data.publishError) message += ' But publishing failed: ' + data.publishError + '. The forms keep the previous lists until the next successful save or deploy.';
+  configSetStatus(message, data.publishError ? 'bad' : 'ok');
+  setTimeout(configRenderPublished, 2 * 60 * 1000);   // the site job takes about two minutes; then check the forms' copy
+}
+
+// ─── The forms' copy, and names the list has never seen ──────────────────────
+
+/** Whether the static file the forms read matches the version on screen. What makes a failed publish visible. */
+async function configRenderPublished() {
+  const line = document.getElementById('config-published');
+  if (!CONFIG.webAppUrl || !CONFIG_PANEL.loaded) { line.textContent = ''; return; }
+  const key = CONFIG_PANEL.list;
+  try {
+    const response = await fetch('../data/' + key + '.json', { cache: 'no-cache' });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
+    if (key !== CONFIG_PANEL.list) return;   // the list changed while this was in flight
+    if (data.version === CONFIG_PANEL.loaded.version) {
+      const when = data.generatedAt ? new Date(data.generatedAt) : null;
+      line.textContent = 'The forms have this version (' + data.version + ')' + (when && !isNaN(when.getTime()) ? ', published ' + when.toLocaleString() : '') + '.';
+    } else {
+      line.textContent = 'The forms are behind: they have ' + (data.version || 'an unversioned copy') + ' and the current version is ' + CONFIG_PANEL.loaded.version + '. A publish runs after each save and takes about two minutes; if this stays behind, the publish failed and the next save or deploy will retry it.';
+    }
+  } catch (e) {
+    line.textContent = 'Could not read the forms\' copy of ' + key + '.json (' + e.message + ').';
+  }
+}
+
+/**
+ * Names that appear in the loaded records but not on this list. Drivers and supervisors get
+ * there by being typed under "+ Add new" on a form; dishes and kitchens cannot be typed, so
+ * anything here is what a past rename left behind. Scoped to the window the dashboard has
+ * loaded, and says so.
+ */
+function configRenderUnlisted() {
+  const def = configListDef(CONFIG_PANEL.list);
+  const container = document.getElementById('config-unlisted');
+  const scope = document.getElementById('config-unlisted-scope');
+  container.textContent = '';
+  scope.textContent = '';
+
+  const sources = { production: DATA.production || [], deliveries: DATA.deliveries || [] };
+  const seen = {};
+  let records = 0;
+  def.records.forEach(where => {
+    sources[where.source].forEach(record => {
+      records += 1;
+      const raw = configNormalise(record[where.field]);
+      if (!raw) return;
+      const lower = raw.toLowerCase();
+      const entry = seen[lower] || (seen[lower] = { name: raw, count: 0, last: '' });
+      entry.count += 1;
+      const date = normalizeDate(record.date);
+      if (date > entry.last) entry.last = date;
+    });
+  });
+  const listed = new Set((CONFIG_PANEL.buffer[def.key] || []).map(entry => configNormalise(def.byName ? entry.name : entry.id).toLowerCase()));
+  const unlisted = Object.values(seen).filter(entry => !listed.has(entry.name.toLowerCase())).sort((a, b) => b.count - a.count);
+
+  const win = DATA.window;
+  const label = iso => localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const range = win && win.from && win.to ? label(win.from) + ' to ' + label(win.to) : 'the loaded window';
+  const sourceNames = def.records.map(where => where.source === 'production' ? 'production' : 'delivery').join(' and ');
+  scope.textContent = 'Checked against ' + records + ' ' + sourceNames + ' records from ' + range + ', the dates this dashboard has loaded. Names used before that are not included. ';
+  if (CONFIG.webAppUrl && REQUESTED_FROM && REQUESTED_FROM > earliestWindowFrom()) {
+    const more = configEl('button', 'btn-clear-filters', 'Load six months');
+    more.type = 'button';
+    more.style.marginLeft = '8px';
+    more.onclick = () => ensureWindow(earliestWindowFrom());
+    scope.appendChild(more);
+  }
+
+  if (!unlisted.length) {
+    container.appendChild(configEl('p', 'home-status', 'No unlisted ' + def.noun + 's in this window.'));
+    return;
+  }
+  const hint = def.byName && (def.key === 'drivers' || def.key === 'supervisors')
+    ? 'Typed with "+ Add new" on a form.'
+    : def.key === 'stores' ? 'A delivery was filed against this store number.' : 'Probably a past name: records filed before a rename.';
+  unlisted.forEach(entry => {
+    const row = configEl('div', 'config-unlisted-row');
+    row.appendChild(configEl('span', 'config-unlisted-name', entry.name));
+    row.appendChild(configEl('span', 'config-unlisted-meta', entry.count + ' record' + (entry.count === 1 ? '' : 's') + (entry.last ? ', last ' + entry.last : '') + ' · ' + hint));
+    if (CONFIG.webAppUrl) {
+      const add = configEl('button', 'btn-clear-filters', def.key === 'stores' ? 'Use this number' : 'Add to list');
+      add.type = 'button';
+      add.onclick = () => configUnlistedAdd(entry.name);
+      row.appendChild(add);
+    }
+    container.appendChild(row);
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Auto-Collapsible Sidebar (CSS-based, no JS needed)
 // Sidebar starts collapsed (70px) and expands on hover (220px)
