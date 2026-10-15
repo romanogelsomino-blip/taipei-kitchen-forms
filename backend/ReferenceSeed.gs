@@ -7,7 +7,7 @@
 //
 // A function returning a literal, not a top-level const: file load order is not guaranteed.
 // The UUIDs are fixed so every environment seeds the same keys. sortOrder is the array
-// position; `active` defaults to true.
+// position; `active` defaults to true and `deletedAt` to empty.
 
 function referenceSeed() {
   return {
@@ -18,7 +18,7 @@ function referenceSeed() {
     ],
 
     stores: [
-      { id: '00000000-0000-4000-8000-000000000000', storeType: 'Giant', storeId: '0000', name: '(reserved) CI smoke test', location: '', active: false },   // the dev deploy writes smoke rows here; REFERENCE_RESERVED_STORE_UUID
+      { id: '00000000-0000-4000-8000-000000000000', storeType: 'Giant', storeId: '0000', name: '(reserved) CI smoke test', location: '', deletedAt: '2026-10-14T00:00:00-04:00' },   // the dev deploy writes smoke rows here (REFERENCE_RESERVED_STORE_UUID); deleted so no tab or form ever offers it
       { id: '3053ab5e-a4ac-4450-9dfe-7cff7eefc73c', storeType: 'Giant', storeId: '6006', name: 'Store 6006', location: 'Kline Village, Harrisburg, PA' },
       { id: 'f37cb8e5-0671-47fb-8eea-dc2debf6d3e0', storeType: 'Giant', storeId: '6061', name: 'Store 6061', location: 'Shippensburg, PA' },
       { id: 'd55afaf3-8a4b-4205-98c9-eb6faef04a5e', storeType: 'Giant', storeId: '6112', name: 'Store 6112', location: '255 S Spring Garden St, Carlisle, PA' },

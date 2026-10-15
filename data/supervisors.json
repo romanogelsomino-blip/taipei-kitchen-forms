@@ -4,24 +4,28 @@
       "id": "b366fa0e-7576-4945-8b62-d10f1a3e4cdb",
       "name": "Anna",
       "active": true,
+      "deletedAt": "",
       "sortOrder": 1
     },
     {
       "id": "a588d0fb-6fb1-480c-bf66-99ecae07125c",
       "name": "Lucia",
       "active": true,
+      "deletedAt": "",
       "sortOrder": 2
     },
     {
       "id": "bf6ca106-a9b8-4e13-b7f5-e0c959add56b",
       "name": "Jiang",
       "active": true,
+      "deletedAt": "",
       "sortOrder": 3
     },
     {
       "id": "b994bc43-3b2e-4191-8668-6b89759fd4b4",
       "name": "Guy",
       "active": true,
+      "deletedAt": "",
       "sortOrder": 4
     }
   ],

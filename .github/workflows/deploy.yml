@@ -306,7 +306,7 @@ jobs:
           BEFORE=$(webapp_get reference) \
             || { echo "::error::reference never answered with JSON."; exit 1; }
           jq -n --arg run "${{ github.run_id }}-${{ github.run_attempt }}" \
-            '{type:"config", list:"stores", actor:"ci", publish:false,
+            '{type:"config", list:"stores", publish:false,
               ops:[{op:"update", entry:{id:"00000000-0000-4000-8000-000000000000", name:("(reserved) CI smoke test " + $run)}}]}' > config.json
           OUT=$(webapp_post config.json) \
             || { echo "::error::the config write's reply was not JSON."; exit 1; }

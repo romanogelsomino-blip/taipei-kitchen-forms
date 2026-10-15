@@ -4,18 +4,21 @@
       "id": "e967dcb5-77ba-41b6-a8ac-db46806230e7",
       "name": "Owen",
       "active": true,
+      "deletedAt": "",
       "sortOrder": 1
     },
     {
       "id": "0b32d496-b2b5-4dc2-b68e-ba28a8e911b9",
       "name": "Sam Blumenthal",
       "active": true,
+      "deletedAt": "",
       "sortOrder": 2
     },
     {
       "id": "179fe668-826d-4fa3-abcd-130194eefdf4",
       "name": "Andy",
       "active": true,
+      "deletedAt": "",
       "sortOrder": 3
     }
   ],

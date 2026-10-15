@@ -34,9 +34,10 @@
   build; a form only ever reads those static files. Every entry is keyed by a UUID the
   backend assigns and never changes; kitchens and stores also carry a Type (Taipei or Giant)
   and that organisation's own id, and a store's Store ID is the number in its QR codes and
-  delivery rows. A row is never removed from the sheet: an entry is deactivated to pause it
-  or deleted to retire it (hidden from the Config tab, restorable), and history resolves its
-  name either way. The git copies of `data/*.json` are seeds for local runs, not a source.
+  delivery rows. A row is never removed from the sheet: an entry is deleted to retire it
+  (hidden from the Config tab, restorable), and a dish may also be deactivated to pause it;
+  history resolves its name either way. The git copies of `data/*.json` are seeds for local
+  runs, not a source.
 - **The lists are a picker source, not a constraint.** Nothing validates a submitted
   kitchen, dish, driver or supervisor against them, and nothing may: the pickers allow free
   text, and a delivery is never refused over a dropdown.

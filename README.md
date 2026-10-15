@@ -90,10 +90,10 @@ Config tab. A save writes the sheet and asks GitHub to republish the site, which
 list to `data/<list>.json` for the forms; a phone has it within about ten minutes. The
 Config tab shows whether the forms' copy is current.
 
-Every entry is keyed by a UUID the backend assigns and never changes. An entry is deactivated
-to pause it (hidden from the forms, one switch to resume) or deleted to retire it (hidden from
-the Config tab too, restorable from its deleted list); the row stays in the sheet either way,
-so past records keep their names. Kitchens and stores also carry a Type, the organisation they
+Every entry is keyed by a UUID the backend assigns and never changes. An entry is deleted to
+retire it (hidden from the forms and the Config tab, restorable from its deleted list), and a
+dish can also be switched off to pause it; the row stays in the sheet either way, so past
+records keep their names. Kitchens and stores also carry a Type, the organisation they
 belong to (Taipei or Giant), and that organisation's own identifier: the Kitchen ID or Store
 ID. A store's Store ID is its store number. QR codes point at
 `taipei_delivery_form3.html?store=<store number>` and every delivery row carries it, so a

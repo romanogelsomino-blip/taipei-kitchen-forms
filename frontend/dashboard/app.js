@@ -607,7 +607,7 @@ async function loadHomeLocations() {
       const response = await fetch('../data/' + key + '.json');
       if (!response.ok) throw new Error(key + '.json: HTTP ' + response.status);
       const data = await response.json();
-      return (data[key] || []).filter(entry => entry.active && !entry.deleted)
+      return (data[key] || []).filter(entry => entry.active && !entry.deletedAt)
         .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
     }));
     const storeText = s => s.location ? `${s.name} · ${s.location}` : s.name;
@@ -2524,10 +2524,11 @@ function exportShrinkToCSV() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Five lists, one on screen at a time. The owner edits a buffer per list and saves it as a
 // batch of ops (type: 'config'); the backend writes the Reference sheet and asks GitHub to
-// republish data/<list>.json for the forms. Nothing here is deleted: an entry no longer in
-// use is deactivated, and ids never change once saved. Store ids are on printed QR codes,
-// and the other four lists are stored in the records by name, so a rename there splits
-// history and the panel says so before it happens.
+// republish data/<list>.json for the forms. A row is never removed from the sheet: an entry
+// is deleted (Deleted At set; folded away here, restorable) and a dish may also be switched
+// off, and ids never change once saved. Store numbers are on printed QR codes, and the
+// four name-keyed lists are stored in the records by name, so a rename there splits history
+// and the panel says so before it happens.
 //
 // Every server-supplied string is set with textContent or .value, never innerHTML: these
 // names are edited on a web page and reach every form.
@@ -2551,8 +2552,9 @@ const CONFIG_LISTS = [
     records: [{ source: 'deliveries', field: 'store', attr: 'storeId' }],
     blurb: 'Where deliveries go. The Store ID is the store number: it is in the QR code posted at the store and in every delivery record. The name is a label and can be changed freely.' },
   { key: 'dishes',      label: 'Dishes',      noun: 'dish',       byName: true, attrs: [],
+    activeToggle: true,   // the one list with a pause switch as well as delete: a dish is tried for a while, then kept or not
     records: [{ source: 'production', field: 'dish', attr: 'name' }, { source: 'deliveries', field: 'dish', attr: 'name' }],
-    blurb: 'What is cooked and delivered. Both forms show these as cards, in this order.' },
+    blurb: 'What is cooked and delivered. Both forms show these as cards, in this order. Switch a dish off to pause it without losing its place; delete it to retire it.' },
   { key: 'supervisors', label: 'Supervisors', noun: 'supervisor', byName: true, attrs: [],
     records: [{ source: 'production', field: 'supervisor', attr: 'name' }],
     blurb: 'Who signs off a batch. The production form offers these and also accepts a typed name.' },
@@ -2680,7 +2682,7 @@ function configDiffOps(key) {
     });
     if (Object.keys(patch).length) ops.push({ op: 'update', entry: Object.assign({ id: entry.id }, patch) });
     if (!!entry.active !== !!was.active) ops.push({ op: 'setActive', id: entry.id, active: !!entry.active });
-    if (!!entry.deleted !== !!was.deleted) ops.push({ op: entry.deleted ? 'delete' : 'restore', id: entry.id });
+    if (!!entry.deletedAt !== !!was.deletedAt) ops.push({ op: entry.deletedAt ? 'delete' : 'restore', id: entry.id });
   });
 
   const existing = buffer.filter(entry => !entry._new).map(entry => entry.id);
@@ -2725,7 +2727,7 @@ function configValidate(key) {
       }
     });
   });
-  if (buffer.length && !buffer.some(entry => entry.active && !entry.deleted)) problems.push({ message: 'At least one ' + def.noun + ' must stay active and not deleted.' });
+  if (buffer.length && !buffer.some(entry => entry.active && !entry.deletedAt)) problems.push({ message: 'At least one ' + def.noun + ' must stay active and not deleted.' });
   return problems;
 }
 
@@ -2859,7 +2861,7 @@ function configInput(value, placeholder, maxLength, oninput) {
 
 /** Indices of the entries a list shows as cards: not deleted. Moves happen among these, skipping deleted rows in between. */
 function configVisibleIndices(buffer) {
-  return buffer.map((entry, i) => (entry.deleted ? -1 : i)).filter(i => i >= 0);
+  return buffer.map((entry, i) => (entry.deletedAt ? -1 : i)).filter(i => i >= 0);
 }
 
 /**
@@ -2876,7 +2878,7 @@ function configRenderList() {
   document.getElementById('config-list-blurb').textContent = def.blurb;
 
   const container = document.getElementById('config-rows');
-  container.className = 'config-rows ' + (def.attrs.length ? 'with-attrs' : 'no-attrs');   // picks the column template
+  container.className = 'config-rows ' + (def.attrs.length ? 'with-attrs' : 'no-attrs') + (def.activeToggle ? ' with-active' : '');   // picks the column template
   container.textContent = '';
   const buffer = CONFIG_PANEL.buffer[def.key] || [];
   const loadedById = {};
@@ -2886,20 +2888,21 @@ function configRenderList() {
   const visible = configVisibleIndices(buffer);
   const movable = visible.filter(i => !buffer[i]._new);   // new entries land at the end on save and cannot be moved before it
   const nameLabel = configCapitalise(def.noun) + ' Name';
-  const deleted = buffer.map((entry, i) => (entry.deleted ? i : -1)).filter(i => i >= 0);
+  const deleted = buffer.map((entry, i) => (entry.deletedAt ? i : -1)).filter(i => i >= 0);
 
   const renderCard = index => {
     const entry = buffer[index];
     const ref = configEntryRef(entry);
-    const editing = !readOnly && !entry.deleted && !!CONFIG_PANEL.editing && CONFIG_PANEL.editing.key === def.key && CONFIG_PANEL.editing.ref === ref;
+    const isDeleted = !!entry.deletedAt;
+    const editing = !readOnly && !isDeleted && !!CONFIG_PANEL.editing && CONFIG_PANEL.editing.key === def.key && CONFIG_PANEL.editing.ref === ref;
     const wrap = configEl('div', 'config-entry');
     wrap.dataset.index = index;
-    const card = configEl('div', 'config-card' + (entry.active ? '' : ' inactive') + (entry.deleted ? ' deleted' : '') + (problems[index] ? ' invalid' : '') + (editing ? ' editing' : ''));
+    const card = configEl('div', 'config-card' + (entry.active ? '' : ' inactive') + (isDeleted ? ' deleted' : '') + (problems[index] ? ' invalid' : '') + (editing ? ' editing' : ''));
 
     const move = configEl('div', 'config-card-move');
     const at = movable.indexOf(index);
-    move.appendChild(configMoveButton('↑', at <= 0, () => configMove(def.key, index, -1), readOnly || entry.deleted));
-    move.appendChild(configMoveButton('↓', at < 0 || at >= movable.length - 1, () => configMove(def.key, index, 1), readOnly || entry.deleted));
+    move.appendChild(configMoveButton('↑', at <= 0, () => configMove(def.key, index, -1), readOnly || isDeleted));
+    move.appendChild(configMoveButton('↓', at < 0 || at >= movable.length - 1, () => configMove(def.key, index, 1), readOnly || isDeleted));
 
     const fields = configEl('div', 'config-card-fields');
     fields.appendChild(configField('ID', entry._new ? configTextValue('assigned on save', true) : configIdValue(entry.id, 8)));
@@ -2915,10 +2918,10 @@ function configRenderList() {
       fields.appendChild(configField(attr.label, node));
     });
 
-    if (entry.deleted) {
-      const when = entry.deletedAt ? new Date(entry.deletedAt) : null;
-      fields.appendChild(configField('Deleted', configTextValue(when && !isNaN(when.getTime()) ? when.toLocaleDateString() : 'pending save', !when)));
-    } else {
+    if (isDeleted) {
+      const when = new Date(entry.deletedAt);
+      fields.appendChild(configField('Deleted', configTextValue(isNaN(when.getTime()) ? entry.deletedAt : when.toLocaleDateString(), false)));
+    } else if (def.activeToggle) {
       const toggle = configEl('label', 'config-switch' + (editing ? '' : ' disabled'));
       const checkbox = configEl('input');
       checkbox.type = 'checkbox';
@@ -2930,10 +2933,10 @@ function configRenderList() {
     }
 
     const actions = configEl('div', 'config-card-actions');
-    if (!readOnly && entry.deleted) {
+    if (!readOnly && isDeleted) {
       const restore = configEl('button', 'btn-clear-filters config-edit', 'Restore');
       restore.type = 'button';
-      restore.onclick = () => configEdit(def.key, index, 'deleted', false);
+      restore.onclick = () => configEdit(def.key, index, 'deletedAt', '');
       actions.appendChild(restore);
     } else if (!readOnly) {
       const edit = configEl('button', 'btn-clear-filters config-edit', editing ? 'Done' : 'Edit');
@@ -2945,7 +2948,7 @@ function configRenderList() {
         // in the sheet on Save and can be restored from the deleted list.
         const remove = configEl('button', 'btn-clear-filters config-delete', entry._new ? 'Remove' : 'Delete');
         remove.type = 'button';
-        remove.onclick = () => (entry._new ? configRemoveNew(def.key, index) : configEdit(def.key, index, 'deleted', true));
+        remove.onclick = () => (entry._new ? configRemoveNew(def.key, index) : configEdit(def.key, index, 'deletedAt', new Date().toISOString()));   // the server stamps its own instant on save
         actions.appendChild(remove);
       }
     }
@@ -3086,7 +3089,7 @@ function configEdit(key, index, field, value) {
   const entry = CONFIG_PANEL.buffer[key] && CONFIG_PANEL.buffer[key][index];
   if (!entry) return;
   entry[field] = value;
-  if (field === 'deleted') {
+  if (field === 'deletedAt') {
     CONFIG_PANEL.editing = null;        // the card leaves the list (or comes back); nothing is open any more
     if (value) CONFIG_PANEL.showDeleted = true;
     configRenderList();
@@ -3242,8 +3245,8 @@ function configChangeSummary(key) {
       else if (key === 'kitchens') items.push({ cls: 'caution', text: 'Deactivate "' + name + '". The Home tab\'s launcher and the production form will no longer offer it. Past records keep it.' });
       else items.push({ cls: 'caution', text: 'Deactivate "' + name + '". Removed from the forms on their next load. Past records keep it.' });
     }
-    if (!!entry.deleted !== !!was.deleted) {
-      if (entry.deleted) items.push({ cls: 'caution', text: 'Delete "' + name + '". It leaves this list and the forms; past records keep it and still show its name on the dashboard. It can be restored from the deleted ' + def.noun + 's below the list.' + (key === 'stores' ? ' Its printed QR code will open a delivery form that does not recognise the store.' : '') });
+    if (!!entry.deletedAt !== !!was.deletedAt) {
+      if (entry.deletedAt) items.push({ cls: 'caution', text: 'Delete "' + name + '". It leaves this list and the forms; past records keep it and still show its name on the dashboard. It can be restored from the deleted ' + def.noun + 's below the list.' + (key === 'stores' ? ' Its printed QR code will open a delivery form that does not recognise the store.' : '') });
       else items.push({ cls: 'safe', text: 'Restore "' + name + '". It returns to this list as it was' + (entry.active ? ' and to the forms on their next load.' : ', still inactive.') });
     }
   });
@@ -3329,7 +3332,7 @@ async function configSave() {
   CONFIG_PANEL.busy = true;
   configRefreshActions();
   configSetStatus('Saving…', '');
-  const result = await configPost({ type: 'config', list: key, baseVersion: CONFIG_PANEL.loaded.version, actor: 'Dashboard User', publish: true, ops: ops });
+  const result = await configPost({ type: 'config', list: key, baseVersion: CONFIG_PANEL.loaded.version, publish: true, ops: ops });
   CONFIG_PANEL.busy = false;
 
   if (!result.ok) {

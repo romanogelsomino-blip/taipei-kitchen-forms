@@ -1861,12 +1861,22 @@ body {
 .config-move:disabled { opacity: 0.35; cursor: default; }
 .config-move:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
 .config-card-fields { display: grid; gap: 0 18px; align-items: start; min-width: 0; }
+/* Columns per list shape: ID, Name, then Type / Org ID / Location for kitchens and stores,
+   then the Active switch only where the list has one (dishes). Deleted cards swap the last
+   column for the date. */
 .config-rows.with-attrs .config-card-fields {
+  grid-template-columns: minmax(110px, 0.7fr) minmax(150px, 1.5fr) minmax(100px, 0.7fr) minmax(110px, 0.9fr) minmax(150px, 1.6fr);
+}
+.config-rows.with-attrs.with-active .config-card-fields {
   grid-template-columns: minmax(110px, 0.7fr) minmax(150px, 1.5fr) minmax(100px, 0.7fr) minmax(110px, 0.9fr) minmax(150px, 1.6fr) 104px;
 }
 .config-rows.no-attrs .config-card-fields {
+  grid-template-columns: minmax(110px, 0.7fr) minmax(200px, 3fr);
+}
+.config-rows.no-attrs.with-active .config-card-fields {
   grid-template-columns: minmax(110px, 0.7fr) minmax(200px, 3fr) 104px;
 }
+.config-rows .config-card.deleted .config-card-fields > .config-field:last-child { grid-column: -2 / -1; }
 .config-field { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .config-field-label {
   font-family: 'DM Mono', monospace;
@@ -2055,7 +2065,10 @@ body {
   .config-card { grid-template-columns: 1fr; }
   .config-card-move { flex-direction: row; }
   .config-rows.with-attrs .config-card-fields,
-  .config-rows.no-attrs .config-card-fields { grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+  .config-rows.with-attrs.with-active .config-card-fields,
+  .config-rows.no-attrs .config-card-fields,
+  .config-rows.no-attrs.with-active .config-card-fields { grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+  .config-rows .config-card.deleted .config-card-fields > .config-field:last-child { grid-column: auto; }
   .config-field-name { grid-column: 1 / -1; }
   .config-card-actions .config-edit { width: 100%; }
   .config-lists .btn-time-range { flex: 1 0 auto; }

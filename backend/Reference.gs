@@ -33,7 +33,7 @@ const REFERENCE_WRITES_PER_MINUTE = 20;
 const REFERENCE_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const REFERENCE_ORG_ID_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;   // goes into ?store=<id> and photo filenames: no '_' (their separator), no '.', nothing to percent-encode
 const REFERENCE_CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
-const REFERENCE_LIMITS = { orgId: 40, name: 80, text: 120, actor: 80, reorder: 500 };   // reorder matches REFERENCE_ROW_CAP
+const REFERENCE_LIMITS = { orgId: 40, name: 80, text: 120, reorder: 500 };   // reorder matches REFERENCE_ROW_CAP
 const REFERENCE_RESERVED_STORE_UUID = '00000000-0000-4000-8000-000000000000';   // store 0000, which the dev deploy's smoke test writes to
 
 // ─── The lists ───────────────────────────────────────────────────────────────
@@ -102,8 +102,7 @@ function referenceSchemaFor(tab) {
     { header: 'Deleted At', key: 'deletedAt', type: 'instant' },   // empty unless the entry is deleted; the row itself stays
     { header: 'Sort',       key: 'sortOrder', type: 'number',  width: 70 },
     { header: 'Created At', key: 'createdAt', type: 'instant' },
-    { header: 'Updated At', key: 'updatedAt', type: 'instant' },
-    { header: 'Updated By', key: 'updatedBy', type: 'text',    width: 170 }   // what the browser said; not authentication
+    { header: 'Updated At', key: 'updatedAt', type: 'instant' }
   ];
   return head.concat(attrs, tail);
 }
@@ -192,26 +191,39 @@ function ensureReferenceTabs(ss) {
 
 /**
  * Bring a tab written under an earlier schema up to date: the key column renamed from ID to
- * UUID, columns the schema has gained added, and a row keyed by a slug given a UUID with the
- * slug kept as its organisation id. A row already keyed by a UUID is left alone, so this
- * costs one read on every init and writes only the first time.
+ * UUID, columns the schema has gained added and ones it has dropped removed, a row keyed by
+ * a slug given a UUID with the slug kept as its organisation id, and the reserved CI store
+ * marked deleted rather than inactive. A tab already in shape is left alone, so this costs
+ * one read on every init and writes only the first time.
  */
 function migrateReferenceTab(sheet, tab) {
   const list = referenceListFor(tab);
   const schema = referenceSchemaFor(tab);
-  const headers = sheetHeaders(sheet);
+  let headers = sheetHeaders(sheet);
   if (headers.indexOf('UUID') < 0 && headers.indexOf('ID') >= 0) sheet.getRange(1, headers.indexOf('ID') + 1).setValue('UUID');
+  ['Updated By'].forEach(dropped => {   // columns an earlier schema wrote that this one does not
+    headers = sheetHeaders(sheet);
+    const at = headers.indexOf(dropped);
+    if (at >= 0) sheet.deleteColumn(at + 1);
+  });
   sheetColumnsWith(sheet, schema, referenceTabLayout(tab));
   readReferenceRows(sheet, tab).forEach(row => {
     const slug = String(row.id).trim();
-    if (REFERENCE_UUID_PATTERN.test(slug)) return;
-    const patch = { id: list.tab === 'Stores' && slug === '0000' ? REFERENCE_RESERVED_STORE_UUID : Utilities.getUuid() };
-    list.attrs.forEach(attr => {
-      if (row[attr.key]) return;
-      if (attr.kind === 'orgId') patch[attr.key] = slug;
-      if (attr.kind === 'type') patch[attr.key] = /^\d+$/.test(slug) && list.types.indexOf('Giant') >= 0 ? 'Giant' : list.types[0];   // a bare number was a Giant store number
-    });
-    updateRow(sheet, schema, row._row, patch);
+    const patch = {};
+    const reserved = list.tab === 'Stores' && (slug.toLowerCase() === REFERENCE_RESERVED_STORE_UUID || String(row.storeId || slug) === '0000');
+    if (!REFERENCE_UUID_PATTERN.test(slug)) {
+      patch.id = reserved ? REFERENCE_RESERVED_STORE_UUID : Utilities.getUuid();
+      list.attrs.forEach(attr => {
+        if (row[attr.key]) return;
+        if (attr.kind === 'orgId') patch[attr.key] = slug;
+        if (attr.kind === 'type') patch[attr.key] = /^\d+$/.test(slug) && list.types.indexOf('Giant') >= 0 ? 'Giant' : list.types[0];   // a bare number was a Giant store number
+      });
+    }
+    if (reserved && !row.deletedAt) {
+      patch.deletedAt = formatInstant(new Date());   // the smoke row is never offered anywhere: deleted, not merely inactive
+      patch.active = true;
+    }
+    if (Object.keys(patch).length) updateRow(sheet, schema, row._row, patch);
   });
 }
 
@@ -222,7 +234,7 @@ function seedReferenceTab(sheet, tab) {
   if (!entries.length) return;
   const now = formatInstant(new Date());
   const rows = entries.map((entry, i) => {
-    const row = { id: entry.id, name: entry.name, active: entry.active !== false, sortOrder: i + 1, createdAt: now, updatedAt: '', updatedBy: '' };
+    const row = { id: entry.id, name: entry.name, active: entry.active !== false, deletedAt: entry.deletedAt || '', sortOrder: i + 1, createdAt: now, updatedAt: '' };
     list.attrs.forEach(attr => { row[attr.key] = entry[attr.key] || ''; });
     return row;
   });
@@ -238,13 +250,12 @@ function readReferenceRows(sheet, tab) {
     .filter(record => String(record.id).trim() !== '');
 }
 
-/** A row as the API emits it: id, name, the list's attributes, active, deleted, sortOrder. The audit columns stay in the sheet. */
+/** A row as the API emits it: id, name, the list's attributes, active, deletedAt (empty unless deleted), sortOrder. The audit columns stay in the sheet. */
 function publicReferenceEntry(record, list) {
   const entry = { id: String(record.id).trim(), name: String(record.name) };
   list.attrs.forEach(attr => { entry[attr.key] = String(record[attr.key] === undefined || record[attr.key] === null ? '' : record[attr.key]); });
   entry.active = record.active === true;
   entry.deletedAt = String(record.deletedAt || '');
-  entry.deleted = entry.deletedAt !== '';
   entry.sortOrder = Number(record.sortOrder) || 0;
   return entry;
 }
@@ -434,12 +445,12 @@ function referenceOrgIdTaken(rows, attr, candidate, exceptId) {
  * added earlier in the same batch finds its sheet row number once the append has run. A
  * change is { attr, id, from, to } for every name or org id that moved, for the warnings.
  */
-function planReferenceOps(list, ops, rows, actor, now) {
+function planReferenceOps(list, ops, rows, now) {
   const sim = rows.map(row => Object.assign({}, row));
   const mutations = [];
   const changes = [];
   const touched = [];
-  const stamp = { updatedAt: now, updatedBy: actor };
+  const stamp = { updatedAt: now };
   const patch = (row, fields) => {
     Object.assign(row, fields);
     mutations.push({ type: 'patch', row: row, patch: fields });
@@ -458,7 +469,7 @@ function planReferenceOps(list, ops, rows, actor, now) {
         const owner = referenceNameOwner(sim, name, null);
         if (owner) throw referenceNameTakenRejection(list, name, owner);
         const sortOrder = sim.reduce((max, row) => Math.max(max, Number(row.sortOrder) || 0), 0) + 1;
-        const row = { _row: null, id: Utilities.getUuid(), name: name, active: true, deletedAt: '', sortOrder: sortOrder, createdAt: now, updatedAt: now, updatedBy: actor };
+        const row = { _row: null, id: Utilities.getUuid(), name: name, active: true, deletedAt: '', sortOrder: sortOrder, createdAt: now, updatedAt: now };
         list.attrs.forEach(attr => { row[attr.key] = checkReferenceAttr(list, attr, entry[attr.key]); });
         orgIds.forEach(attr => {
           if (referenceOrgIdTaken(sim, attr, row, null)) {
@@ -675,7 +686,6 @@ function handleConfigWrite(payload, ctx) {
     const list = referenceListFor(payload.list);
     const ops = Array.isArray(payload.ops) ? payload.ops : null;
     if (!ops || !ops.length) throw referenceRejection('ops must be a non-empty array.', 'validation');
-    const actor = checkReferenceText(payload.actor, 'Actor', REFERENCE_LIMITS.actor, false) || 'dashboard';
     const baseVersion = payload.baseVersion ? String(payload.baseVersion) : null;
     referenceThrottle();
 
@@ -688,7 +698,7 @@ function handleConfigWrite(payload, ctx) {
         throw referenceRejection('The lists changed since this page loaded (' + baseVersion + ' is now ' + current.version + '). Reload and try again.', 'conflict');
       }
       const sheet = opened.ss.getSheetByName(list.tab);
-      const planned = planReferenceOps(list, ops, readReferenceRows(sheet, list.tab), actor, now);
+      const planned = planReferenceOps(list, ops, readReferenceRows(sheet, list.tab), now);
       applyReferenceMutations(sheet, list.tab, planned.mutations);
       invalidateReferencePayload();
       return planned;
@@ -696,7 +706,6 @@ function handleConfigWrite(payload, ctx) {
 
     ctx.logEntry.rowCount = plan.mutations.length;
     note(ctx, 'config=' + list.key + ':' + ops.map(op => op.op).join(',') + (plan.touched.length ? ':' + plan.touched.join(',') : ''));
-    note(ctx, 'config_actor=' + actor);
     plan.changes.forEach(change => note(ctx, 'config_change=' + change.attr + ':' + change.from + '->' + change.to));
 
     const warnings = plan.changes.map(change => changeWarning(list, change)).filter(Boolean);
