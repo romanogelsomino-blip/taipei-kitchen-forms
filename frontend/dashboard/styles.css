@@ -1832,7 +1832,7 @@ body {
 .config-rows { display: flex; flex-direction: column; gap: 8px; }
 .config-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;   /* arrows | fields | Edit */
+  grid-template-columns: 26px minmax(0, 1fr) 72px;   /* arrows | fields | Edit; fixed so Edit vs Done cannot shift the columns */
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
@@ -1917,9 +1917,29 @@ body {
   outline: none;
 }
 .config-input:focus { border-color: var(--red); }
-.config-card-actions { display: flex; align-items: center; }
-.config-edit { margin-right: 0; padding: 6px 14px; font-size: 0.8rem; white-space: nowrap; }
+.config-card-actions { display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
+.config-edit,
+.config-delete { width: 100%; margin-right: 0; padding: 6px 0; font-size: 0.8rem; white-space: nowrap; text-align: center; }
 .config-card.editing .config-edit { background: var(--red); border-color: var(--red); color: #fff; }
+.config-delete { color: var(--red-dk); border-color: var(--red-lt); }
+.config-delete:hover { border-color: var(--red); background: var(--red-lt); }
+/* Deleted entries stay in the sheet and are folded away here; a dashed card reads as "was". */
+.config-card.deleted { background: var(--surface); border-style: dashed; opacity: 0.7; }
+.config-deleted-toggle {
+  align-self: flex-start;
+  min-height: 0;
+  margin-top: 4px;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: var(--soft);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.config-deleted-toggle:hover { color: var(--red); }
 
 /* Active switch: a styled checkbox, so it reads the same on every platform. */
 .config-switch {

@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=__BUILD_ID__">
 <!-- Chart.js via CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
@@ -606,7 +606,7 @@
     <!-- Config Panel: the reference lists the forms offer. Rendered by renderConfig() in app.js. -->
     <section id="panel-config" class="panel">
       <h1 class="panel-title">Configuration</h1>
-      <p class="panel-subtitle">The kitchen, store, dish, supervisor and driver lists the forms offer. Press Edit on an entry to change its name or location or to switch it off; its type and id are set when it is added. Nothing here is deleted: an entry no longer in use is deactivated, and its history stays readable.</p>
+      <p class="panel-subtitle">The kitchen, store, dish, supervisor and driver lists the forms offer. Press Edit on an entry to change its name or location, switch it off to pause it, or delete it to retire it; its type and id are set when it is added. A deleted entry can be restored, and its history stays readable either way.</p>
 
       <div class="config-lists" id="config-lists"></div>
 

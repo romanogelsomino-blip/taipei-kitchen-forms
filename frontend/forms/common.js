@@ -163,10 +163,10 @@ async function loadReferenceLists(keys) {
   return lists;
 }
 
-/** Active entries of one list in display order. */
+/** Active, undeleted entries of one list in display order: what a form may offer. */
 function activeEntries(lists, key) {
   return ((lists && lists[key]) || [])
-    .filter(entry => entry.active)
+    .filter(entry => entry.active && !entry.deleted)
     .slice()
     .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
 }

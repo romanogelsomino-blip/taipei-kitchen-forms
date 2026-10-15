@@ -16,15 +16,18 @@
 // dish, driver or supervisor against them, and nothing may: the pickers allow free text and
 // a delivery must never be refused over a dropdown.
 //
-// Entries are deactivated, never deleted. The four name-keyed lists are stored in the
-// monthly rows by display name, so history depends on names staying put; the Config tab
-// warns before a rename and the backend never rewrites a record.
+// A row is never removed from the sheet. An entry is deactivated to pause it (hidden from
+// the forms, shown greyed on the Config tab, one switch to resume) or deleted to retire it
+// (hidden from the Config tab too, restorable from its deleted list); either way history
+// still resolves its name. The four name-keyed lists are stored in the monthly rows by
+// display name, so history depends on names staying put; the Config tab warns before a
+// rename and the backend never rewrites a record.
 
 const REFERENCE_FILE_NAME = 'Reference';
 const REFERENCE_MEMO = {};                          // per-execution: opened, ensured, payload
-const REFERENCE_CACHE_KEY = 'reference:payload:v2';
+const REFERENCE_CACHE_KEY = 'reference:payload:v3';
 const REFERENCE_CACHE_SEC = 600;                    // bounds staleness after a hand edit in Sheets, which nothing invalidates
-const REFERENCE_VERSION_PREFIX = 'r2-';             // payload-shape revision; bump when an entry's shape changes
+const REFERENCE_VERSION_PREFIX = 'r3-';             // payload-shape revision; bump when an entry's shape changes
 const REFERENCE_ROW_CAP = 500;                      // an unauthenticated append endpoint needs a ceiling
 const REFERENCE_WRITES_PER_MINUTE = 20;
 const REFERENCE_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -96,6 +99,7 @@ function referenceSchemaFor(tab) {
   const attrs = list.attrs.map(attr => ({ header: attr.header, key: attr.key, type: 'text', width: attr.kind === 'text' ? 300 : 120 }));
   const tail = [
     { header: 'Active',     key: 'active',    type: 'bool',    width: 80 },
+    { header: 'Deleted At', key: 'deletedAt', type: 'instant' },   // empty unless the entry is deleted; the row itself stays
     { header: 'Sort',       key: 'sortOrder', type: 'number',  width: 70 },
     { header: 'Created At', key: 'createdAt', type: 'instant' },
     { header: 'Updated At', key: 'updatedAt', type: 'instant' },
@@ -234,11 +238,13 @@ function readReferenceRows(sheet, tab) {
     .filter(record => String(record.id).trim() !== '');
 }
 
-/** A row as the API emits it: id, name, the list's attributes, active, sortOrder. The audit columns stay in the sheet. */
+/** A row as the API emits it: id, name, the list's attributes, active, deleted, sortOrder. The audit columns stay in the sheet. */
 function publicReferenceEntry(record, list) {
   const entry = { id: String(record.id).trim(), name: String(record.name) };
   list.attrs.forEach(attr => { entry[attr.key] = String(record[attr.key] === undefined || record[attr.key] === null ? '' : record[attr.key]); });
   entry.active = record.active === true;
+  entry.deletedAt = String(record.deletedAt || '');
+  entry.deleted = entry.deletedAt !== '';
   entry.sortOrder = Number(record.sortOrder) || 0;
   return entry;
 }
@@ -398,9 +404,17 @@ function findReferenceRow(rows, id) {
   return rows.find(row => String(row.id).toLowerCase() === wanted) || null;
 }
 
-function referenceNameTaken(rows, name, exceptId) {
+/** The other row already using this name, deleted rows included, or null. */
+function referenceNameOwner(rows, name, exceptId) {
   const wanted = name.toLowerCase();
-  return rows.some(row => String(row.id) !== exceptId && normaliseReferenceName(row.name).toLowerCase() === wanted);
+  return rows.find(row => String(row.id) !== exceptId && normaliseReferenceName(row.name).toLowerCase() === wanted) || null;
+}
+
+/** A duplicate-name rejection that points at Restore when the name belongs to a deleted entry. */
+function referenceNameTakenRejection(list, name, owner) {
+  return referenceRejection(owner.deletedAt
+    ? 'A deleted ' + list.noun + ' named "' + name + '" exists. Restore it instead of adding another.'
+    : 'A ' + list.noun + ' named "' + name + '" already exists.', 'duplicate');
 }
 
 /** Whether another row already carries this org id, within the same type when the attribute is unique per type. */
@@ -441,9 +455,10 @@ function planReferenceOps(list, ops, rows, actor, now) {
       case 'add': {
         if (sim.length >= REFERENCE_ROW_CAP) throw referenceRejection('The ' + list.key + ' list is at its cap of ' + REFERENCE_ROW_CAP + ' entries.', 'validation');
         const name = checkReferenceText(entry.name, 'Name', REFERENCE_LIMITS.name, true);
-        if (referenceNameTaken(sim, name)) throw referenceRejection('A ' + list.noun + ' named "' + name + '" already exists.', 'duplicate');
+        const owner = referenceNameOwner(sim, name, null);
+        if (owner) throw referenceNameTakenRejection(list, name, owner);
         const sortOrder = sim.reduce((max, row) => Math.max(max, Number(row.sortOrder) || 0), 0) + 1;
-        const row = { _row: null, id: Utilities.getUuid(), name: name, active: true, sortOrder: sortOrder, createdAt: now, updatedAt: now, updatedBy: actor };
+        const row = { _row: null, id: Utilities.getUuid(), name: name, active: true, deletedAt: '', sortOrder: sortOrder, createdAt: now, updatedAt: now, updatedBy: actor };
         list.attrs.forEach(attr => { row[attr.key] = checkReferenceAttr(list, attr, entry[attr.key]); });
         orgIds.forEach(attr => {
           if (referenceOrgIdTaken(sim, attr, row, null)) {
@@ -463,7 +478,8 @@ function planReferenceOps(list, ops, rows, actor, now) {
         if (entry.name !== undefined) {
           const name = checkReferenceText(entry.name, 'Name', REFERENCE_LIMITS.name, true);
           if (name !== normaliseReferenceName(row.name)) {
-            if (referenceNameTaken(sim, name, String(row.id))) throw referenceRejection('Another ' + list.noun + ' is already named "' + name + '".', 'duplicate');
+            const owner = referenceNameOwner(sim, name, String(row.id));
+            if (owner) throw referenceNameTakenRejection(list, name, owner);
             changes.push({ attr: 'name', id: String(row.id), from: normaliseReferenceName(row.name), to: name });
             fields.name = name;
           }
@@ -502,6 +518,20 @@ function planReferenceOps(list, ops, rows, actor, now) {
         break;
       }
 
+      // A delete leaves the row in place with Deleted At set, so history still names it and
+      // Restore is one patch; `active` is left as it was, so a restored entry comes back as
+      // it went.
+      case 'delete':
+      case 'restore': {
+        const row = findReferenceRow(sim, op.id);
+        if (!row) throw referenceRejection('No ' + list.noun + ' with id ' + JSON.stringify(op.id) + '.', 'not_found');
+        const deleted = op.op === 'delete';
+        if (deleted === !!row.deletedAt) break;
+        patch(row, Object.assign({ deletedAt: deleted ? now : '' }, stamp));
+        touched.push(String(row.id));
+        break;
+      }
+
       case 'reorder': {
         if (!Array.isArray(op.order)) throw referenceRejection(where + ': order must be an array of ids.', 'validation');
         const order = op.order.map(id => String(id).trim().toLowerCase());
@@ -522,14 +552,14 @@ function planReferenceOps(list, ops, rows, actor, now) {
       }
 
       default:
-        throw referenceRejection(where + ': unknown op ' + JSON.stringify(op.op) + '. Valid ops: add, update, setActive, reorder.', 'validation');
+        throw referenceRejection(where + ': unknown op ' + JSON.stringify(op.op) + '. Valid ops: add, update, setActive, delete, restore, reorder.', 'validation');
     }
   });
 
   // Nothing may empty a list. A form with no dishes cannot be submitted, and every printed
   // store QR code opens a delivery form that needs its store on the list.
-  if (sim.length && !sim.some(row => row.active === true)) {
-    throw referenceRejection('Refusing: that would leave no active ' + list.key + '. At least one must stay active.', 'validation');
+  if (sim.length && !sim.some(row => row.active === true && !row.deletedAt)) {
+    throw referenceRejection('Refusing: that would leave no active ' + list.key + '. At least one must stay active and not deleted.', 'validation');
   }
 
   return { mutations: mutations, changes: changes, touched: touched };
