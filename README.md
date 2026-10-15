@@ -90,13 +90,15 @@ Config tab. A save writes the sheet and asks GitHub to republish the site, which
 list to `data/<list>.json` for the forms; a phone has it within about ten minutes. The
 Config tab shows whether the forms' copy is current.
 
-Ids never change and are never reused; an entry no longer in use is deactivated, not
-deleted. A store's id is its store number: QR codes point at
-`taipei_delivery_form3.html?store=<id>` and every delivery row carries it, so a store can be
-renamed freely. The other four lists are stored in the records by name, so renaming one
-leaves past records under the old name, and the Config tab says so before saving. The
-dashboard's home page opens the production form the same way, with
-`taipei_production_form3.html?kitchen=<id>`.
+Every entry is keyed by a UUID the backend assigns and never changes; an entry no longer in
+use is deactivated, not deleted. Kitchens and stores also carry a Type, the organisation they
+belong to (Taipei or Giant), and that organisation's own identifier: the Kitchen ID or Store
+ID. A store's Store ID is its store number. QR codes point at
+`taipei_delivery_form3.html?store=<store number>` and every delivery row carries it, so a
+store can be renamed freely but changing its number re-keys it, and the Config tab says so.
+The other four lists are stored in the records by name, so renaming one leaves past records
+under the old name, and the Config tab says that too. The dashboard's home page opens the
+production form with the kitchen's UUID, `taipei_production_form3.html?kitchen=<uuid>`.
 
 The copies of `data/*.json` in git are seeds for local runs only; `npm run
 reference:snapshot:staging` refreshes them from the staging backend.

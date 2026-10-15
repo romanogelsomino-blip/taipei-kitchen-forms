@@ -1820,46 +1820,27 @@ body {
 .home-env-note a:hover { color: var(--dark); }
 
 /* ── Config panel ──────────────────────────────────────────────────────── */
-/* One list at a time, chosen on the .btn-time-range strip; rows in the .store-item shape so
-   they stay editable on a phone, where .data-table becomes a horizontal scroller. */
+/* One list at a time, chosen on the .btn-time-range strip. Each entry is a card of labelled
+   fields, read-only until its Edit button is pressed; then its name and Active switch open
+   and nothing else does. Type, organisation id and location are set when an entry is added. */
 .config-lists { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .config-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .config-dirty { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--red); white-space: nowrap; }
-.config-rows { display: flex; flex-direction: column; gap: 8px; }
-.config-row {
+.config-rows { display: flex; flex-direction: column; gap: 10px; }
+.config-card {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 14px;
   background: var(--row-alt);
   border: 1px solid var(--border);
   border-radius: 8px;
 }
-.config-row.inactive { opacity: 0.55; }
-.config-row.inactive .config-name { text-decoration: line-through; }
-.config-row.invalid .config-name { border-color: var(--red); background: var(--red-lt); }
-.config-row-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
-.config-row-side { display: flex; align-items: center; gap: 8px; }
-.config-row input[type="text"],
-.config-add input[type="text"] {
-  flex: 1;
-  min-width: 0;
-  border: 1.5px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-family: 'Inter', sans-serif;
-  font-size: 0.88rem;
-  color: var(--dark);
-  background: #fff;
-  outline: none;
-  transition: border-color 0.15s;
-}
-.config-row input[type="text"]:focus,
-.config-add input[type="text"]:focus { border-color: var(--red); }
-.config-row input[type="text"][readonly] { background: transparent; border-color: transparent; }
-.config-location { flex: 1.4; }
-.config-id { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--soft); white-space: nowrap; min-width: 90px; }
-.config-active { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--mid); white-space: nowrap; cursor: pointer; }
+.config-card.editing { background: var(--surface); border-color: var(--red); box-shadow: 0 0 0 2px var(--red-lt); }
+.config-card.inactive { opacity: 0.6; }
+.config-card.inactive.editing { opacity: 1; }
+.config-card.invalid { border-color: var(--red); }
+.config-card-move { display: flex; flex-direction: column; gap: 4px; }
 .config-move {
   width: 32px;
   height: 32px;
@@ -1874,6 +1855,88 @@ body {
 }
 .config-move:disabled { opacity: 0.35; cursor: default; }
 .config-move:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+.config-card-fields { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 10px 28px; }
+.config-field { display: flex; flex-direction: column; gap: 3px; min-width: 110px; }
+.config-field-name { flex: 1 1 220px; }
+.config-field-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--soft);
+}
+.config-field-value { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; font-size: 0.92rem; color: var(--dark); }
+.config-field-value.muted { color: var(--soft); }
+.config-field-value code { font-family: 'DM Mono', monospace; font-size: 0.82rem; color: var(--mid); }
+.config-copy {
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 7px;
+  background: var(--surface);
+  color: var(--mid);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.config-copy:hover { border-color: var(--red); color: var(--red); }
+.config-name-input {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.92rem;
+  color: var(--dark);
+  background: #fff;
+  outline: none;
+}
+.config-name-input:focus { border-color: var(--red); }
+.config-card-actions { display: flex; align-items: center; align-self: center; }
+.config-edit { margin-right: 0; padding: 7px 16px; font-size: 0.82rem; white-space: nowrap; }
+.config-card.editing .config-edit { background: var(--red); border-color: var(--red); color: #fff; }
+
+/* Active switch: a styled checkbox, so it reads the same on every platform. */
+.config-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  font-size: 0.88rem;
+  color: var(--dark);
+  cursor: pointer;
+}
+.config-switch.disabled { cursor: default; }
+.config-switch input { position: absolute; opacity: 0; width: 0; height: 0; min-height: 0; }
+.config-switch-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--border);
+  transition: background 0.15s;
+}
+.config-switch-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s;
+}
+.config-switch input:checked + .config-switch-track { background: var(--green); }
+.config-switch input:checked + .config-switch-track::after { transform: translateX(16px); }
+.config-switch input:disabled + .config-switch-track { opacity: 0.6; }
+.config-switch input:focus-visible + .config-switch-track { outline: 2px solid var(--red); outline-offset: 2px; }
+
 .config-warn {
   font-size: 0.78rem;
   color: var(--mid);
@@ -1883,6 +1946,8 @@ body {
   margin: -2px 0 8px;
 }
 .config-warn.safe { border-left-color: var(--green); }
+
+/* The add row: the one place an entry's type, organisation id and location are entered. */
 .config-add {
   display: flex;
   gap: 10px;
@@ -1892,9 +1957,25 @@ body {
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
-.config-add input[type="text"] { background: var(--row-alt); min-width: 160px; }
-.config-add input[type="text"]:focus { background: #fff; }
-.config-add .config-id-input { flex: 0 1 140px; font-family: 'DM Mono', monospace; }
+.config-add input[type="text"],
+.config-add select {
+  flex: 1;
+  min-width: 160px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.88rem;
+  color: var(--dark);
+  background: var(--row-alt);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.config-add input[type="text"]:focus,
+.config-add select:focus { border-color: var(--red); background: #fff; }
+.config-add .config-type { flex: 0 1 140px; min-width: 120px; }
+.config-add .config-orgId { flex: 0 1 150px; min-width: 120px; font-family: 'DM Mono', monospace; }
+.config-add .config-text { flex: 1.4; }
 .config-add-help { flex-basis: 100%; font-size: 0.78rem; color: var(--soft); line-height: 1.45; }
 .config-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
 .config-status { margin-top: 12px; font-size: 0.85rem; color: var(--mid); line-height: 1.5; }
@@ -1920,12 +2001,14 @@ body {
 .config-modal-item.safe { border-left: 3px solid var(--green); padding-left: 10px; }
 
 @media (max-width: 768px) {
-  .config-row,
-  .config-row-main { flex-direction: column; align-items: stretch; }
-  .config-row-side { justify-content: space-between; }
+  .config-card { flex-direction: column; align-items: stretch; }
+  .config-card-move { flex-direction: row; }
+  .config-card-fields { gap: 10px 18px; }
+  .config-card-actions { align-self: stretch; }
+  .config-card-actions .config-edit { width: 100%; }
   .config-lists .btn-time-range { flex: 1 0 auto; }
   .config-add { flex-direction: column; align-items: stretch; }
-  .config-add .config-id-input { flex-basis: auto; }
+  .config-add .config-type, .config-add .config-orgId, .config-add .config-text { flex: 1 1 auto; }
   .config-actions .btn-apply-filters,
   .config-actions .btn-clear-filters { width: 100%; margin-right: 0; }
 }

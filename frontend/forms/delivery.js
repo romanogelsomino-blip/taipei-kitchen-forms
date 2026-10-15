@@ -3,7 +3,8 @@
 let DISHES = [];   // active dish names, set once the reference lists load
 let STORES = [];   // active store entries, likewise
 
-// The QR code at each store opens this page with ?store=<id>.
+// The QR code at each store opens this page with ?store=<store number>: the Store ID, which
+// every delivery row carries, not the list entry's UUID.
 const params = new URLSearchParams(window.location.search);
 let storeId   = params.get('store') || '';
 let storeData = null; // Set once the store list has loaded
@@ -170,7 +171,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   STORES = activeEntries(lists, 'stores');
   DISHES = activeNames(lists, 'dishes');
 
-  storeData = STORES.find(s => s.id === storeId);
+  storeData = STORES.find(s => s.storeId === storeId);
   if (storeData) {
     document.getElementById('store-title').textContent    = storeData.name + ' · ' + storeData.location;
     document.getElementById('store-location').textContent = 'Giant Food Stores — Bento Program';
@@ -517,7 +518,7 @@ function showSummary() {
 
   const driver = driverPicker.value();
   const payload = buildPayload();
-  const storeData = STORES.find(s => s.id === storeId);
+  const storeData = STORES.find(s => s.storeId === storeId);
   const date = document.getElementById('f-date').value;
 
   document.getElementById('sum-store').textContent = storeData ? storeData.name : `Store ${storeId}`;

@@ -1,14 +1,86 @@
 {
   "stores": [
-    { "id": "0000", "name": "(reserved) CI smoke test", "location": "",                                     "active": false, "sortOrder": 1 },
-    { "id": "6006", "name": "Store 6006",               "location": "Kline Village, Harrisburg, PA",        "active": true,  "sortOrder": 2 },
-    { "id": "6061", "name": "Store 6061",               "location": "Shippensburg, PA",                     "active": true,  "sortOrder": 3 },
-    { "id": "6112", "name": "Store 6112",               "location": "255 S Spring Garden St, Carlisle, PA", "active": true,  "sortOrder": 4 },
-    { "id": "6253", "name": "Store 6253",               "location": "New Cumberland, PA",                   "active": true,  "sortOrder": 5 },
-    { "id": "6331", "name": "Store 6331",               "location": "Mechanicsburg, PA",                    "active": true,  "sortOrder": 6 },
-    { "id": "6443", "name": "Store 6443",               "location": "Chambersburg, PA",                     "active": true,  "sortOrder": 7 },
-    { "id": "6542", "name": "Store 6542",               "location": "Carlisle, PA",                         "active": true,  "sortOrder": 8 },
-    { "id": "6564", "name": "Store 6564",               "location": "Harrisburg (Gayson Rd), PA",           "active": true,  "sortOrder": 9 }
+    {
+      "id": "00000000-0000-4000-8000-000000000000",
+      "name": "(reserved) CI smoke test",
+      "storeType": "Giant",
+      "storeId": "0000",
+      "location": "",
+      "active": false,
+      "sortOrder": 1
+    },
+    {
+      "id": "3053ab5e-a4ac-4450-9dfe-7cff7eefc73c",
+      "name": "Store 6006",
+      "storeType": "Giant",
+      "storeId": "6006",
+      "location": "Kline Village, Harrisburg, PA",
+      "active": true,
+      "sortOrder": 2
+    },
+    {
+      "id": "f37cb8e5-0671-47fb-8eea-dc2debf6d3e0",
+      "name": "Store 6061",
+      "storeType": "Giant",
+      "storeId": "6061",
+      "location": "Shippensburg, PA",
+      "active": true,
+      "sortOrder": 3
+    },
+    {
+      "id": "d55afaf3-8a4b-4205-98c9-eb6faef04a5e",
+      "name": "Store 6112",
+      "storeType": "Giant",
+      "storeId": "6112",
+      "location": "255 S Spring Garden St, Carlisle, PA",
+      "active": true,
+      "sortOrder": 4
+    },
+    {
+      "id": "248e6d7c-1d32-4005-9fc1-f36c8d1e63e0",
+      "name": "Store 6253",
+      "storeType": "Giant",
+      "storeId": "6253",
+      "location": "New Cumberland, PA",
+      "active": true,
+      "sortOrder": 5
+    },
+    {
+      "id": "d79ca4dc-d20f-4e08-abd1-f191a6ebf1fb",
+      "name": "Store 6331",
+      "storeType": "Giant",
+      "storeId": "6331",
+      "location": "Mechanicsburg, PA",
+      "active": true,
+      "sortOrder": 6
+    },
+    {
+      "id": "68448510-c119-4be6-82c1-10ddc8899ae7",
+      "name": "Store 6443",
+      "storeType": "Giant",
+      "storeId": "6443",
+      "location": "Chambersburg, PA",
+      "active": true,
+      "sortOrder": 7
+    },
+    {
+      "id": "42d6e005-07c1-4730-98bd-3186f3bf13f4",
+      "name": "Store 6542",
+      "storeType": "Giant",
+      "storeId": "6542",
+      "location": "Carlisle, PA",
+      "active": true,
+      "sortOrder": 8
+    },
+    {
+      "id": "8e260391-34e1-4516-a9aa-e645aafac9a8",
+      "name": "Store 6564",
+      "storeType": "Giant",
+      "storeId": "6564",
+      "location": "Harrisburg (Gayson Rd), PA",
+      "active": true,
+      "sortOrder": 9
+    }
   ],
   "version": "seed",
   "generatedAt": ""

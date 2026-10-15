@@ -6,39 +6,66 @@
 // the site job publishes each list as a static data/<list>.json on every build, and a save
 // here asks GitHub to run that build.
 //
+// Every entry is keyed by a UUID the backend assigns and never changes. Kitchens and stores
+// also carry the identifier their organisation gave them (Kitchen ID, Store ID) and that
+// organisation's name (Kitchen Type, Store Type). A store's Store ID is the number in its
+// printed QR code, in every delivery row and in every photo filename; the UUID is the
+// sheet's key, nothing downstream carries it.
+//
 // The lists are a picker source, not a constraint. Nothing validates a submitted kitchen,
 // dish, driver or supervisor against them, and nothing may: the pickers allow free text and
 // a delivery must never be refused over a dropdown.
 //
-// Ids are immutable and never reused; entries are deactivated, never deleted. A store id is
-// printed on QR codes and embedded in photo filenames, and the other four lists are stored
-// in the monthly rows by display name, so history depends on both staying put.
+// Entries are deactivated, never deleted. The four name-keyed lists are stored in the
+// monthly rows by display name, so history depends on names staying put; the Config tab
+// warns before a rename and the backend never rewrites a record.
 
 const REFERENCE_FILE_NAME = 'Reference';
 const REFERENCE_MEMO = {};                          // per-execution: opened, ensured, payload
-const REFERENCE_CACHE_KEY = 'reference:payload:v1';
+const REFERENCE_CACHE_KEY = 'reference:payload:v2';
 const REFERENCE_CACHE_SEC = 600;                    // bounds staleness after a hand edit in Sheets, which nothing invalidates
-const REFERENCE_VERSION_PREFIX = 'r1-';             // payload-shape revision; bump when an entry's shape changes
+const REFERENCE_VERSION_PREFIX = 'r2-';             // payload-shape revision; bump when an entry's shape changes
 const REFERENCE_ROW_CAP = 500;                      // an unauthenticated append endpoint needs a ceiling
 const REFERENCE_WRITES_PER_MINUTE = 20;
-const REFERENCE_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;   // URL- and filename-safe: no '_' (the photo filename separator), no '.'
+const REFERENCE_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const REFERENCE_ORG_ID_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;   // goes into ?store=<id> and photo filenames: no '_' (their separator), no '.', nothing to percent-encode
 const REFERENCE_CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
-const REFERENCE_LIMITS = { id: 40, name: 80, location: 120, actor: 80, reorder: 500 };   // reorder matches REFERENCE_ROW_CAP
+const REFERENCE_LIMITS = { orgId: 40, name: 80, text: 120, actor: 80, reorder: 500 };   // reorder matches REFERENCE_ROW_CAP
+const REFERENCE_RESERVED_STORE_UUID = '00000000-0000-4000-8000-000000000000';   // store 0000, which the dev deploy's smoke test writes to
 
 // ─── The lists ───────────────────────────────────────────────────────────────
 
 /**
  * The five lists. Production precedes delivery, so kitchens and supervisors come first.
- * `storedAs` names the monthly tab and field that carry an entry's display name, which is
- * what a rename leaves behind; stores are carried by id, so the list is empty.
+ *
+ * `attrs` are the columns beyond name: kind 'type' is one of `types`, 'orgId' is the
+ * organisation's own identifier (unique on its own, or per type when `uniqueWith` names the
+ * type column), 'text' is free text. `storedAs` names the monthly tab and field that carry
+ * one of an entry's attributes, which is what a change to it leaves behind in the records.
  */
 function referenceLists() {
+  const location = { key: 'location', header: 'Location', kind: 'text' };
   return [
-    { tab: 'Kitchens',    key: 'kitchens',    noun: 'kitchen',    storedAs: [{ tab: 'Production', field: 'kitchen' }] },
-    { tab: 'Supervisors', key: 'supervisors', noun: 'supervisor', storedAs: [{ tab: 'Production', field: 'supervisor' }] },
-    { tab: 'Dishes',      key: 'dishes',      noun: 'dish',       storedAs: [{ tab: 'Production', field: 'dish' }, { tab: 'Deliveries', field: 'dish' }] },
-    { tab: 'Stores',      key: 'stores',      noun: 'store',      storedAs: [] },
-    { tab: 'Drivers',     key: 'drivers',     noun: 'driver',     storedAs: [{ tab: 'Deliveries', field: 'driver' }] }
+    { tab: 'Kitchens', key: 'kitchens', noun: 'kitchen', types: ['Taipei', 'Giant'],
+      attrs: [
+        { key: 'kitchenType', header: 'Kitchen Type', kind: 'type' },
+        { key: 'kitchenId',   header: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType' },
+        location
+      ],
+      storedAs: [{ tab: 'Production', field: 'kitchen', attr: 'name' }] },
+    { tab: 'Supervisors', key: 'supervisors', noun: 'supervisor', types: null, attrs: [],
+      storedAs: [{ tab: 'Production', field: 'supervisor', attr: 'name' }] },
+    { tab: 'Dishes', key: 'dishes', noun: 'dish', types: null, attrs: [],
+      storedAs: [{ tab: 'Production', field: 'dish', attr: 'name' }, { tab: 'Deliveries', field: 'dish', attr: 'name' }] },
+    { tab: 'Stores', key: 'stores', noun: 'store', types: ['Giant'],
+      attrs: [
+        { key: 'storeType', header: 'Store Type', kind: 'type' },
+        { key: 'storeId',   header: 'Store ID',   kind: 'orgId', uniqueWith: null },   // records and QR codes carry the number alone
+        location
+      ],
+      storedAs: [{ tab: 'Deliveries', field: 'storeId', attr: 'storeId' }] },
+    { tab: 'Drivers', key: 'drivers', noun: 'driver', types: null, attrs: [],
+      storedAs: [{ tab: 'Deliveries', field: 'driver', attr: 'name' }] }
   ];
 }
 
@@ -58,10 +85,13 @@ function referenceListFor(name) {
 
 /** One reference list's columns, in the vocabulary of Schemas.gs. Header text is the read contract; column order is not. */
 function referenceSchemaFor(tab) {
+  const list = referenceLists().find(l => l.tab === tab);
+  if (!list) throw new Error('Unknown reference tab: ' + tab);
   const head = [
-    { header: 'ID',   key: 'id',   type: 'text', width: 140 },
+    { header: 'UUID', key: 'id',   type: 'text', width: 290, aliases: ['ID'] },   // ID before the key became a UUID
     { header: 'Name', key: 'name', type: 'text', width: 260 }
   ];
+  const attrs = list.attrs.map(attr => ({ header: attr.header, key: attr.key, type: 'text', width: attr.kind === 'text' ? 300 : 120 }));
   const tail = [
     { header: 'Active',     key: 'active',    type: 'bool',    width: 80 },
     { header: 'Sort',       key: 'sortOrder', type: 'number',  width: 70 },
@@ -69,17 +99,7 @@ function referenceSchemaFor(tab) {
     { header: 'Updated At', key: 'updatedAt', type: 'instant' },
     { header: 'Updated By', key: 'updatedBy', type: 'text',    width: 170 }   // what the browser said; not authentication
   ];
-  switch (tab) {
-    case 'Kitchens':
-    case 'Supervisors':
-    case 'Dishes':
-    case 'Drivers':
-      return head.concat(tail);
-    case 'Stores':
-      return head.concat([{ header: 'Location', key: 'location', type: 'text', width: 300 }], tail);
-    default:
-      throw new Error('Unknown reference tab: ' + tab);
-  }
+  return head.concat(attrs, tail);
 }
 
 /** Sheet size at creation. No basic filter: the lists are short and the Config tab is the UI. */
@@ -103,7 +123,8 @@ function resolveReferenceFileId(create) {
 
 /**
  * Open the Reference sheet once per execution. Returns { fileId, ss } or null. Missing tabs
- * are added and seeded only on a write path (`create`); a read never changes the file.
+ * are added and seeded, and older tabs migrated, only on a write path (`create`); a read
+ * never changes the file.
  */
 function openReference(create) {
   if (!REFERENCE_MEMO.opened) {
@@ -134,18 +155,48 @@ function initReferenceTab(sheet, tab) {
 }
 
 /**
- * Idempotent: adds any missing tab and seeds a tab it had to create or whose row 1 is empty.
- * A tab with headers and no rows was emptied on purpose and is left alone.
+ * Idempotent, under the lock: adds any missing tab, seeds a tab it had to create or whose
+ * row 1 is empty, and migrates a populated tab written under an earlier schema. A tab with
+ * headers and no rows was emptied on purpose and is left alone.
  */
 function ensureReferenceTabs(ss) {
-  referenceTabNames().forEach((name, i) => {
-    let sheet = ss.getSheetByName(name);
-    if (!sheet) {
-      sheet = ss.insertSheet(name, Math.min(i, ss.getSheets().length));
-      initReferenceTab(sheet, name);
-    } else if (sheet.getLastRow() === 0) {
-      initReferenceTab(sheet, name);
-    }
+  withScriptLock(() => {
+    referenceTabNames().forEach((name, i) => {
+      let sheet = ss.getSheetByName(name);
+      if (!sheet) {
+        sheet = ss.insertSheet(name, Math.min(i, ss.getSheets().length));
+        initReferenceTab(sheet, name);
+      } else if (sheet.getLastRow() === 0) {
+        initReferenceTab(sheet, name);
+      } else {
+        migrateReferenceTab(sheet, name);
+      }
+    });
+  });
+}
+
+/**
+ * Bring a tab written under an earlier schema up to date: the key column renamed from ID to
+ * UUID, columns the schema has gained added, and a row keyed by a slug given a UUID with the
+ * slug kept as its organisation id. A row already keyed by a UUID is left alone, so this
+ * costs one read on every init and writes only the first time.
+ */
+function migrateReferenceTab(sheet, tab) {
+  const list = referenceListFor(tab);
+  const schema = referenceSchemaFor(tab);
+  const headers = sheetHeaders(sheet);
+  if (headers.indexOf('UUID') < 0 && headers.indexOf('ID') >= 0) sheet.getRange(1, headers.indexOf('ID') + 1).setValue('UUID');
+  sheetColumnsWith(sheet, schema, referenceTabLayout(tab));
+  readReferenceRows(sheet, tab).forEach(row => {
+    const slug = String(row.id).trim();
+    if (REFERENCE_UUID_PATTERN.test(slug)) return;
+    const patch = { id: list.tab === 'Stores' && slug === '0000' ? REFERENCE_RESERVED_STORE_UUID : Utilities.getUuid() };
+    list.attrs.forEach(attr => {
+      if (row[attr.key]) return;
+      if (attr.kind === 'orgId') patch[attr.key] = slug;
+      if (attr.kind === 'type') patch[attr.key] = /^\d+$/.test(slug) && list.types.indexOf('Giant') >= 0 ? 'Giant' : list.types[0];   // a bare number was a Giant store number
+    });
+    updateRow(sheet, schema, row._row, patch);
   });
 }
 
@@ -155,49 +206,55 @@ function seedReferenceTab(sheet, tab) {
   const entries = referenceSeed()[list.key] || [];
   if (!entries.length) return;
   const now = formatInstant(new Date());
-  const rows = entries.map((entry, i) => ({
-    id: entry.id, name: entry.name, location: entry.location || '',
-    active: entry.active !== false, sortOrder: i + 1,
-    createdAt: now, updatedAt: '', updatedBy: ''
-  }));
+  const rows = entries.map((entry, i) => {
+    const row = { id: entry.id, name: entry.name, active: entry.active !== false, sortOrder: i + 1, createdAt: now, updatedAt: '', updatedBy: '' };
+    list.attrs.forEach(attr => { row[attr.key] = entry[attr.key] || ''; });
+    return row;
+  });
   appendReferenceRows(sheet, tab, buildRows(referenceSchemaFor(tab), rows, {}));
 }
 
 // ─── Reading ─────────────────────────────────────────────────────────────────
 
-/** Every row of one reference tab, in sheet order, keyed by schema key plus _row. Rows with no id are ignored. */
+/** Every row of one reference tab, in sheet order, keyed by schema key plus _row. Rows with no key are ignored. */
 function readReferenceRows(sheet, tab) {
   if (!sheet || sheet.getLastRow() < 2) return [];
   return readRows(sheet.getDataRange().getValues(), referenceSchemaFor(tab)).records
     .filter(record => String(record.id).trim() !== '');
 }
 
-/** A row as the API emits it: id, name, (location,) active, sortOrder. The audit columns stay in the sheet. */
-function publicReferenceEntry(record, tab) {
+/** A row as the API emits it: id, name, the list's attributes, active, sortOrder. The audit columns stay in the sheet. */
+function publicReferenceEntry(record, list) {
   const entry = { id: String(record.id).trim(), name: String(record.name) };
-  if (tab === 'Stores') entry.location = String(record.location || '');
+  list.attrs.forEach(attr => { entry[attr.key] = String(record[attr.key] === undefined || record[attr.key] === null ? '' : record[attr.key]); });
   entry.active = record.active === true;
   entry.sortOrder = Number(record.sortOrder) || 0;
   return entry;
 }
 
 /** Entries in display order, sortOrder then name, so clients need no sort of their own. */
-function sortedReferenceEntries(records, tab) {
-  return records.map(record => publicReferenceEntry(record, tab))
+function sortedReferenceEntries(records, list) {
+  return records.map(record => publicReferenceEntry(record, list))
     .sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
 }
 
 /** The seed as the API would emit it, for an environment whose Reference file does not exist yet. */
 function seedReferenceEntries(list) {
-  return (referenceSeed()[list.key] || []).map((entry, i) => publicReferenceEntry({
-    id: entry.id, name: entry.name, location: entry.location || '', active: entry.active !== false, sortOrder: i + 1
-  }, list.tab));
+  return (referenceSeed()[list.key] || []).map((entry, i) => publicReferenceEntry(
+    Object.assign({}, entry, { active: entry.active !== false, sortOrder: i + 1 }), list));
+}
+
+/** The allowed values of every typed attribute, keyed by list, so a client need not hardcode them. */
+function referenceTypes() {
+  const types = {};
+  referenceLists().forEach(list => { if (list.types) types[list.key] = list.types.slice(); });
+  return types;
 }
 
 /**
- * The five lists plus version, updatedAt and source. Memoised per execution and cached for
- * REFERENCE_CACHE_SEC. The cache is checked before the file is resolved, so a hit does no
- * Drive work at all. Never creates the file: without one, the seed stands in.
+ * The five lists plus version, updatedAt, source and types. Memoised per execution and
+ * cached for REFERENCE_CACHE_SEC. The cache is checked before the file is resolved, so a hit
+ * does no Drive work at all. Never creates the file: without one, the seed stands in.
  */
 function referencePayload() {
   if (REFERENCE_MEMO.payload) return REFERENCE_MEMO.payload;
@@ -234,12 +291,13 @@ function buildReferencePayload() {
         if (at && !isNaN(at.getTime()) && (!updatedAt || at > updatedAt)) updatedAt = at;
       });
     });
-    lists[list.key] = sortedReferenceEntries(records, list.tab);
+    lists[list.key] = sortedReferenceEntries(records, list);
   });
   const payload = {
     version: referenceVersion(lists),
     updatedAt: updatedAt ? formatInstant(updatedAt) : '',
-    source: opened ? 'sheet' : 'seed'
+    source: opened ? 'sheet' : 'seed',
+    types: referenceTypes()
   };
   referenceLists().forEach(list => { payload[list.key] = lists[list.key]; });
   return payload;
@@ -251,7 +309,7 @@ function invalidateReferencePayload() {
   CacheService.getScriptCache().remove(REFERENCE_CACHE_KEY);
 }
 
-/** 'r1-' plus eight hex digits of an MD5 over the emitted lists. The audit columns are excluded, so a fresh seed and a seeded sheet agree. */
+/** The version prefix plus eight hex digits of an MD5 over the emitted lists. The audit columns are excluded, so a fresh seed and a seeded sheet agree. */
 function referenceVersion(lists) {
   const text = JSON.stringify(referenceLists().map(list => lists[list.key]));
   const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, text, Utilities.Charset.UTF_8);
@@ -296,31 +354,22 @@ function checkReferenceText(value, label, max, required) {
   return text;
 }
 
-function checkReferenceId(id) {
-  if (id.length > REFERENCE_LIMITS.id) throw referenceRejection('Id is longer than ' + REFERENCE_LIMITS.id + ' characters.', 'validation');
-  if (!REFERENCE_ID_PATTERN.test(id)) throw referenceRejection('Id ' + JSON.stringify(id) + ' may only contain lowercase letters, digits and single hyphens.', 'validation');
-}
-
-/** A URL- and filename-safe id from a name; eight random hex characters when the name has no ASCII letters or digits. */
-function referenceSlug(name) {
-  const slug = String(name).toLowerCase()
-    .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, REFERENCE_LIMITS.id)
-    .replace(/-+$/, '');
-  return slug || Utilities.getUuid().replace(/-/g, '').slice(0, 8);
-}
-
-/** The first of <slug>, <slug>-2, <slug>-3 … not already an id in the list. */
-function uniqueReferenceId(rows, slug) {
-  const taken = new Set(rows.map(row => String(row.id).toLowerCase()));
-  if (!taken.has(slug)) return slug;
-  for (let n = 2; ; n++) {
-    const suffix = '-' + n;
-    const candidate = slug.slice(0, REFERENCE_LIMITS.id - suffix.length).replace(/-+$/, '') + suffix;
-    if (!taken.has(candidate)) return candidate;
+/** One attribute's value, validated for its kind: a type must be one of the list's, an org id must be URL- and filename-safe, text is text. */
+function checkReferenceAttr(list, attr, value) {
+  if (attr.kind === 'type') {
+    const text = normaliseReferenceName(value);
+    if (!text) throw referenceRejection(attr.header + ' is required.', 'validation');
+    if (list.types.indexOf(text) < 0) throw referenceRejection(attr.header + ' must be one of ' + list.types.join(', ') + '; got ' + JSON.stringify(text) + '.', 'validation');
+    return text;
   }
+  if (attr.kind === 'orgId') {
+    const text = normaliseReferenceName(value);
+    if (!text) throw referenceRejection(attr.header + ' is required.', 'validation');
+    if (text.length > REFERENCE_LIMITS.orgId) throw referenceRejection(attr.header + ' is longer than ' + REFERENCE_LIMITS.orgId + ' characters.', 'validation');
+    if (!REFERENCE_ORG_ID_PATTERN.test(text)) throw referenceRejection(attr.header + ' ' + JSON.stringify(text) + ' may only contain letters, digits and single hyphens.', 'validation');
+    return text;
+  }
+  return checkReferenceText(value, attr.header, REFERENCE_LIMITS.text, false);
 }
 
 /** true or false from the forms a JSON or query value takes. Anything else is a rejection: a typo must not deactivate a store. */
@@ -343,23 +392,34 @@ function referenceNameTaken(rows, name, exceptId) {
   return rows.some(row => String(row.id) !== exceptId && normaliseReferenceName(row.name).toLowerCase() === wanted);
 }
 
+/** Whether another row already carries this org id, within the same type when the attribute is unique per type. */
+function referenceOrgIdTaken(rows, attr, candidate, exceptId) {
+  const wanted = String(candidate[attr.key]).toLowerCase();
+  return rows.some(row =>
+    String(row.id) !== exceptId &&
+    String(row[attr.key] || '').toLowerCase() === wanted &&
+    (!attr.uniqueWith || String(row[attr.uniqueWith] || '') === String(candidate[attr.uniqueWith] || '')));
+}
+
 /**
  * Work out what a batch of ops does to a list without touching the sheet. Every op is checked
  * against the rows as the previous ops leave them, so a batch is rejected whole or applied
- * whole. Returns { mutations, renames, touched }; a mutation is { type: 'append', row } or
+ * whole. Returns { mutations, changes, touched }; a mutation is { type: 'append', row } or
  * { type: 'patch', row, patch }, where `row` is the simulated row object so a patch on a row
- * added earlier in the same batch finds its sheet row number once the append has run.
+ * added earlier in the same batch finds its sheet row number once the append has run. A
+ * change is { attr, id, from, to } for every name or org id that moved, for the warnings.
  */
 function planReferenceOps(list, ops, rows, actor, now) {
   const sim = rows.map(row => Object.assign({}, row));
   const mutations = [];
-  const renames = [];
+  const changes = [];
   const touched = [];
   const stamp = { updatedAt: now, updatedBy: actor };
   const patch = (row, fields) => {
     Object.assign(row, fields);
     mutations.push({ type: 'patch', row: row, patch: fields });
   };
+  const orgIds = list.attrs.filter(attr => attr.kind === 'orgId');
 
   ops.forEach((op, index) => {
     const where = 'op ' + (index + 1);
@@ -371,22 +431,17 @@ function planReferenceOps(list, ops, rows, actor, now) {
         if (sim.length >= REFERENCE_ROW_CAP) throw referenceRejection('The ' + list.key + ' list is at its cap of ' + REFERENCE_ROW_CAP + ' entries.', 'validation');
         const name = checkReferenceText(entry.name, 'Name', REFERENCE_LIMITS.name, true);
         if (referenceNameTaken(sim, name)) throw referenceRejection('A ' + list.noun + ' named "' + name + '" already exists.', 'duplicate');
-        let id;
-        if (entry.id !== undefined && entry.id !== null && String(entry.id).trim() !== '') {
-          id = String(entry.id).trim().toLowerCase();
-          checkReferenceId(id);
-          if (findReferenceRow(sim, id)) throw referenceRejection('A ' + list.noun + ' with id "' + id + '" already exists. Ids are never reused.', 'duplicate');
-        } else if (list.tab === 'Stores') {
-          throw referenceRejection('A store needs an id: the store number, which goes in its QR code and cannot change later.', 'validation');
-        } else {
-          id = uniqueReferenceId(sim, referenceSlug(name));
-        }
-        const location = list.tab === 'Stores' ? checkReferenceText(entry.location, 'Location', REFERENCE_LIMITS.location, false) : '';
         const sortOrder = sim.reduce((max, row) => Math.max(max, Number(row.sortOrder) || 0), 0) + 1;
-        const row = { _row: null, id: id, name: name, location: location, active: true, sortOrder: sortOrder, createdAt: now, updatedAt: now, updatedBy: actor };
+        const row = { _row: null, id: Utilities.getUuid(), name: name, active: true, sortOrder: sortOrder, createdAt: now, updatedAt: now, updatedBy: actor };
+        list.attrs.forEach(attr => { row[attr.key] = checkReferenceAttr(list, attr, entry[attr.key]); });
+        orgIds.forEach(attr => {
+          if (referenceOrgIdTaken(sim, attr, row, null)) {
+            throw referenceRejection('A ' + list.noun + ' with ' + attr.header + ' "' + row[attr.key] + '" already exists' + (attr.uniqueWith ? ' for ' + row[attr.uniqueWith] : '') + '.', 'duplicate');
+          }
+        });
         sim.push(row);
         mutations.push({ type: 'append', row: row });
-        touched.push(id);
+        touched.push(row.id);
         break;
       }
 
@@ -398,14 +453,24 @@ function planReferenceOps(list, ops, rows, actor, now) {
           const name = checkReferenceText(entry.name, 'Name', REFERENCE_LIMITS.name, true);
           if (name !== normaliseReferenceName(row.name)) {
             if (referenceNameTaken(sim, name, String(row.id))) throw referenceRejection('Another ' + list.noun + ' is already named "' + name + '".', 'duplicate');
-            renames.push({ id: String(row.id), from: normaliseReferenceName(row.name), to: name });
+            changes.push({ attr: 'name', id: String(row.id), from: normaliseReferenceName(row.name), to: name });
             fields.name = name;
           }
         }
-        if (list.tab === 'Stores' && entry.location !== undefined) {
-          const location = checkReferenceText(entry.location, 'Location', REFERENCE_LIMITS.location, false);
-          if (location !== String(row.location || '')) fields.location = location;
-        }
+        list.attrs.forEach(attr => {
+          if (entry[attr.key] === undefined) return;
+          const value = checkReferenceAttr(list, attr, entry[attr.key]);
+          if (value !== String(row[attr.key] || '')) fields[attr.key] = value;
+        });
+        const next = Object.assign({}, row, fields);
+        orgIds.forEach(attr => {
+          const moved = fields[attr.key] !== undefined || (attr.uniqueWith && fields[attr.uniqueWith] !== undefined);
+          if (!moved) return;
+          if (referenceOrgIdTaken(sim, attr, next, String(row.id))) {
+            throw referenceRejection('Another ' + list.noun + ' already has ' + attr.header + ' "' + next[attr.key] + '"' + (attr.uniqueWith ? ' for ' + next[attr.uniqueWith] : '') + '.', 'duplicate');
+          }
+          if (fields[attr.key] !== undefined) changes.push({ attr: attr.key, id: String(row.id), from: String(row[attr.key] || ''), to: next[attr.key] });
+        });
         if (entry.active !== undefined) {
           const active = parseReferenceBool(entry.active, 'active');
           if (active !== (row.active === true)) fields.active = active;
@@ -456,7 +521,7 @@ function planReferenceOps(list, ops, rows, actor, now) {
     throw referenceRejection('Refusing: that would leave no active ' + list.key + '. At least one must stay active.', 'validation');
   }
 
-  return { mutations: mutations, renames: renames, touched: touched };
+  return { mutations: mutations, changes: changes, touched: touched };
 }
 
 /** Write a planned batch to the sheet in order. An append records its row number on the simulated row for any later patch. */
@@ -502,27 +567,34 @@ function appendReferenceRows(sheet, tab, values) {
 }
 
 /**
- * How many rows of the last MAX_MONTHS_PER_REQUEST months carry the old name. Null for
- * stores, whose rows carry the id. The rows are never rewritten: they are the HACCP record,
- * and a backfill must not be added here as a convenience.
+ * How many rows of the last MAX_MONTHS_PER_REQUEST months carry the value a change replaced.
+ * Null when nothing in the records carries that attribute (a store's name, a kitchen's id).
+ * The rows are never rewritten: they are the HACCP record, and a backfill must not be added
+ * here as a convenience.
  */
-function renameWarning(list, rename) {
-  if (!list.storedAs.length) return null;
+function changeWarning(list, change) {
+  const where = list.storedAs.filter(stored => stored.attr === change.attr);
+  if (!where.length || !change.from) return null;
+  const attr = list.attrs.find(a => a.key === change.attr);
+  const label = attr ? attr.header : 'name';
   const months = [];
   let key = monthKeyOfInstant(new Date());
   for (let i = 0; i < MAX_MONTHS_PER_REQUEST; i++) { months.unshift(key); key = previousMonthKey(key); }
-  const wanted = rename.from.toLowerCase();
+  const wanted = change.from.toLowerCase();
   let count = 0;
   try {
-    list.storedAs.forEach(where => {
-      readMonthlyRows(months, where.tab).records.forEach(record => {
-        if (normaliseReferenceName(record[where.field]).toLowerCase() === wanted) count += 1;
+    where.forEach(stored => {
+      readMonthlyRows(months, stored.tab).records.forEach(record => {
+        if (normaliseReferenceName(record[stored.field]).toLowerCase() === wanted) count += 1;
       });
     });
   } catch (e) {
-    return 'Records filed under the old name "' + rename.from + '" keep it; the count could not be read (' + e.message + ').';
+    return 'Records filed under the old ' + label + ' "' + change.from + '" keep it; the count could not be read (' + e.message + ').';
   }
-  return count + ' row' + (count === 1 ? '' : 's') + ' in the last ' + MAX_MONTHS_PER_REQUEST + ' months use the old name "' + rename.from + '"; they will keep it.';
+  const tail = attr && attr.kind === 'orgId'
+    ? '; they keep it, and anything printed with it, such as a QR code, no longer matches this ' + list.noun + '.'
+    : '; they will keep it.';
+  return count + ' row' + (count === 1 ? '' : 's') + ' in the last ' + MAX_MONTHS_PER_REQUEST + ' months use the old ' + label + ' "' + change.from + '"' + tail;
 }
 
 /** Ask GitHub to run the site job, which republishes data/<list>.json from this backend. Throws on anything but 204. */
@@ -584,9 +656,9 @@ function handleConfigWrite(payload, ctx) {
     ctx.logEntry.rowCount = plan.mutations.length;
     note(ctx, 'config=' + list.key + ':' + ops.map(op => op.op).join(',') + (plan.touched.length ? ':' + plan.touched.join(',') : ''));
     note(ctx, 'config_actor=' + actor);
-    plan.renames.forEach(rename => note(ctx, 'config_rename=' + rename.from + '->' + rename.to));
+    plan.changes.forEach(change => note(ctx, 'config_change=' + change.attr + ':' + change.from + '->' + change.to));
 
-    const warnings = plan.renames.map(rename => renameWarning(list, rename)).filter(Boolean);
+    const warnings = plan.changes.map(change => changeWarning(list, change)).filter(Boolean);
     warnings.forEach(warning => note(ctx, 'config_warning=' + warning));
 
     const reference = referencePayload();
@@ -659,7 +731,8 @@ function action_referenceStatus(e) {
       tabs[tab] = {
         rows: Math.max(0, sheet.getLastRow() - 1),
         missingColumns: headerIndex(headers, schema).missing,
-        extraColumns: headers.filter(header => header && expected.indexOf(header) < 0)
+        extraColumns: headers.filter(header => header && expected.indexOf(header) < 0),
+        unmigrated: readReferenceRows(sheet, tab).filter(row => !REFERENCE_UUID_PATTERN.test(String(row.id).trim())).length
       };
     });
     const unexpected = opened.ss.getSheets().map(sheet => sheet.getName()).filter(name => known.indexOf(name) < 0);

@@ -1,8 +1,32 @@
 {
   "kitchens": [
-    { "id": "legacy-park", "name": "Legacy Park", "active": true, "sortOrder": 1 },
-    { "id": "6112",        "name": "Store 6112",  "active": true, "sortOrder": 2 },
-    { "id": "other",       "name": "Other",       "active": true, "sortOrder": 3 }
+    {
+      "id": "1dd4b698-bc21-4b45-8a33-34112a681d66",
+      "name": "Legacy Park",
+      "kitchenType": "Taipei",
+      "kitchenId": "legacy-park",
+      "location": "",
+      "active": true,
+      "sortOrder": 1
+    },
+    {
+      "id": "33930e11-89fa-447f-9781-e3ffe8f63c2f",
+      "name": "Store 6112",
+      "kitchenType": "Giant",
+      "kitchenId": "6112",
+      "location": "255 S Spring Garden St, Carlisle, PA",
+      "active": true,
+      "sortOrder": 2
+    },
+    {
+      "id": "29d0efc1-041d-49fb-932e-abf29baeb644",
+      "name": "Other",
+      "kitchenType": "Taipei",
+      "kitchenId": "other",
+      "location": "",
+      "active": true,
+      "sortOrder": 3
+    }
   ],
   "version": "seed",
   "generatedAt": ""

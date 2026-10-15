@@ -336,7 +336,8 @@ async function loadDemoData() {
   CONFIG_LISTS.forEach(def => { reference[def.key] = published.lists[def.key].entries; });
 
   DATA = {
-    stores: reference.stores.map(s => ({ id: s.id, name: s.name, location: s.location, active: s.active })),
+    // As the backend's storeList(): `id` is the store number the records carry, `key` the UUID.
+    stores: reference.stores.map(s => ({ id: s.storeId, key: s.id, name: s.name, location: s.location, active: s.active })),
     reference: reference,
     deliveries: [
       { submittedAt: `${today}T08:32:15.000Z`, date: today, driver: 'Owen', store: '6006', arrivalTime: '08:30', coolerTemp: 38, dish: 'Spring Roll (Veg)', qtyAdded: 24, removed: 2, reason: 'Out of date', receivedBy: 'Amanda' },
@@ -611,9 +612,11 @@ async function loadHomeLocations() {
     }));
     const storeText = s => s.location ? `${s.name} · ${s.location}` : s.name;
 
-    fillHomeSelect('home-kitchen', kitchens, k => k.name);
-    fillHomeSelect('home-store', stores, storeText);
-    fillHomeSelect('home-qr-store', stores, storeText);
+    // A kitchen link carries the entry's UUID; a store link and a QR code carry the store
+    // number, which is what the delivery form and every delivery row use.
+    fillHomeSelect('home-kitchen', kitchens, k => k.name, k => k.id);
+    fillHomeSelect('home-store', stores, storeText, s => s.storeId);
+    fillHomeSelect('home-qr-store', stores, storeText, s => s.storeId);
     status.textContent = '';
   } catch (e) {
     console.error('[Home] Could not load the kitchen and store lists:', e);
@@ -623,12 +626,12 @@ async function loadHomeLocations() {
   homeQrUpdate();
 }
 
-function fillHomeSelect(id, entries, text) {
+function fillHomeSelect(id, entries, text, value) {
   const select = document.getElementById(id);
   while (select.options.length > 1) select.remove(1);
   entries.forEach(entry => {
     const option = document.createElement('option');
-    option.value = entry.id;
+    option.value = value ? value(entry) : entry.id;
     option.textContent = text(entry);
     select.appendChild(option);
   });
@@ -2529,23 +2532,42 @@ function exportShrinkToCSV() {
 // Every server-supplied string is set with textContent or .value, never innerHTML: these
 // names are edited on a web page and reach every form.
 
-const CONFIG_LISTS = [   // production precedes delivery; the order of the backend payload and of the strip
-  { key: 'kitchens',    label: 'Kitchens',    noun: 'kitchen',    byName: true,  records: [{ source: 'production', field: 'kitchen' }],
-    blurb: 'Where batches are cooked. The production form offers these, and its records carry the kitchen name.' },
-  { key: 'supervisors', label: 'Supervisors', noun: 'supervisor', byName: true,  records: [{ source: 'production', field: 'supervisor' }],
-    blurb: 'Who signs off a batch. The production form offers these and also accepts a typed name.' },
-  { key: 'dishes',      label: 'Dishes',      noun: 'dish',       byName: true,  records: [{ source: 'production', field: 'dish' }, { source: 'deliveries', field: 'dish' }],
+// The strip's order. The backend payload and the sheet's tabs keep production first.
+const CONFIG_LISTS = [
+  { key: 'kitchens',    label: 'Kitchens',    noun: 'kitchen',    byName: true,
+    attrs: [
+      { key: 'kitchenType', label: 'Kitchen Type', kind: 'type' },
+      { key: 'kitchenId',   label: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType' },
+      { key: 'location',    label: 'Location',     kind: 'text' }
+    ],
+    records: [{ source: 'production', field: 'kitchen', attr: 'name' }],
+    blurb: 'Where batches are cooked. The production form offers these, and its records carry the kitchen name. The Kitchen ID is the identifier the organisation named by Kitchen Type uses for it.' },
+  { key: 'stores',      label: 'Stores',      noun: 'store',      byName: false,
+    attrs: [
+      { key: 'storeType', label: 'Store Type', kind: 'type' },
+      { key: 'storeId',   label: 'Store ID',   kind: 'orgId', uniqueWith: null, printed: true },   // in the QR code posted at the store and in every delivery row
+      { key: 'location',  label: 'Location',   kind: 'text' }
+    ],
+    records: [{ source: 'deliveries', field: 'store', attr: 'storeId' }],
+    blurb: 'Where deliveries go. The Store ID is the store number: it is in the QR code posted at the store and in every delivery record. The name is a label and can be changed freely.' },
+  { key: 'dishes',      label: 'Dishes',      noun: 'dish',       byName: true, attrs: [],
+    records: [{ source: 'production', field: 'dish', attr: 'name' }, { source: 'deliveries', field: 'dish', attr: 'name' }],
     blurb: 'What is cooked and delivered. Both forms show these as cards, in this order.' },
-  { key: 'stores',      label: 'Stores',      noun: 'store',      byName: false, records: [{ source: 'deliveries', field: 'store' }],
-    blurb: 'Where deliveries go. The store number is in the QR code posted at the store and in every delivery record; the name is a label and can be changed freely.' },
-  { key: 'drivers',     label: 'Drivers',     noun: 'driver',     byName: true,  records: [{ source: 'deliveries', field: 'driver' }],
+  { key: 'supervisors', label: 'Supervisors', noun: 'supervisor', byName: true, attrs: [],
+    records: [{ source: 'production', field: 'supervisor', attr: 'name' }],
+    blurb: 'Who signs off a batch. The production form offers these and also accepts a typed name.' },
+  { key: 'drivers',     label: 'Drivers',     noun: 'driver',     byName: true, attrs: [],
+    records: [{ source: 'deliveries', field: 'driver', attr: 'name' }],
     blurb: 'Who delivers. The delivery form offers these and also accepts a typed name.' }
 ];
+const CONFIG_TYPES_FALLBACK = { kitchens: ['Taipei', 'Giant'], stores: ['Giant'] };   // what the backend serves as `types`; for a payload without it
+const CONFIG_ORG_ID_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;                     // the backend's rule: URL- and filename-safe
 
 const CONFIG_PANEL = {
   list: 'kitchens',
   loaded: null,     // the reference payload the buffers were taken from; its version goes back with a save
-  buffer: {},       // list key -> entries as the owner has edited them; new ones carry _new: true
+  buffer: {},       // list key -> entries as the owner has edited them; new ones carry _new: true, a _tmp ref and no id
+  editing: null,    // { key, ref } of the one card whose name and switch are open; everything else is read-only
   busy: false
 };
 let CONFIG_MODAL_RESOLVE = null;
@@ -2557,8 +2579,27 @@ function configEl(tag, className, text) {
   return node;
 }
 
+function configCapitalise(word) {
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+/** What identifies an entry across re-renders: its UUID, or the temporary ref a new one carries until it is saved. */
+function configEntryRef(entry) {
+  return entry.id || entry._tmp;
+}
+
+function configTempRef() {
+  return 'new-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+}
+
 function configListDef(key) {
   return CONFIG_LISTS.find(def => def.key === key) || CONFIG_LISTS[0];
+}
+
+/** The allowed values of a list's Type attribute, as the backend serves them. */
+function configTypes(key) {
+  const served = CONFIG_PANEL.loaded && CONFIG_PANEL.loaded.types && CONFIG_PANEL.loaded.types[key];
+  return served || CONFIG_TYPES_FALLBACK[key] || [];
 }
 
 /** Trimmed, internal whitespace collapsed: the form the backend stores and compares on. */
@@ -2615,6 +2656,7 @@ function configAnyDirty() {
  * has no id until then, so it cannot be moved before it is saved.
  */
 function configDiffOps(key) {
+  const def = configListDef(key);
   const loaded = (CONFIG_PANEL.loaded && CONFIG_PANEL.loaded[key]) || [];
   const buffer = CONFIG_PANEL.buffer[key] || [];
   const before = {};
@@ -2624,7 +2666,7 @@ function configDiffOps(key) {
   buffer.forEach(entry => {
     if (entry._new) {
       const add = { name: configNormalise(entry.name) };
-      if (key === 'stores') { add.id = entry.id; add.location = configNormalise(entry.location); }
+      def.attrs.forEach(attr => { add[attr.key] = configNormalise(entry[attr.key]); });
       ops.push({ op: 'add', entry: add });
       return;
     }
@@ -2632,7 +2674,9 @@ function configDiffOps(key) {
     if (!was) return;
     const patch = {};
     if (configNormalise(entry.name) !== configNormalise(was.name)) patch.name = configNormalise(entry.name);
-    if (key === 'stores' && configNormalise(entry.location) !== configNormalise(was.location)) patch.location = configNormalise(entry.location);
+    def.attrs.forEach(attr => {
+      if (configNormalise(entry[attr.key]) !== configNormalise(was[attr.key])) patch[attr.key] = configNormalise(entry[attr.key]);
+    });
     if (Object.keys(patch).length) ops.push({ op: 'update', entry: Object.assign({ id: entry.id }, patch) });
     if (!!entry.active !== !!was.active) ops.push({ op: 'setActive', id: entry.id, active: !!entry.active });
   });
@@ -2656,11 +2700,24 @@ function configValidate(key) {
     const lower = name.toLowerCase();
     if (seen[lower] !== undefined) problems.push({ index: index, message: 'Another ' + def.noun + ' on this list already has this name.' });
     seen[lower] = index;
-    if (entry._new && key === 'stores') {
-      const id = String(entry.id || '');
-      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || id.length > 40) problems.push({ index: index, message: 'A store needs its store number as the id: digits, or lowercase letters and digits with single hyphens.' });
-      else if (buffer.some((other, j) => j !== index && String(other.id).toLowerCase() === id)) problems.push({ index: index, message: 'This store number is already on the list. Ids are never reused.' });
-    }
+
+    def.attrs.forEach(attr => {
+      const value = configNormalise(entry[attr.key]);
+      if (attr.kind === 'type') {
+        if (!value) problems.push({ index: index, message: attr.label + ' is required.' });
+        else if (configTypes(key).indexOf(value) < 0) problems.push({ index: index, message: attr.label + ' must be one of ' + configTypes(key).join(', ') + '.' });
+      } else if (attr.kind === 'orgId') {
+        if (!value) problems.push({ index: index, message: attr.label + ' is required.' });
+        else if (value.length > 40 || !CONFIG_ORG_ID_PATTERN.test(value)) problems.push({ index: index, message: attr.label + ' may only contain letters, digits and single hyphens.' });
+        else if (buffer.some((other, j) => j !== index
+            && configNormalise(other[attr.key]).toLowerCase() === value.toLowerCase()
+            && (!attr.uniqueWith || configNormalise(other[attr.uniqueWith]) === configNormalise(entry[attr.uniqueWith])))) {
+          problems.push({ index: index, message: 'Another ' + def.noun + ' already has ' + attr.label + ' ' + value + (attr.uniqueWith ? ' for that type' : '') + '.' });
+        }
+      } else if (value.length > 120) {
+        problems.push({ index: index, message: attr.label + ' is at most 120 characters.' });
+      }
+    });
   });
   if (buffer.length && !buffer.some(entry => entry.active)) problems.push({ message: 'At least one ' + def.noun + ' must stay active.' });
   return problems;
@@ -2711,6 +2768,7 @@ function configRenderStrip() {
 
 function configSelectList(key) {
   CONFIG_PANEL.list = key;
+  CONFIG_PANEL.editing = null;
   configSetStatus('', '');
   renderConfig();
 }
@@ -2723,7 +2781,61 @@ function configMoveButton(glyph, disabled, onclick, readOnly) {
   return button;
 }
 
-/** One list's rows from its buffer. Inputs are live; the id is text and never editable. */
+/** One labelled field of an entry card. */
+function configField(label, valueNode, extraClass) {
+  const field = configEl('div', 'config-field' + (extraClass ? ' ' + extraClass : ''));
+  field.appendChild(configEl('span', 'config-field-label', label));
+  field.appendChild(valueNode);
+  return field;
+}
+
+function configTextValue(text, muted) {
+  return configEl('span', 'config-field-value' + (muted ? ' muted' : ''), text);
+}
+
+/** An identifier shortened to `truncateAt` characters, with the whole value in the tooltip and a Copy button. */
+function configIdValue(full, truncateAt) {
+  const text = String(full || '');
+  const value = configEl('span', 'config-field-value');
+  const code = configEl('code', '', text.length > truncateAt ? text.slice(0, truncateAt) + '…' : text);
+  code.title = text;
+  value.appendChild(code);
+  if (text) {
+    const copy = configEl('button', 'config-copy', 'Copy');
+    copy.type = 'button';
+    copy.title = 'Copy ' + text;
+    copy.onclick = () => configCopy(text, copy);
+    value.appendChild(copy);
+  }
+  return value;
+}
+
+async function configCopy(text, button) {
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = 'Copied';
+  } catch (e) {
+    window.prompt('Copy this value:', text);   // no clipboard access: hand it over the old way
+  }
+  setTimeout(() => { button.textContent = 'Copy'; }, 1200);
+}
+
+/** Open one card for editing, or close it. One card at a time, so it is clear which entry is being changed. */
+function configToggleEdit(key, ref) {
+  const current = CONFIG_PANEL.editing;
+  CONFIG_PANEL.editing = current && current.key === key && current.ref === ref ? null : { key: key, ref: ref };
+  configRenderList();
+  if (CONFIG_PANEL.editing) {
+    const input = document.querySelector('#config-rows .config-card.editing .config-name-input');
+    if (input) { input.focus(); input.select(); }
+  }
+}
+
+/**
+ * One list's entries as cards of labelled fields: ID, name, the list's attributes, Active.
+ * Read-only until a card's Edit button is pressed; then its name and Active switch open and
+ * nothing else does. Type, organisation id and location are set when an entry is added.
+ */
 function configRenderList() {
   const def = configListDef(CONFIG_PANEL.list);
   const readOnly = !CONFIG.webAppUrl;
@@ -2738,48 +2850,56 @@ function configRenderList() {
   const problems = {};
   configValidate(def.key).forEach(problem => { if (problem.index !== undefined && !problems[problem.index]) problems[problem.index] = problem.message; });
   const lastExisting = buffer.reduce((last, entry, i) => (entry._new ? last : i), -1);
+  const nameLabel = configCapitalise(def.noun) + ' Name';
 
   buffer.forEach((entry, index) => {
+    const ref = configEntryRef(entry);
+    const editing = !readOnly && !!CONFIG_PANEL.editing && CONFIG_PANEL.editing.key === def.key && CONFIG_PANEL.editing.ref === ref;
     const wrap = configEl('div', 'config-entry');
     wrap.dataset.index = index;
-    const row = configEl('div', 'config-row' + (entry.active ? '' : ' inactive') + (problems[index] ? ' invalid' : ''));
-    const main = configEl('div', 'config-row-main');
-    const side = configEl('div', 'config-row-side');
+    const card = configEl('div', 'config-card' + (entry.active ? '' : ' inactive') + (problems[index] ? ' invalid' : '') + (editing ? ' editing' : ''));
 
-    main.appendChild(configMoveButton('↑', entry._new || index === 0, () => configMove(def.key, index, -1), readOnly));
-    main.appendChild(configMoveButton('↓', entry._new || index >= lastExisting, () => configMove(def.key, index, 1), readOnly));
+    const move = configEl('div', 'config-card-move');
+    move.appendChild(configMoveButton('↑', entry._new || index === 0, () => configMove(def.key, index, -1), readOnly));
+    move.appendChild(configMoveButton('↓', entry._new || index >= lastExisting, () => configMove(def.key, index, 1), readOnly));
 
-    const name = configEl('input', 'config-name');
-    name.type = 'text';
-    name.value = entry.name || '';
-    name.placeholder = 'Name';
-    name.maxLength = 80;
-    name.readOnly = readOnly;
-    name.oninput = () => configEdit(def.key, index, 'name', name.value);
-    main.appendChild(name);
+    const fields = configEl('div', 'config-card-fields');
+    fields.appendChild(configField('ID', entry._new ? configTextValue('assigned on save', true) : configIdValue(entry.id, 8)));
+    if (editing) {
+      const input = configEl('input', 'config-name-input');
+      input.type = 'text';
+      input.value = entry.name || '';
+      input.placeholder = nameLabel;
+      input.maxLength = 80;
+      input.oninput = () => configEdit(def.key, index, 'name', input.value);
+      fields.appendChild(configField(nameLabel, input, 'config-field-name'));
+    } else {
+      fields.appendChild(configField(nameLabel, configTextValue(entry.name || '—', !entry.name), 'config-field-name'));
+    }
+    def.attrs.forEach(attr => {
+      const value = configNormalise(entry[attr.key]);
+      fields.appendChild(configField(attr.label, attr.kind === 'orgId' ? configIdValue(value, 12) : configTextValue(value || '—', !value)));
+    });
 
-    if (def.key === 'stores') {
-      const location = configEl('input', 'config-location');
-      location.type = 'text';
-      location.value = entry.location || '';
-      location.placeholder = 'Location';
-      location.maxLength = 120;
-      location.readOnly = readOnly;
-      location.oninput = () => configEdit(def.key, index, 'location', location.value);
-      main.appendChild(location);
+    const toggle = configEl('label', 'config-switch' + (editing ? '' : ' disabled'));
+    const checkbox = configEl('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = !!entry.active;
+    checkbox.disabled = !editing;
+    checkbox.onchange = () => configEdit(def.key, index, 'active', checkbox.checked);
+    toggle.append(checkbox, configEl('span', 'config-switch-track'), configEl('span', 'config-switch-text', entry.active ? 'Active' : 'Inactive'));
+    fields.appendChild(configField('Active', toggle));
+
+    const actions = configEl('div', 'config-card-actions');
+    if (!readOnly) {
+      const edit = configEl('button', 'btn-clear-filters config-edit', editing ? 'Done' : 'Edit');
+      edit.type = 'button';
+      edit.onclick = () => configToggleEdit(def.key, ref);
+      actions.appendChild(edit);
     }
 
-    const activeLabel = configEl('label', 'config-active');
-    const active = configEl('input');
-    active.type = 'checkbox';
-    active.checked = !!entry.active;
-    active.disabled = readOnly;
-    active.onchange = () => configEdit(def.key, index, 'active', active.checked);
-    activeLabel.append(active, document.createTextNode('Active'));
-    side.append(activeLabel, configEl('code', 'config-id', entry._new ? (def.key === 'stores' ? entry.id || '(store number)' : '(assigned on save)') : entry.id));
-
-    row.append(main, side);
-    wrap.appendChild(row);
+    card.append(move, fields, actions);
+    wrap.appendChild(card);
     const warn = configRowWarning(def, entry, loadedById[entry.id], problems[index]);
     if (warn) wrap.appendChild(warn);
     container.appendChild(wrap);
@@ -2792,6 +2912,13 @@ function configRenderList() {
 function configRowWarning(def, entry, was, problem) {
   if (problem) return configEl('div', 'config-warn', problem);
   if (entry._new || !was) return null;
+  const printed = def.attrs.find(attr => attr.kind === 'orgId' && attr.printed);
+  if (printed) {
+    const from = configNormalise(was[printed.key]);
+    if (from && configNormalise(entry[printed.key]) !== from) {
+      return configEl('div', 'config-warn', 'Changing the ' + printed.label + ' re-keys this ' + def.noun + ': the QR code printed with ' + from + ' will no longer match it, and past delivery records keep the old number. To move to a new number, add the new ' + def.noun + ' and deactivate this one.');
+    }
+  }
   const oldName = configNormalise(was.name);
   const newName = configNormalise(entry.name);
   if (oldName && oldName !== newName) {
@@ -2814,14 +2941,34 @@ function configRefreshEntry(key, index) {
   if (!wrap) return;
   const entry = CONFIG_PANEL.buffer[key][index];
   const problem = configValidate(key).find(p => p.index === index);
-  const row = wrap.querySelector('.config-row');
-  row.classList.toggle('invalid', !!problem);
-  row.classList.toggle('inactive', !entry.active);
+  const card = wrap.querySelector('.config-card');
+  card.classList.toggle('invalid', !!problem);
+  card.classList.toggle('inactive', !entry.active);
   const old = wrap.querySelector('.config-warn');
   if (old) old.remove();
   const was = (CONFIG_PANEL.loaded[key] || []).find(e => e.id === entry.id);
   const warn = configRowWarning(def, entry, was, problem && problem.message);
   if (warn) wrap.appendChild(warn);
+}
+
+/** The control for one attribute on the add row. Ids are `config-add-<attr key>`. */
+function configAddControl(def, attr) {
+  if (attr.kind === 'type') {
+    const select = configEl('select', 'config-type');
+    select.id = 'config-add-' + attr.key;
+    configTypes(def.key).forEach(type => {
+      const option = configEl('option', '', type);
+      option.value = type;
+      select.appendChild(option);
+    });
+    return select;
+  }
+  const input = configEl('input', 'config-' + attr.kind);
+  input.type = 'text';
+  input.id = 'config-add-' + attr.key;
+  input.placeholder = attr.label + (attr.kind === 'text' ? ' (optional)' : '');
+  input.maxLength = attr.kind === 'orgId' ? 40 : 120;
+  return input;
 }
 
 function configRenderAdd() {
@@ -2830,15 +2977,10 @@ function configRenderAdd() {
   add.textContent = '';
   add.hidden = !CONFIG.webAppUrl;
   if (add.hidden) return;
+  const byKind = kind => def.attrs.filter(attr => attr.kind === kind);
 
-  if (def.key === 'stores') {
-    const id = configEl('input', 'config-id-input');
-    id.type = 'text';
-    id.id = 'config-add-id';
-    id.placeholder = 'Store number';
-    id.maxLength = 40;
-    add.appendChild(id);
-  }
+  byKind('type').forEach(attr => add.appendChild(configAddControl(def, attr)));
+  byKind('orgId').forEach(attr => add.appendChild(configAddControl(def, attr)));
   const name = configEl('input');
   name.type = 'text';
   name.id = 'config-add-name';
@@ -2846,21 +2988,18 @@ function configRenderAdd() {
   name.maxLength = 80;
   name.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); configAdd(); } };
   add.appendChild(name);
-  if (def.key === 'stores') {
-    const location = configEl('input');
-    location.type = 'text';
-    location.id = 'config-add-location';
-    location.placeholder = 'Location (optional)';
-    location.maxLength = 120;
-    add.appendChild(location);
-  }
+  byKind('text').forEach(attr => add.appendChild(configAddControl(def, attr)));
   const button = configEl('button', 'btn-clear-filters', 'Add');
   button.type = 'button';
   button.onclick = configAdd;
   add.appendChild(button);
-  add.appendChild(configEl('div', 'config-add-help', def.key === 'stores'
-    ? 'The store number goes in the QR code posted at the store and in every delivery record, and cannot be changed later.'
-    : 'The id is made from the name when you save and never changes afterwards.'));
+
+  const help = def.key === 'stores'
+    ? 'The Store ID is the store number. It goes in the QR code posted at the store and in every delivery record; it can be changed later, but the printed code would no longer match.'
+    : def.key === 'kitchens'
+      ? 'The Kitchen ID is the identifier the organisation named by Type uses for this kitchen.'
+      : 'An id is assigned on save and never changes.';
+  add.appendChild(configEl('div', 'config-add-help', help));
 }
 
 function configRefreshActions() {
@@ -2902,14 +3041,15 @@ function configMove(key, index, delta) {
 
 function configAdd() {
   const key = CONFIG_PANEL.list;
+  const def = configListDef(key);
   const nameInput = document.getElementById('config-add-name');
   const name = configNormalise(nameInput.value);
   if (!name) { configSetStatus('Type a name first.', 'bad'); nameInput.focus(); return; }
-  const entry = { _new: true, name: name, active: true, sortOrder: 0 };
-  if (key === 'stores') {
-    entry.id = configNormalise(document.getElementById('config-add-id').value).toLowerCase();
-    entry.location = configNormalise(document.getElementById('config-add-location').value);
-  }
+  const entry = { _new: true, _tmp: configTempRef(), name: name, active: true, sortOrder: 0 };
+  def.attrs.forEach(attr => {
+    const control = document.getElementById('config-add-' + attr.key);
+    entry[attr.key] = control ? configNormalise(control.value) : '';
+  });
   CONFIG_PANEL.buffer[key].push(entry);
   configRenderList();
   configRenderAdd();
@@ -2923,12 +3063,13 @@ function configUnlistedAdd(name) {
   const key = CONFIG_PANEL.list;
   if (key === 'stores') {
     configRenderAdd();
-    document.getElementById('config-add-id').value = name;
+    const input = document.getElementById('config-add-storeId');
+    if (input) input.value = name;
     document.getElementById('config-add-name').focus();
     return;
   }
   if ((CONFIG_PANEL.buffer[key] || []).some(entry => configNormalise(entry.name).toLowerCase() === name.toLowerCase())) return;
-  CONFIG_PANEL.buffer[key].push({ _new: true, name: name, active: true, sortOrder: 0 });
+  CONFIG_PANEL.buffer[key].push({ _new: true, _tmp: configTempRef(), name: name, active: true, sortOrder: 0 });
   configRenderList();
   configRefreshActions();
   configRenderUnlisted();
@@ -2982,9 +3123,10 @@ function configChangeSummary(key) {
   buffer.forEach(entry => {
     const name = configNormalise(entry.name);
     if (entry._new) {
+      const orgId = def.attrs.find(attr => attr.kind === 'orgId');
       items.push({ cls: 'safe', text: key === 'stores'
-        ? 'Add "' + name + '" as store ' + entry.id + '. The number is permanent. Generate its QR code from the Home tab after saving.'
-        : 'Add "' + name + '". Its id is made from the name on save and never changes.' });
+        ? 'Add "' + name + '" as store ' + configNormalise(entry.storeId) + '. Generate its QR code from the Home tab after saving.'
+        : 'Add "' + name + '"' + (orgId ? ' (' + orgId.label + ' ' + configNormalise(entry[orgId.key]) + ')' : '') + '. Its id is assigned on save and never changes.' });
       return;
     }
     const was = before[entry.id];
@@ -2995,12 +3137,19 @@ function configChangeSummary(key) {
         ? { cls: 'caution', text: 'Rename "' + oldName + '" to "' + name + '". Records already filed under "' + oldName + '" keep that name, so reports will show the two as separate ' + def.noun + 's.' }
         : { cls: 'safe', text: 'Rename "' + oldName + '" to "' + name + '". Safe: delivery records carry the store number, so history stays together.' });
     }
-    if (key === 'stores' && configNormalise(entry.location) !== configNormalise(was.location)) {
-      items.push({ cls: 'safe', text: 'Change the location of "' + name + '" to "' + configNormalise(entry.location) + '".' });
-    }
+    def.attrs.forEach(attr => {
+      const from = configNormalise(was[attr.key]);
+      const to = configNormalise(entry[attr.key]);
+      if (from === to) return;
+      if (attr.printed) {
+        items.push({ cls: 'caution', text: 'Change the ' + attr.label + ' of "' + name + '" from ' + from + ' to ' + to + '. The QR code printed with ' + from + ' will no longer match this store, past delivery records keep ' + from + ', and new ones will carry ' + to + '.' });
+      } else {
+        items.push({ cls: '', text: 'Change the ' + attr.label + ' of "' + name + '"' + (from ? ' from "' + from + '"' : '') + ' to "' + to + '".' });
+      }
+    });
     if (!!entry.active !== !!was.active) {
       if (entry.active) items.push({ cls: 'safe', text: 'Reactivate "' + name + '". The forms will offer it again on their next load.' });
-      else if (key === 'stores') items.push({ cls: 'caution', text: 'Deactivate "' + name + '" (' + entry.id + '). Its QR code is printed and posted at the store. Scanning it will still open the delivery form, but the form will not recognise the store: the header will be blank and the delivery will be filed under store ' + entry.id + ' with no name. Print a replacement code before the next delivery, or leave this store active.' });
+      else if (key === 'stores') items.push({ cls: 'caution', text: 'Deactivate "' + name + '" (' + configNormalise(entry.storeId) + '). Its QR code is printed and posted at the store. Scanning it will still open the delivery form, but the form will not recognise the store: the header will be blank and the delivery will be filed under store ' + configNormalise(entry.storeId) + ' with no name. Print a replacement code before the next delivery, or leave this store active.' });
       else if (key === 'kitchens') items.push({ cls: 'caution', text: 'Deactivate "' + name + '". The Home tab\'s launcher and the production form will no longer offer it. Past records keep it.' });
       else items.push({ cls: 'caution', text: 'Deactivate "' + name + '". Removed from the forms on their next load. Past records keep it.' });
     }
@@ -3136,10 +3285,11 @@ async function configRenderPublished() {
 }
 
 /**
- * Names that appear in the loaded records but not on this list. Drivers and supervisors get
- * there by being typed under "+ Add new" on a form; dishes and kitchens cannot be typed, so
- * anything here is what a past rename left behind. Scoped to the window the dashboard has
- * loaded, and says so.
+ * Values that appear in the loaded records but not on this list, matched on whichever
+ * attribute the records carry: the name for most lists, the store number for stores.
+ * Drivers and supervisors get there by being typed under "+ Add new" on a form; dishes and
+ * kitchens cannot be typed, so anything here is what a past rename left behind. Scoped to
+ * the window the dashboard has loaded, and says so.
  */
 function configRenderUnlisted() {
   const def = configListDef(CONFIG_PANEL.list);
@@ -3149,6 +3299,7 @@ function configRenderUnlisted() {
   scope.textContent = '';
 
   const sources = { production: DATA.production || [], deliveries: DATA.deliveries || [] };
+  const recordAttr = def.records[0].attr;
   const seen = {};
   let records = 0;
   def.records.forEach(where => {
@@ -3163,14 +3314,14 @@ function configRenderUnlisted() {
       if (date > entry.last) entry.last = date;
     });
   });
-  const listed = new Set((CONFIG_PANEL.buffer[def.key] || []).map(entry => configNormalise(def.byName ? entry.name : entry.id).toLowerCase()));
+  const listed = new Set((CONFIG_PANEL.buffer[def.key] || []).map(entry => configNormalise(entry[recordAttr]).toLowerCase()));
   const unlisted = Object.values(seen).filter(entry => !listed.has(entry.name.toLowerCase())).sort((a, b) => b.count - a.count);
 
   const win = DATA.window;
   const label = iso => localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const range = win && win.from && win.to ? label(win.from) + ' to ' + label(win.to) : 'the loaded window';
   const sourceNames = def.records.map(where => where.source === 'production' ? 'production' : 'delivery').join(' and ');
-  scope.textContent = 'Checked against ' + records + ' ' + sourceNames + ' records from ' + range + ', the dates this dashboard has loaded. Names used before that are not included. ';
+  scope.textContent = 'Checked against ' + records + ' ' + sourceNames + ' records from ' + range + ', the dates this dashboard has loaded. Values used before that are not included. ';
   if (CONFIG.webAppUrl && REQUESTED_FROM && REQUESTED_FROM > earliestWindowFrom()) {
     const more = configEl('button', 'btn-clear-filters', 'Load six months');
     more.type = 'button';
@@ -3183,7 +3334,7 @@ function configRenderUnlisted() {
     container.appendChild(configEl('p', 'home-status', 'No unlisted ' + def.noun + 's in this window.'));
     return;
   }
-  const hint = def.byName && (def.key === 'drivers' || def.key === 'supervisors')
+  const hint = def.key === 'drivers' || def.key === 'supervisors'
     ? 'Typed with "+ Add new" on a form.'
     : def.key === 'stores' ? 'A delivery was filed against this store number.' : 'Probably a past name: records filed before a rename.';
   unlisted.forEach(entry => {
