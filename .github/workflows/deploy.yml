@@ -189,7 +189,7 @@ jobs:
             echo "- version $(webapp_field "$REF" .version), from the $(webapp_field "$REF" .source)"
             echo "- [Reference sheet]($REF_URL)"
           } >> "$GITHUB_STEP_SUMMARY"
-          for LIST in kitchens supervisors dishes stores drivers; do
+          for LIST in kitchens stores dishes supervisors drivers; do
             N=$(jq -r --arg l "$LIST" '(.[$l] // []) | length' <<<"$REF")
             [ "$N" -gt 0 ] || { echo "::error::the reference store has no $LIST."; exit 1; }
             echo "$LIST: $N"

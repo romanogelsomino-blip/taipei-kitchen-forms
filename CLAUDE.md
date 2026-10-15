@@ -27,8 +27,9 @@
 - **The monthly files are the only store for records.** The single-spreadsheet system they
   replaced is retired: nothing reads or writes it. Do not reintroduce a second write target
   for submissions.
-- **Reference lists live in the `Reference` sheet.** Kitchens, supervisors, dishes, stores
-  and drivers are one tab each in a spreadsheet at the root of `SPREADSHEET_FOLDER_ID`,
+- **Reference lists live in the `Reference` sheet.** Kitchens, stores, dishes, supervisors
+  and drivers, in that order wherever the five appear (the one place production-first does
+  not apply), are one tab each in a spreadsheet at the root of `SPREADSHEET_FOLDER_ID`,
   edited from the dashboard's Config tab and published to `data/<list>.json` by the site
   build; a form only ever reads those static files. Every entry is keyed by a UUID the
   backend assigns and never changes; kitchens and stores also carry a Type (Taipei or Giant)

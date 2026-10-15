@@ -36,15 +36,17 @@ const REFERENCE_RESERVED_STORE_UUID = '00000000-0000-4000-8000-000000000000';   
 // ─── The lists ───────────────────────────────────────────────────────────────
 
 /**
- * The five lists. Production precedes delivery, so kitchens and supervisors come first.
+ * The five lists, in the order the sheet's tabs, the payload and the Config tab show them:
+ * Kitchens, Stores, Dishes, Supervisors, Drivers.
  *
  * `attrs` are the columns beyond name: kind 'type' is one of `types`, 'orgId' is the
  * organisation's own identifier (unique on its own, or per type when `uniqueWith` names the
- * type column), 'text' is free text. `storedAs` names the monthly tab and field that carry
- * one of an entry's attributes, which is what a change to it leaves behind in the records.
+ * type column), 'text' is free text, required when `required` is set. `storedAs` names the
+ * monthly tab and field that carry one of an entry's attributes, which is what a change to
+ * it leaves behind in the records.
  */
 function referenceLists() {
-  const location = { key: 'location', header: 'Location', kind: 'text' };
+  const location = { key: 'location', header: 'Location', kind: 'text', required: true };
   return [
     { tab: 'Kitchens', key: 'kitchens', noun: 'kitchen', types: ['Taipei', 'Giant'],
       attrs: [
@@ -53,10 +55,6 @@ function referenceLists() {
         location
       ],
       storedAs: [{ tab: 'Production', field: 'kitchen', attr: 'name' }] },
-    { tab: 'Supervisors', key: 'supervisors', noun: 'supervisor', types: null, attrs: [],
-      storedAs: [{ tab: 'Production', field: 'supervisor', attr: 'name' }] },
-    { tab: 'Dishes', key: 'dishes', noun: 'dish', types: null, attrs: [],
-      storedAs: [{ tab: 'Production', field: 'dish', attr: 'name' }, { tab: 'Deliveries', field: 'dish', attr: 'name' }] },
     { tab: 'Stores', key: 'stores', noun: 'store', types: ['Giant'],
       attrs: [
         { key: 'storeType', header: 'Store Type', kind: 'type' },
@@ -64,6 +62,10 @@ function referenceLists() {
         location
       ],
       storedAs: [{ tab: 'Deliveries', field: 'storeId', attr: 'storeId' }] },
+    { tab: 'Dishes', key: 'dishes', noun: 'dish', types: null, attrs: [],
+      storedAs: [{ tab: 'Production', field: 'dish', attr: 'name' }, { tab: 'Deliveries', field: 'dish', attr: 'name' }] },
+    { tab: 'Supervisors', key: 'supervisors', noun: 'supervisor', types: null, attrs: [],
+      storedAs: [{ tab: 'Production', field: 'supervisor', attr: 'name' }] },
     { tab: 'Drivers', key: 'drivers', noun: 'driver', types: null, attrs: [],
       storedAs: [{ tab: 'Deliveries', field: 'driver', attr: 'name' }] }
   ];
@@ -156,12 +158,14 @@ function initReferenceTab(sheet, tab) {
 
 /**
  * Idempotent, under the lock: adds any missing tab, seeds a tab it had to create or whose
- * row 1 is empty, and migrates a populated tab written under an earlier schema. A tab with
- * headers and no rows was emptied on purpose and is left alone.
+ * row 1 is empty, migrates a populated tab written under an earlier schema, and puts the
+ * tabs in the lists' order. A tab with headers and no rows was emptied on purpose and is
+ * left alone.
  */
 function ensureReferenceTabs(ss) {
   withScriptLock(() => {
-    referenceTabNames().forEach((name, i) => {
+    const tabs = referenceTabNames();
+    tabs.forEach((name, i) => {
       let sheet = ss.getSheetByName(name);
       if (!sheet) {
         sheet = ss.insertSheet(name, Math.min(i, ss.getSheets().length));
@@ -170,6 +174,13 @@ function ensureReferenceTabs(ss) {
         initReferenceTab(sheet, name);
       } else {
         migrateReferenceTab(sheet, name);
+      }
+    });
+    tabs.forEach((name, i) => {
+      const sheet = ss.getSheetByName(name);
+      if (sheet.getIndex() !== i + 1) {   // a file made under an earlier order; getIndex and moveActiveSheet are both 1-based
+        ss.setActiveSheet(sheet);
+        ss.moveActiveSheet(i + 1);
       }
     });
   });
@@ -369,7 +380,7 @@ function checkReferenceAttr(list, attr, value) {
     if (!REFERENCE_ORG_ID_PATTERN.test(text)) throw referenceRejection(attr.header + ' ' + JSON.stringify(text) + ' may only contain letters, digits and single hyphens.', 'validation');
     return text;
   }
-  return checkReferenceText(value, attr.header, REFERENCE_LIMITS.text, false);
+  return checkReferenceText(value, attr.header, REFERENCE_LIMITS.text, !!attr.required);
 }
 
 /** true or false from the forms a JSON or query value takes. Anything else is a rejection: a typo must not deactivate a store. */

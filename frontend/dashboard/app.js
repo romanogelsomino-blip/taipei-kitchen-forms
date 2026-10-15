@@ -2532,13 +2532,13 @@ function exportShrinkToCSV() {
 // Every server-supplied string is set with textContent or .value, never innerHTML: these
 // names are edited on a web page and reach every form.
 
-// The strip's order. The backend payload and the sheet's tabs keep production first.
+// The order of the strip, the backend payload and the sheet's tabs alike.
 const CONFIG_LISTS = [
   { key: 'kitchens',    label: 'Kitchens',    noun: 'kitchen',    byName: true,
     attrs: [
       { key: 'kitchenType', label: 'Kitchen Type', kind: 'type' },
       { key: 'kitchenId',   label: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType' },
-      { key: 'location',    label: 'Location',     kind: 'text' }
+      { key: 'location',    label: 'Location',     kind: 'text', required: true, editable: true }
     ],
     records: [{ source: 'production', field: 'kitchen', attr: 'name' }],
     blurb: 'Where batches are cooked. The production form offers these, and its records carry the kitchen name. The Kitchen ID is the identifier the organisation named by Kitchen Type uses for it.' },
@@ -2546,7 +2546,7 @@ const CONFIG_LISTS = [
     attrs: [
       { key: 'storeType', label: 'Store Type', kind: 'type' },
       { key: 'storeId',   label: 'Store ID',   kind: 'orgId', uniqueWith: null, printed: true },   // in the QR code posted at the store and in every delivery row
-      { key: 'location',  label: 'Location',   kind: 'text' }
+      { key: 'location',  label: 'Location',   kind: 'text', required: true, editable: true }
     ],
     records: [{ source: 'deliveries', field: 'store', attr: 'storeId' }],
     blurb: 'Where deliveries go. The Store ID is the store number: it is in the QR code posted at the store and in every delivery record. The name is a label and can be changed freely.' },
@@ -2716,6 +2716,10 @@ function configValidate(key) {
         }
       } else if (value.length > 120) {
         problems.push({ index: index, message: attr.label + ' is at most 120 characters.' });
+      } else if (attr.required && !value) {
+        // Required on a new entry and on an edit that blanked it; a row seeded without one is shown as "—" and left alone.
+        const was = ((CONFIG_PANEL.loaded && CONFIG_PANEL.loaded[key]) || []).find(e => e.id === entry.id);
+        if (entry._new || (was && configNormalise(was[attr.key]))) problems.push({ index: index, message: attr.label + ' is required.' });
       }
     });
   });
@@ -2789,8 +2793,11 @@ function configField(label, valueNode, extraClass) {
   return field;
 }
 
+/** A plain value, truncated with an ellipsis when its column is narrower than it, the whole text in the tooltip. */
 function configTextValue(text, muted) {
-  return configEl('span', 'config-field-value' + (muted ? ' muted' : ''), text);
+  const node = configEl('span', 'config-field-value text' + (muted ? ' muted' : ''), text);
+  if (!muted) node.title = text;
+  return node;
 }
 
 /** An identifier shortened to `truncateAt` characters, with the whole value in the tooltip and a Copy button. */
@@ -2826,15 +2833,27 @@ function configToggleEdit(key, ref) {
   CONFIG_PANEL.editing = current && current.key === key && current.ref === ref ? null : { key: key, ref: ref };
   configRenderList();
   if (CONFIG_PANEL.editing) {
-    const input = document.querySelector('#config-rows .config-card.editing .config-name-input');
+    const input = document.querySelector('#config-rows .config-card.editing .config-input');
     if (input) { input.focus(); input.select(); }
   }
 }
 
+/** A text input for a field under Edit. */
+function configInput(value, placeholder, maxLength, oninput) {
+  const input = configEl('input', 'config-input');
+  input.type = 'text';
+  input.value = value || '';
+  input.placeholder = placeholder;
+  input.maxLength = maxLength;
+  input.oninput = () => oninput(input.value);
+  return input;
+}
+
 /**
  * One list's entries as cards of labelled fields: ID, name, the list's attributes, Active.
- * Read-only until a card's Edit button is pressed; then its name and Active switch open and
- * nothing else does. Type, organisation id and location are set when an entry is added.
+ * The fields sit on a grid whose columns are fixed per list, so every card lines up whatever
+ * its values. Read-only until a card's Edit button is pressed; then its name, its location
+ * and its Active switch open. Type and organisation id are set when an entry is added.
  */
 function configRenderList() {
   const def = configListDef(CONFIG_PANEL.list);
@@ -2843,6 +2862,7 @@ function configRenderList() {
   document.getElementById('config-list-blurb').textContent = def.blurb;
 
   const container = document.getElementById('config-rows');
+  container.className = 'config-rows ' + (def.attrs.length ? 'with-attrs' : 'no-attrs');   // picks the column template
   container.textContent = '';
   const buffer = CONFIG_PANEL.buffer[def.key] || [];
   const loadedById = {};
@@ -2865,20 +2885,16 @@ function configRenderList() {
 
     const fields = configEl('div', 'config-card-fields');
     fields.appendChild(configField('ID', entry._new ? configTextValue('assigned on save', true) : configIdValue(entry.id, 8)));
-    if (editing) {
-      const input = configEl('input', 'config-name-input');
-      input.type = 'text';
-      input.value = entry.name || '';
-      input.placeholder = nameLabel;
-      input.maxLength = 80;
-      input.oninput = () => configEdit(def.key, index, 'name', input.value);
-      fields.appendChild(configField(nameLabel, input, 'config-field-name'));
-    } else {
-      fields.appendChild(configField(nameLabel, configTextValue(entry.name || '—', !entry.name), 'config-field-name'));
-    }
+    fields.appendChild(configField(nameLabel, editing
+      ? configInput(entry.name, nameLabel, 80, value => configEdit(def.key, index, 'name', value))
+      : configTextValue(entry.name || '—', !entry.name), 'config-field-name'));
     def.attrs.forEach(attr => {
       const value = configNormalise(entry[attr.key]);
-      fields.appendChild(configField(attr.label, attr.kind === 'orgId' ? configIdValue(value, 12) : configTextValue(value || '—', !value)));
+      let node;
+      if (editing && attr.editable) node = configInput(entry[attr.key], attr.label, 120, v => configEdit(def.key, index, attr.key, v));
+      else if (attr.kind === 'orgId') node = configIdValue(value, 12);
+      else node = configTextValue(value || '—', !value);
+      fields.appendChild(configField(attr.label, node));
     });
 
     const toggle = configEl('label', 'config-switch' + (editing ? '' : ' disabled'));
@@ -2966,7 +2982,7 @@ function configAddControl(def, attr) {
   const input = configEl('input', 'config-' + attr.kind);
   input.type = 'text';
   input.id = 'config-add-' + attr.key;
-  input.placeholder = attr.label + (attr.kind === 'text' ? ' (optional)' : '');
+  input.placeholder = attr.label;
   input.maxLength = attr.kind === 'orgId' ? 40 : 120;
   return input;
 }
@@ -2979,6 +2995,7 @@ function configRenderAdd() {
   if (add.hidden) return;
   const byKind = kind => def.attrs.filter(attr => attr.kind === kind);
 
+  add.appendChild(configEl('h3', 'config-add-title', 'Add ' + configCapitalise(def.noun)));
   byKind('type').forEach(attr => add.appendChild(configAddControl(def, attr)));
   byKind('orgId').forEach(attr => add.appendChild(configAddControl(def, attr)));
   const name = configEl('input');
@@ -2995,9 +3012,9 @@ function configRenderAdd() {
   add.appendChild(button);
 
   const help = def.key === 'stores'
-    ? 'The Store ID is the store number. It goes in the QR code posted at the store and in every delivery record; it can be changed later, but the printed code would no longer match.'
+    ? 'Every field is required. The Store ID is the store number: it goes in the QR code posted at the store and in every delivery record, and is fixed once added.'
     : def.key === 'kitchens'
-      ? 'The Kitchen ID is the identifier the organisation named by Type uses for this kitchen.'
+      ? 'Every field is required. The Kitchen ID is the identifier the organisation named by Kitchen Type uses for this kitchen, and is fixed once added.'
       : 'An id is assigned on save and never changes.';
   add.appendChild(configEl('div', 'config-add-help', help));
 }
@@ -3050,6 +3067,13 @@ function configAdd() {
     const control = document.getElementById('config-add-' + attr.key);
     entry[attr.key] = control ? configNormalise(control.value) : '';
   });
+  const missing = def.attrs.find(attr => !entry[attr.key]);   // every attribute is required on a new entry
+  if (missing) {
+    configSetStatus(missing.label + ' is required.', 'bad');
+    const control = document.getElementById('config-add-' + missing.key);
+    if (control) control.focus();
+    return;
+  }
   CONFIG_PANEL.buffer[key].push(entry);
   configRenderList();
   configRenderAdd();
