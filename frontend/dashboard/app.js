@@ -2541,7 +2541,6 @@ const CONFIG_LISTS = [
       { key: 'kitchenId',   label: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType' },
       { key: 'location',    label: 'Location',     kind: 'text', required: true, editable: true }
     ],
-    records: [{ source: 'production', field: 'kitchen', attr: 'name' }],
     blurb: 'Where batches are cooked. The production form offers these, and its records carry the kitchen name. The Kitchen ID is the identifier the organisation named by Kitchen Type uses for it.' },
   { key: 'stores',      label: 'Stores',      noun: 'store',      byName: false,
     attrs: [
@@ -2549,17 +2548,17 @@ const CONFIG_LISTS = [
       { key: 'storeId',   label: 'Store ID',   kind: 'orgId', uniqueWith: null, printed: true },   // in the QR code posted at the store and in every delivery row
       { key: 'location',  label: 'Location',   kind: 'text', required: true, editable: true }
     ],
-    records: [{ source: 'deliveries', field: 'store', attr: 'storeId' }],
     blurb: 'Where deliveries go. The Store ID is the store number: it is in the QR code posted at the store and in every delivery record. The name is a label and can be changed freely.' },
   { key: 'dishes',      label: 'Dishes',      noun: 'dish',       byName: true, attrs: [],
     activeToggle: true,   // the one list with a pause switch as well as delete: a dish is tried for a while, then kept or not
-    records: [{ source: 'production', field: 'dish', attr: 'name' }, { source: 'deliveries', field: 'dish', attr: 'name' }],
     blurb: 'What is cooked and delivered. Both forms show these as cards, in this order. Switch a dish off to pause it without losing its place; delete it to retire it.' },
+  // `records` names where a form's free-text "+ Add new" lands, so the unlisted-names card
+  // can offer what was typed. Only the two people pickers accept typed names.
   { key: 'supervisors', label: 'Supervisors', noun: 'supervisor', byName: true, attrs: [],
-    records: [{ source: 'production', field: 'supervisor', attr: 'name' }],
+    records: [{ source: 'production', field: 'supervisor' }],
     blurb: 'Who signs off a batch. The production form offers these and also accepts a typed name.' },
   { key: 'drivers',     label: 'Drivers',     noun: 'driver',     byName: true, attrs: [],
-    records: [{ source: 'deliveries', field: 'driver', attr: 'name' }],
+    records: [{ source: 'deliveries', field: 'driver' }],
     blurb: 'Who delivers. The delivery form offers these and also accepts a typed name.' }
 ];
 const CONFIG_TYPES_FALLBACK = { kitchens: ['Taipei', 'Giant'], stores: ['Giant'] };   // what the backend serves as `types`; for a payload without it
@@ -3150,16 +3149,9 @@ function configAdd() {
   document.getElementById('config-add-name').focus();
 }
 
-/** Put a name seen in the records onto the list, pending Save. For stores it fills in the store number instead. */
+/** Put a name seen in the records onto the list, pending Save. */
 function configUnlistedAdd(name) {
   const key = CONFIG_PANEL.list;
-  if (key === 'stores') {
-    configRenderAdd();
-    const input = document.getElementById('config-add-storeId');
-    if (input) input.value = name;
-    document.getElementById('config-add-name').focus();
-    return;
-  }
   if ((CONFIG_PANEL.buffer[key] || []).some(entry => configNormalise(entry.name).toLowerCase() === name.toLowerCase())) return;
   CONFIG_PANEL.buffer[key].push({ _new: true, _tmp: configTempRef(), name: name, active: true, sortOrder: 0 });
   configRenderList();
@@ -3381,21 +3373,21 @@ async function configRenderPublished() {
 }
 
 /**
- * Values that appear in the loaded records but not on this list, matched on whichever
- * attribute the records carry: the name for most lists, the store number for stores.
- * Drivers and supervisors get there by being typed under "+ Add new" on a form; dishes and
- * kitchens cannot be typed, so anything here is what a past rename left behind. Scoped to
- * the window the dashboard has loaded, and says so.
+ * Names typed under "+ Add new" on a form that are not on the list yet, with one tap to add
+ * them. Only the supervisor and driver pickers accept typed names, so the card shows for
+ * those two lists alone. Scoped to the window the dashboard has loaded, and says so.
  */
 function configRenderUnlisted() {
   const def = configListDef(CONFIG_PANEL.list);
+  const card = document.getElementById('config-unlisted-card');
+  card.hidden = !def.records;
+  if (card.hidden) return;
   const container = document.getElementById('config-unlisted');
   const scope = document.getElementById('config-unlisted-scope');
   container.textContent = '';
   scope.textContent = '';
 
   const sources = { production: DATA.production || [], deliveries: DATA.deliveries || [] };
-  const recordAttr = def.records[0].attr;
   const seen = {};
   let records = 0;
   def.records.forEach(where => {
@@ -3410,14 +3402,14 @@ function configRenderUnlisted() {
       if (date > entry.last) entry.last = date;
     });
   });
-  const listed = new Set((CONFIG_PANEL.buffer[def.key] || []).map(entry => configNormalise(entry[recordAttr]).toLowerCase()));
+  const listed = new Set((CONFIG_PANEL.buffer[def.key] || []).map(entry => configNormalise(entry.name).toLowerCase()));
   const unlisted = Object.values(seen).filter(entry => !listed.has(entry.name.toLowerCase())).sort((a, b) => b.count - a.count);
 
   const win = DATA.window;
   const label = iso => localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const range = win && win.from && win.to ? label(win.from) + ' to ' + label(win.to) : 'the loaded window';
   const sourceNames = def.records.map(where => where.source === 'production' ? 'production' : 'delivery').join(' and ');
-  scope.textContent = 'Checked against ' + records + ' ' + sourceNames + ' records from ' + range + ', the dates this dashboard has loaded. Values used before that are not included. ';
+  scope.textContent = 'Checked against ' + records + ' ' + sourceNames + ' records from ' + range + ', the dates this dashboard has loaded. Names used before that are not included. ';
   if (CONFIG.webAppUrl && REQUESTED_FROM && REQUESTED_FROM > earliestWindowFrom()) {
     const more = configEl('button', 'btn-clear-filters', 'Load six months');
     more.type = 'button';
@@ -3430,15 +3422,12 @@ function configRenderUnlisted() {
     container.appendChild(configEl('p', 'home-status', 'No unlisted ' + def.noun + 's in this window.'));
     return;
   }
-  const hint = def.key === 'drivers' || def.key === 'supervisors'
-    ? 'Typed with "+ Add new" on a form.'
-    : def.key === 'stores' ? 'A delivery was filed against this store number.' : 'Probably a past name: records filed before a rename.';
   unlisted.forEach(entry => {
     const row = configEl('div', 'config-unlisted-row');
     row.appendChild(configEl('span', 'config-unlisted-name', entry.name));
-    row.appendChild(configEl('span', 'config-unlisted-meta', entry.count + ' record' + (entry.count === 1 ? '' : 's') + (entry.last ? ', last ' + entry.last : '') + ' · ' + hint));
+    row.appendChild(configEl('span', 'config-unlisted-meta', entry.count + ' record' + (entry.count === 1 ? '' : 's') + (entry.last ? ', last ' + entry.last : '') + ' · typed with "+ Add new" on a form'));
     if (CONFIG.webAppUrl) {
-      const add = configEl('button', 'btn-clear-filters', def.key === 'stores' ? 'Use this number' : 'Add to list');
+      const add = configEl('button', 'btn-clear-filters', 'Add to list');
       add.type = 'button';
       add.onclick = () => configUnlistedAdd(entry.name);
       row.appendChild(add);
