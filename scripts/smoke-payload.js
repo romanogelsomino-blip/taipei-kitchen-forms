@@ -44,8 +44,9 @@ function productionPayload(over = {}) {
   const s = settings(over);
   const rows = dishNames(s).map(dish => ({
     submissionId: s.id, date: s.date, kitchen: s.tag, supervisor: s.tag,
-    dish, qtyProduced: '0', qtyDiscarded: '0', discardReason: s.note,
-    cookTemp: '200', cookStart: '00:00', cookEnd: '00:01', cookTime: '1', finalTemp: '38',
+    kitchenSystemId: '', kitchenId: s.tag,   // the smoke kitchen is not on the reference list
+    dish, dishSystemId: '', qtyProduced: '0', qtyDiscarded: '0', discardReason: s.note,
+    cookTemp: '200', cookStart: '00:00', cookEnd: '00:01', cookTime: '1',
     formType: 'production', clientTimestamp: s.now
   }));
   return { formType: 'production', rows };
@@ -59,9 +60,9 @@ function photosBlock(s) {
 function deliveryPayload(over = {}) {
   const s = settings(over);
   const rows = dishNames(s).map(dish => ({
-    submissionId: s.id, date: s.date, driver: s.tag, store: s.store, storeId: s.store, arrive: '00:00',
+    submissionId: s.id, date: s.date, driver: s.tag, store: s.store, storeId: s.store, storeSystemId: '', arrive: '00:00',   // the backend fills store name and System ID from the lists
     arrivalTemp: '38', coolerTemp: '38', casePrefillPercent: '0-25%',
-    dish, added: '0', before: '0', removed: '0', reason: '', after: '0',
+    dish, dishSystemId: '', added: '0', before: '0', removed: '0', reason: '', after: '0',
     notes: s.note, receivedBy: s.tag, formType: 'delivery', clientTimestamp: s.now
   }));
   return { formType: 'delivery', rows, photos: photosBlock(s) };

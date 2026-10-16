@@ -1,7 +1,8 @@
 // forms/production.js — the kitchen's per-batch production log. Loads after forms/common.js.
 
-let DISHES   = [];   // active dish names, set once the reference lists load
-let KITCHENS = [];   // active kitchen entries, likewise
+let DISHES       = [];   // active dish names, set once the reference lists load
+let DISH_ENTRIES = [];   // the same dishes with their System IDs
+let KITCHENS     = [];   // active kitchen entries, likewise
 
 const supervisorPicker = createPeoplePicker({
   selectId: 'f-supervisor',
@@ -66,8 +67,9 @@ const dishEntry = createDishEntry({
 // ═══════════════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
   const lists = await loadReferenceLists(['kitchens', 'supervisors', 'dishes']);
-  DISHES   = activeNames(lists, 'dishes');
-  KITCHENS = activeEntries(lists, 'kitchens');
+  DISH_ENTRIES = activeEntries(lists, 'dishes');
+  DISHES       = DISH_ENTRIES.map(dish => dish.name);
+  KITCHENS     = activeEntries(lists, 'kitchens');
   populateKitchens();
   applyKitchenParam();
 
@@ -78,24 +80,31 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ─── Production kitchen ───────────────────────────────────
-// The sheet's Kitchen column holds the display name, so option values are names, not ids.
+// Option values are the kitchen's System ID; the payload writes its name, System ID and
+// Kitchen ID from the matching entry, so the sheet's Production Kitchen column still holds
+// the name the dashboard groups on.
 function populateKitchens() {
   const select = document.getElementById('f-kitchen');
   while (select.options.length > 1) select.remove(1);
   KITCHENS.forEach(kitchen => {
     const option = document.createElement('option');
-    option.value = kitchen.name;
+    option.value = kitchen.id;
     option.textContent = kitchen.name;
     select.appendChild(option);
   });
 }
 
-// The landing page opens this form with ?kitchen=<id>, the way QR codes open the delivery
-// form with ?store=<id>. Unknown ids leave the dropdown on "— Select —".
+/** The kitchen entry chosen in the dropdown, or null. */
+function selectedKitchen() {
+  const id = document.getElementById('f-kitchen').value;
+  return KITCHENS.find(k => k.id === id) || null;
+}
+
+// The landing page opens this form with ?kitchen=<System ID>, the way QR codes open the
+// delivery form with ?store=<store number>. Unknown ids leave the dropdown on "— Select —".
 function applyKitchenParam() {
   const id = new URLSearchParams(window.location.search).get('kitchen');
-  const kitchen = id && KITCHENS.find(k => k.id === id);
-  if (kitchen) document.getElementById('f-kitchen').value = kitchen.name;
+  if (id && KITCHENS.some(k => k.id === id)) document.getElementById('f-kitchen').value = id;
 }
 
 // ─── Batch cook times ────────────────────────────────────
@@ -105,6 +114,14 @@ function timeDiff(t1, t2) {
   return (h2 * 60 + m2) - (h1 * 60 + m1);
 }
 
+/** Minutes as the cell shows them: "45 min" up to an hour, "5h 00m" beyond it. */
+function formatCookTime(minutes) {
+  if (minutes < 60) return minutes + ' min';
+  return Math.floor(minutes / 60) + 'h ' + String(minutes % 60).padStart(2, '0') + 'm';
+}
+
+// The cell shows a readable duration; the minute count the sheet stores rides on
+// data-minutes, so the display format and the stored value never have to agree.
 function calcBatchCook() {
   const start = document.getElementById('b-cook-start').value;
   const end   = document.getElementById('b-cook-end').value;
@@ -112,7 +129,8 @@ function calcBatchCook() {
   if (start && end) {
     let diff = timeDiff(start, end);
     if (diff < 0) diff += 1440;
-    cell.textContent = diff + ' min';
+    cell.dataset.minutes = diff;
+    cell.textContent = formatCookTime(diff);
     cell.style.color = diff > 0 ? 'var(--orange)' : 'var(--red)';
   }
 }
@@ -123,15 +141,16 @@ function calcBatchCook() {
 function buildPayload() {
   const submissionId = newSubmissionId();
   const date       = document.getElementById('f-date').value;
-  const kitchen    = document.getElementById('f-kitchen').value;
+  const chosen     = selectedKitchen();
+  const kitchen    = chosen ? chosen.name : '';
   const supervisor = supervisorPicker.value();
 
   // Shared batch values
   const cookTemp   = document.getElementById('b-cook-temp').value;
   const cookStart  = document.getElementById('b-cook-start').value;
   const cookEnd    = document.getElementById('b-cook-end').value;
-  const cookTime   = document.getElementById('b-cook-time').textContent.replace(' min','').replace('—','');
-  const finalTemp  = document.getElementById('b-final-temp').value;
+  const cookTime   = document.getElementById('b-cook-time').dataset.minutes || '';
+  const dishSystemIdOf = name => (DISH_ENTRIES.find(d => d.name === name) || {}).id || '';
 
   const rows = [];
   DISHES.forEach(dish => {
@@ -139,7 +158,10 @@ function buildPayload() {
     rows.push({
       submissionId,
       date, kitchen, supervisor,
+      kitchenSystemId: chosen ? chosen.id : '',
+      kitchenId:       chosen ? chosen.kitchenId : '',
       dish:          dish,
+      dishSystemId:  dishSystemIdOf(dish),
       qtyProduced:   data.produced || '0',
       qtyDiscarded:  data.discarded || '0',
       discardReason: data.discardReason,
@@ -147,7 +169,6 @@ function buildPayload() {
       cookStart:     cookStart,
       cookEnd:       cookEnd,
       cookTime:      cookTime,
-      finalTemp:     finalTemp,
       formType:      'production',
       clientTimestamp: new Date().toISOString()
     });
@@ -165,8 +186,7 @@ function formIsComplete() {
     { id: supervisorPicker.activeId(), label: 'Head Chef / Supervisor', value: supervisorPicker.value() },
     { id: 'b-cook-temp',               label: 'Cook Temp °F' },
     { id: 'b-cook-start',              label: 'Cook Start' },
-    { id: 'b-cook-end',                label: 'Cook End' },
-    { id: 'b-final-temp',              label: 'Final Batch Temp °F' }
+    { id: 'b-cook-end',                label: 'Cook End' }
   ]);
   if (missing.length) {
     reportMissing('Fill these in before submitting:', missing);
@@ -227,12 +247,10 @@ function clearAll() {
   dishEntry.reset();
   document.querySelectorAll('.' + INVALID_CLASS).forEach(clearMissing);
 
-  // Reset batch display fields
-  ['b-cook-time'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.textContent = '—'; el.style.color = 'var(--orange)'; }
-  });
-  document.getElementById('b-final-temp').style.borderColor = '';
-  document.getElementById('b-final-temp').style.background  = '';
+  // Reset the cook time display and the minutes it carries
+  const cookTime = document.getElementById('b-cook-time');
+  cookTime.textContent = '—';
+  cookTime.style.color = 'var(--orange)';
+  delete cookTime.dataset.minutes;
   document.getElementById('f-date').value = localDateISO();
 }

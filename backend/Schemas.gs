@@ -1,4 +1,15 @@
-// Schemas.gs — the four tabs of a monthly file: headers, keys, and how rows are built and read.
+  if (tab !== 'Deliveries') return records;
+  let stores = null;
+  records.forEach(record => {
+    const store = String(record.store || '').trim();
+    if (!store) return;
+    if (!record.storeId) record.storeId = store;
+    if (String(record.storeId) === store) {
+      if (!stores) stores = storeList();
+      const match = stores.find(s => String(s.id) === store);
+      if (match) record.store = match.name;
+    }
+  });// Schemas.gs — the four tabs of a monthly file: headers, keys, and how rows are built and read.
 //
 // Header text is the read contract; column position is not. A column entry is
 // { header, key, type, width?, value? }: `key` is the payload field on write and the output key
@@ -28,7 +39,11 @@ function submissionIdOf(row, ctx) {
   return row.submissionId || ctx.submissionId || '';
 }
 
-/** One row per dish per production run. Batches cool overnight from cook end, so no cooling interval is recorded. */
+/**
+ * One row per dish per production run. Batches cool overnight from cook end, so no cooling
+ * interval or final temperature is recorded. The kitchen is carried three ways: its name,
+ * which the dashboard groups on, and its System ID and Kitchen ID from the Reference sheet.
+ */
 function productionSchema() {
   return [
     { header: 'Date',                key: 'date',            type: 'date' },
@@ -42,18 +57,26 @@ function productionSchema() {
     { header: 'Cook Start',          key: 'cookStart',       type: 'time' },
     { header: 'Cook End',            key: 'cookEnd',         type: 'time' },
     { header: 'Cook Time (min)',     key: 'cookTime',        type: 'number',  width: 120 },
-    { header: 'Final Batch Temp °F', key: 'finalTemp',       type: 'number',  width: 150 },
+    { header: 'Kitchen System ID',   key: 'kitchenSystemId', type: 'text',    width: 290 },
+    { header: 'Kitchen ID',          key: 'kitchenId',       type: 'text',    width: 120 },
+    { header: 'Dish System ID',      key: 'dishSystemId',    type: 'text',    width: 290 },
     { header: 'Submission ID',       key: 'submissionId',    type: 'text',    width: 290, value: submissionIdOf },
     { header: 'Submitted At',        key: 'clientTimestamp', type: 'instant' },
     { header: 'Received At',         key: 'serverTimestamp', type: 'instant', value: (row, ctx) => ctx.serverTimestamp }
   ];
 }
 
-/** One row per dish per store visit. */
+/**
+ * One row per dish per store visit. The store is carried three ways: its name under Store,
+ * which is what a reader of the sheet wants, and its System ID and store number from the
+ * Reference sheet; the number is what the QR code, the dashboard and the photo filenames
+ * key on. Files written before Store ID existed held the number under Store; see
+ * normaliseRecords.
+ */
 function deliveriesSchema() {
   return [
     { header: 'Date',                      key: 'date',               type: 'date' },
-    { header: 'Store',                     key: 'storeId',            type: 'text',    width: 80, value: row => row.storeId || row.store || '' },
+    { header: 'Store',                     key: 'store',              type: 'text',    width: 120 },
     { header: 'Driver',                    key: 'driver',             type: 'text' },
     { header: 'Dish',                      key: 'dish',               type: 'text',    width: 220 },
     { header: 'Arrival Time',              key: 'arrive',             type: 'time',    width: 110 },
@@ -69,6 +92,9 @@ function deliveriesSchema() {
     { header: 'Store Notes',               key: 'notes',              type: 'text',    width: 260 },
     { header: 'Before Photo',              key: 'beforePhotoLink',    type: 'text',    width: 220 },  // filled by the photo upload
     { header: 'After Photo',               key: 'afterPhotoLink',     type: 'text',    width: 220 },  // filled by the photo upload
+    { header: 'Store System ID',           key: 'storeSystemId',      type: 'text',    width: 290 },
+    { header: 'Store ID',                  key: 'storeId',            type: 'text',    width: 80 },
+    { header: 'Dish System ID',            key: 'dishSystemId',       type: 'text',    width: 290 },
     { header: 'Submission ID',             key: 'submissionId',       type: 'text',    width: 290, value: submissionIdOf },
     { header: 'Submitted At',              key: 'clientTimestamp',    type: 'instant' },
     { header: 'Received At',               key: 'serverTimestamp',    type: 'instant', value: (row, ctx) => ctx.serverTimestamp }
@@ -189,6 +215,29 @@ function normaliseCell(value, type) {
     return formatInstant(value);
   }
   return value;
+}
+
+/**
+ * Per-tab repair of rows read from a file written under an earlier schema. Deliveries:
+ * before Store ID existed, Store held the store number, so such a row reads with the number
+ * under `store` and nothing under `storeId`. Put the number under storeId and the name,
+ * looked up from the Reference sheet, under store. A row that already has both is left
+ * alone. Call on every read of the tab; never on a write.
+ */
+function normaliseRecords(tab, records) {
+  if (tab !== 'Deliveries') return records;
+  let stores = null;
+  records.forEach(record => {
+    const store = String(record.store || '').trim();
+    if (!store) return;
+    if (!record.storeId) record.storeId = store;
+    if (String(record.storeId) === store) {
+      if (!stores) stores = storeList();
+      const match = stores.find(s => String(s.id) === store);
+      if (match) record.store = match.name;
+    }
+  });
+  return records;
 }
 
 /**

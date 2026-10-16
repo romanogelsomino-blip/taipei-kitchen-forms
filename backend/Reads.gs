@@ -69,7 +69,8 @@ function action_dashboard(e) {
     const deliveryRead = recordsInWindow(win, 'Deliveries');
     const deliveries = deliveryRead.records.map(record => {
       const row = publicRecord(record);
-      row.store = row.storeId;   // the dashboard filters and groups on `store`
+      row.storeName = row.store;   // the sheet's Store column
+      row.store = row.storeId;     // the dashboard filters and groups on `store`, the store number
       return row;
     });
     const waste = deliveries
@@ -150,6 +151,7 @@ function action_queryDeliveries(e) {
       count: page.length,
       deliveries: page.map(record => {
         const row = publicRecord(record);
+        row.storeName = row.store;
         row.store = row.storeId;
         row.month = record._month;
         row.rowNumber = record._row;

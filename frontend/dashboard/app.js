@@ -2904,7 +2904,7 @@ function configRenderList() {
     move.appendChild(configMoveButton('↓', at < 0 || at >= movable.length - 1, () => configMove(def.key, index, 1), readOnly || isDeleted));
 
     const fields = configEl('div', 'config-card-fields');
-    fields.appendChild(configField('ID', entry._new ? configTextValue('assigned on save', true) : configIdValue(entry.id, 8)));
+    fields.appendChild(configField('System ID', entry._new ? configTextValue('assigned on save', true) : configIdValue(entry.id, 8)));
     fields.appendChild(configField(nameLabel, editing
       ? configInput(entry.name, nameLabel, 80, value => configEdit(def.key, index, 'name', value))
       : configTextValue(entry.name || '—', !entry.name), 'config-field-name'));
@@ -3059,9 +3059,9 @@ function configRenderAdd() {
   add.appendChild(button);
 
   const help = def.key === 'stores'
-    ? 'Every field is required. The Store ID is the store number: it goes in the QR code posted at the store and in every delivery record, and is fixed once added.'
+    ? 'The Store ID is the identifier the organisation named by Store Type uses for this store (eg for a Giant store, the store number Giant assigns it).'
     : def.key === 'kitchens'
-      ? 'Every field is required. The Kitchen ID is the identifier the organisation named by Kitchen Type uses for this kitchen, and is fixed once added.'
+      ? 'The Kitchen ID is the identifier the organisation named by Kitchen Type uses for this kitchen (eg for a Giant kitchen, the kitchen ID Giant assigns it).'
       : 'An id is assigned on save and never changes.';
   add.appendChild(configEl('div', 'config-add-help', help));
 }
@@ -3123,12 +3123,21 @@ function configMove(key, index, delta) {
   configRefreshActions();
 }
 
+/** Refuse an Add: say why, mark the field it is about and put the cursor there. The mark clears when the field is edited. */
+function configAddRefuse(control, message) {
+  configSetStatus(message, 'bad');
+  if (!control) return;
+  control.classList.add('missing');
+  control.addEventListener('input', () => control.classList.remove('missing'), { once: true });
+  control.focus();
+}
+
 function configAdd() {
   const key = CONFIG_PANEL.list;
   const def = configListDef(key);
   const nameInput = document.getElementById('config-add-name');
   const name = configNormalise(nameInput.value);
-  if (!name) { configSetStatus('Type a name first.', 'bad'); nameInput.focus(); return; }
+  if (!name) { configAddRefuse(nameInput, 'Type a name first.'); return; }
   const entry = { _new: true, _tmp: configTempRef(), name: name, active: true, sortOrder: 0 };
   def.attrs.forEach(attr => {
     const control = document.getElementById('config-add-' + attr.key);
@@ -3136,9 +3145,7 @@ function configAdd() {
   });
   const missing = def.attrs.find(attr => !entry[attr.key]);   // every attribute is required on a new entry
   if (missing) {
-    configSetStatus(missing.label + ' is required.', 'bad');
-    const control = document.getElementById('config-add-' + missing.key);
-    if (control) control.focus();
+    configAddRefuse(document.getElementById('config-add-' + missing.key), missing.label + ' is required.');
     return;
   }
   CONFIG_PANEL.buffer[key].push(entry);

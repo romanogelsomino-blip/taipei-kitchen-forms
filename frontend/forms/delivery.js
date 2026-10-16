@@ -1,7 +1,8 @@
 // forms/delivery.js — the driver's per-store delivery form. Loads after forms/common.js.
 
-let DISHES = [];   // active dish names, set once the reference lists load
-let STORES = [];   // active store entries, likewise
+let DISHES = [];        // active dish names, set once the reference lists load
+let DISH_ENTRIES = [];  // the same dishes with their System IDs
+let STORES = [];        // active store entries, likewise
 
 // The QR code at each store opens this page with ?store=<store number>: the Store ID, which
 // every delivery row carries, not the list entry's UUID.
@@ -169,7 +170,8 @@ function recalcModal() {
 window.addEventListener('DOMContentLoaded', async () => {
   const lists = await loadReferenceLists(['stores', 'drivers', 'dishes']);
   STORES = activeEntries(lists, 'stores');
-  DISHES = activeNames(lists, 'dishes');
+  DISH_ENTRIES = activeEntries(lists, 'dishes');
+  DISHES = DISH_ENTRIES.map(dish => dish.name);
 
   storeData = STORES.find(s => s.storeId === storeId);
   if (storeData) {
@@ -256,15 +258,20 @@ function buildPayload() {
   const casePrefill = document.getElementById('f-case-prefill').value;
   const notes  = document.getElementById('f-notes').value;
   const rcvd   = document.getElementById('f-received-by').value;
-  const store  = storeId;  // Send only store ID, not full name (dashboard will format it)
+  // The store number from the QR code keys everything downstream; the name and System IDs
+  // come from the reference lists, and the backend fills them in again from its own copy.
+  const store  = storeData ? storeData.name : '';
   const storeIdClean = storeId;
+  const storeSystemId = storeData ? storeData.id : '';
+  const dishSystemIdOf = name => (DISH_ENTRIES.find(d => d.name === name) || {}).id || '';
 
   const rows = [];
   DISHES.forEach(dish => {
     const data = dishEntry.get(dish);
     rows.push({
       submissionId,
-      date, driver, store, storeId: storeIdClean, arrive,
+      date, driver, store, storeId: storeIdClean, storeSystemId, arrive,
+      dishSystemId: dishSystemIdOf(dish),
       arrivalTemp: arrivalTemp,
       coolerTemp: ctTemp,
       casePrefillPercent: casePrefill,

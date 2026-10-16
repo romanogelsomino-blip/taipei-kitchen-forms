@@ -316,7 +316,7 @@ function readMonthlyRows(monthKeys, tab) {
     files.push({ monthKey, fileId: opened.fileId });
     const sheet = opened.ss.getSheetByName(tab);
     if (!sheet || sheet.getLastRow() < 2) return;
-    readRows(sheet.getDataRange().getValues(), schema).records.forEach(record => {
+    normaliseRecords(tab, readRows(sheet.getDataRange().getValues(), schema).records).forEach(record => {
       record._month = monthKey;
       record._fileId = opened.fileId;
       records.push(record);

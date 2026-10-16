@@ -10,7 +10,7 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 
 | Path | What it does |
 |---|---|
-| `frontend/taipei_production_form3.html` | Kitchen form. Logs each batch — cook times, final temperature after cooling, per-dish counts produced and discarded. |
+| `frontend/taipei_production_form3.html` | Kitchen form. Logs each batch — cook times, per-dish counts produced and discarded. |
 | `frontend/taipei_delivery_form3.html` | Driver form. Logs each store delivery — product temperature on arrival, store cooler temperature, photos, what was loaded, what was left, case fill levels. |
 | `frontend/forms/` | The scripts and stylesheet behind both forms: `common.js` and `styles.css` are shared, then one script per form. |
 | `frontend/dashboard/` | Live web dashboard. Opens on a home page that explains the system and launches either form; then metrics, production, deliveries, waste analysis, HACCP compliance. |
@@ -112,8 +112,8 @@ reference:snapshot:staging` refreshes them from the staging backend.
 The HACCP cooling rule is printed on the production form: hot food must cool from 135°F to
 70°F within 2 hours, then to 41°F within 4 more hours. The system flags what it can measure:
 
-- A batch cools overnight from its cook end, so no cooling interval is recorded. The
-  production form flags any recorded temperature above 41°F.
+- A batch cools overnight from its cook end, so the production form records no cooling
+  interval or final temperature, and production submissions raise no violations.
 - The delivery form flags both temperatures it records, the product temperature on arrival
   and the store cooler temperature, above 41°F.
 - The backend checks both once per submission, not once per dish. Each breach sends one email

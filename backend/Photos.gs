@@ -106,7 +106,7 @@ function findPhotoRows(photos, filedDate) {
     ? r => String(r.submissionId) === String(photos.submissionId)
     : r => String(r.storeId) === String(photos.storeId) && String(r.date) === String(photos.date) &&
            String(r.driver) === String(photos.driver) && !r.beforePhotoLink && !r.afterPhotoLink;
-  return { sheet, idx, rows: readRows(values, schema).records.filter(wanted).map(r => r._row) };
+  return { sheet, idx, rows: normaliseRecords('Deliveries', readRows(values, schema).records).filter(wanted).map(r => r._row) };
 }
 
 /**

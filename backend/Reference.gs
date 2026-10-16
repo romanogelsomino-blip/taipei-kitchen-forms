@@ -6,11 +6,11 @@
 // the site job publishes each list as a static data/<list>.json on every build, and a save
 // here asks GitHub to run that build.
 //
-// Every entry is keyed by a UUID the backend assigns and never changes. Kitchens and stores
-// also carry the identifier their organisation gave them (Kitchen ID, Store ID) and that
-// organisation's name (Kitchen Type, Store Type). A store's Store ID is the number in its
-// printed QR code, in every delivery row and in every photo filename; the UUID is the
-// sheet's key, nothing downstream carries it.
+// Every entry is keyed by a UUID the backend assigns and never changes: its System ID.
+// Kitchens and stores also carry the identifier their organisation gave them (Kitchen ID,
+// Store ID) and that organisation's name (Kitchen Type, Store Type). A store's Store ID is
+// the number in its printed QR code, in every delivery row and in every photo filename; a
+// production row carries its kitchen's name, System ID and Kitchen ID.
 //
 // The lists are a picker source, not a constraint. Nothing validates a submitted kitchen,
 // dish, driver or supervisor against them, and nothing may: the pickers allow free text and
@@ -93,8 +93,8 @@ function referenceSchemaFor(tab) {
   const list = referenceLists().find(l => l.tab === tab);
   if (!list) throw new Error('Unknown reference tab: ' + tab);
   const head = [
-    { header: 'UUID', key: 'id',   type: 'text', width: 290, aliases: ['ID'] },   // ID before the key became a UUID
-    { header: 'Name', key: 'name', type: 'text', width: 260 }
+    { header: 'System ID', key: 'id',   type: 'text', width: 290, aliases: ['UUID', 'ID'] },   // the earlier names of the key column
+    { header: 'Name',      key: 'name', type: 'text', width: 260 }
   ];
   const attrs = list.attrs.map(attr => ({ header: attr.header, key: attr.key, type: 'text', width: attr.kind === 'text' ? 300 : 120 }));
   const tail = [
@@ -200,7 +200,10 @@ function migrateReferenceTab(sheet, tab) {
   const list = referenceListFor(tab);
   const schema = referenceSchemaFor(tab);
   let headers = sheetHeaders(sheet);
-  if (headers.indexOf('UUID') < 0 && headers.indexOf('ID') >= 0) sheet.getRange(1, headers.indexOf('ID') + 1).setValue('UUID');
+  if (headers.indexOf('System ID') < 0) {   // the key column's earlier names
+    const old = ['UUID', 'ID'].map(name => headers.indexOf(name)).find(at => at >= 0);
+    if (old !== undefined) sheet.getRange(1, old + 1).setValue('System ID');
+  }
   ['Updated By'].forEach(dropped => {   // columns an earlier schema wrote that this one does not
     headers = sheetHeaders(sheet);
     const at = headers.indexOf(dropped);

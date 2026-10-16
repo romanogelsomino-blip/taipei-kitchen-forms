@@ -2034,6 +2034,8 @@ body {
 }
 .config-add input[type="text"]:focus,
 .config-add select:focus { border-color: var(--red); background: #fff; }
+.config-add input.missing,
+.config-add select.missing { border-color: var(--red); background: var(--red-lt); }
 .config-add .config-type { flex: 0 1 140px; min-width: 120px; }
 .config-add .config-orgId { flex: 0 1 150px; min-width: 120px; font-family: 'DM Mono', monospace; }
 .config-add .config-text { flex: 1.4; }
