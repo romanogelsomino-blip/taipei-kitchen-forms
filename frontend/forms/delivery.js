@@ -4,11 +4,18 @@ let DISHES = [];        // active dish names, set once the reference lists load
 let DISH_ENTRIES = [];  // the same dishes with their System IDs
 let STORES = [];        // active store entries, likewise
 
-// The QR code at each store opens this page with ?store=<store number>: the Store ID, which
-// every delivery row carries, not the list entry's UUID.
+// The QR code at each store opens this page with ?store=<System ID>. Codes printed before
+// System IDs existed carry the store number instead, and both are accepted. Either way
+// `storeId` ends up as the store number, which every delivery row and photo name carries.
 const params = new URLSearchParams(window.location.search);
-let storeId   = params.get('store') || '';
-let storeData = null; // Set once the store list has loaded
+const storeParam = params.get('store') || '';
+let storeId   = storeParam;
+let storeData = null;         // the store's list entry, set once the store list has loaded
+let storeUnknown = false;     // a System ID the list does not have: nothing can file the rows
+
+function looksLikeSystemId(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
 
 // Compressed base64 photos, attached to the submission
 const photoData = { before: null, after: null };
@@ -161,12 +168,22 @@ window.addEventListener('DOMContentLoaded', async () => {
   DISH_ENTRIES = activeEntries(lists, 'dishes');
   DISHES = DISH_ENTRIES.map(dish => dish.name);
 
-  storeData = STORES.find(s => s.storeId === storeId);
+  storeData = STORES.find(s => s.id === storeParam) || STORES.find(s => s.storeId === storeParam) || null;
   if (storeData) {
+    storeId = storeData.storeId;
     document.getElementById('store-title').textContent    = storeData.name + ' · ' + storeData.location;
     document.getElementById('store-location').textContent = 'Giant Food Stores — Bento Program';
     document.getElementById('store-header').style.display = 'block';
     document.title = 'Taipei Kitchen · Delivery · ' + storeData.name;
+  } else if (looksLikeSystemId(storeParam)) {
+    // A store number the list lacks still files under that number. A System ID it lacks has
+    // no number behind it, so the rows could not be placed: refuse rather than write them.
+    storeUnknown = true;
+    storeId = '';
+    document.getElementById('store-title').textContent    = 'Unknown store';
+    document.getElementById('store-location').textContent = UNKNOWN_STORE_MESSAGE;
+    document.getElementById('store-header').style.display = 'block';
+    document.getElementById('submit-btn').disabled = true;
   }
 
   const now = new Date();
@@ -245,8 +262,8 @@ function buildPayload() {
   const casePrefill = document.getElementById('f-case-prefill').value;
   const notes  = document.getElementById('f-notes').value;
   const rcvd   = document.getElementById('f-received-by').value;
-  // The store number from the QR code keys everything downstream; the name and System IDs
-  // come from the reference lists, and the backend fills them in again from its own copy.
+  // The store number keys everything downstream; the name and System IDs come from the
+  // store's list entry, and the backend fills them in again from its own copy.
   const store  = storeData ? storeData.name : '';
   const storeIdClean = storeId;
   const storeSystemId = storeData ? storeData.id : '';
@@ -481,7 +498,13 @@ window.addEventListener('DOMContentLoaded', () => {
 // ─── Validation ────────────────────────────────────────────
 // Everything the delivery record needs. Store notes are the one optional field. Specs run in
 // page order so the field scrolled to is the topmost one outstanding.
+const UNKNOWN_STORE_MESSAGE = 'This QR code points at a store that is no longer on the list. Ask the office for a new code.';
+
 function formIsComplete() {
+  if (storeUnknown) {
+    alert(UNKNOWN_STORE_MESSAGE);
+    return false;
+  }
   const missing = missingFields([
     { id: 'f-date',                label: 'Date' },
     { id: driverPicker.activeId(), label: 'Driver', value: driverPicker.value() },
@@ -512,7 +535,6 @@ function showSummary() {
 
   const driver = driverPicker.value();
   const payload = buildPayload();
-  const storeData = STORES.find(s => s.storeId === storeId);
   const date = document.getElementById('f-date').value;
 
   document.getElementById('sum-store').textContent = storeData ? storeData.name : `Store ${storeId}`;

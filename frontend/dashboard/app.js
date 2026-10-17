@@ -600,6 +600,8 @@ const HOME_FORMS = {
   delivery:   { page: '../taipei_delivery_form3.html',   param: 'store',   selectId: 'home-store',   buttonId: 'home-open-delivery',   label: 'Open Delivery Form',   prompt: 'Select a store',   qrLabel: 'Store QR code',   qrCaption: 'Delivery Form' }
 };
 
+let HOME_STORES = [];   // the store entries behind the home page's pickers
+
 async function loadHomeLocations() {
   const status = document.getElementById('home-locations-status');
   try {
@@ -612,11 +614,12 @@ async function loadHomeLocations() {
     }));
     const storeText = s => s.location ? `${s.name} · ${s.location}` : s.name;
 
-    // A kitchen link carries the entry's UUID; a store link and a QR code carry the store
-    // number, which is what the delivery form and every delivery row use.
+    // Links and QR codes carry the entry's System ID. The delivery form resolves the store
+    // number from it, and still accepts the number itself, which codes printed earlier carry.
+    HOME_STORES = stores;
     fillHomeSelect('home-kitchen', kitchens, k => k.name, k => k.id);
-    fillHomeSelect('home-store', stores, storeText, s => s.storeId);
-    fillHomeSelect('home-qr-store', stores, storeText, s => s.storeId);
+    fillHomeSelect('home-store', stores, storeText, s => s.id);
+    fillHomeSelect('home-qr-store', stores, storeText, s => s.id);
     status.textContent = '';
   } catch (e) {
     console.error('[Home] Could not load the kitchen and store lists:', e);
@@ -669,9 +672,9 @@ function homeQrUpdate() {
  * is what a link needs and what a phone camera cannot use. Resolving against the current
  * location also means a code generated on the staging dashboard points at the staging form.
  */
-function homeQrUrl(storeId) {
+function homeQrUrl(systemId) {
   const form = HOME_FORMS.delivery;
-  const target = `${form.page}?${form.param}=${encodeURIComponent(storeId)}`;
+  const target = `${form.page}?${form.param}=${encodeURIComponent(systemId)}`;
   return new URL(target, window.location.href).href;
 }
 
@@ -719,7 +722,8 @@ function homeGenerateQr() {
 
   const download = document.getElementById('home-qr-download');
   download.href = canvas.toDataURL('image/png');
-  download.download = 'taipei-delivery-' + select.value + '.png';
+  const entry = HOME_STORES.find(s => s.id === select.value);
+  download.download = 'taipei-delivery-' + (entry ? entry.storeId : select.value) + '.png';   // named by store number, which is how a printed code is recognised
 
   output.hidden = false;
   status.textContent = '';

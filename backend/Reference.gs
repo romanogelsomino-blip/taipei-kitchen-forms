@@ -61,7 +61,7 @@ function referenceLists() {
     { tab: 'Stores', key: 'stores', noun: 'store', types: ['Giant'],
       attrs: [
         { key: 'storeType', header: 'Store Type', kind: 'type' },
-        { key: 'storeId',   header: 'Store ID',   kind: 'orgId', uniqueWith: null },   // records and QR codes carry the number alone
+        { key: 'storeId',   header: 'Store ID',   kind: 'orgId', uniqueWith: null },   // records carry the number alone, as do QR codes printed before System IDs
         location
       ],
       storedAs: [{ tab: 'Deliveries', field: 'storeId', attr: 'storeId' }] },
@@ -647,7 +647,7 @@ function changeWarning(list, change) {
     return 'Records filed under the old ' + label + ' "' + change.from + '" keep it; the count could not be read (' + e.message + ').';
   }
   const tail = attr && attr.kind === 'orgId'
-    ? '; they keep it, and anything printed with it, such as a QR code, no longer matches this ' + list.noun + '.'
+    ? '; they keep it, and anything printed with it, such as an older QR code, no longer matches this ' + list.noun + '.'
     : '; they will keep it.';
   return count + ' row' + (count === 1 ? '' : 's') + ' in the last ' + MAX_MONTHS_PER_REQUEST + ' months use the old ' + label + ' "' + change.from + '"' + tail;
 }

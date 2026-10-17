@@ -44,8 +44,8 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
    row of the delivery links to them.
 
 Neither form is linked here on purpose. Both need a location to be any use: the delivery form
-opens from a store's QR code as `?store=<id>`, and the dashboard's home page opens the
-production form as `?kitchen=<id>`. Opening one bare gives a form with no location chosen,
+opens from a store's QR code as `?store=<System ID>`, and the dashboard's home page opens the
+production form as `?kitchen=<System ID>`. Opening one bare gives a form with no location chosen,
 which is how a delivery gets logged against the wrong store.
 
 The pages live in `frontend/`, their scripts and stylesheet in `frontend/forms/`. See
@@ -96,8 +96,10 @@ dish can also be switched off to pause it; the row stays in the sheet either way
 records keep their names. Kitchens and stores also carry a Type, the organisation they
 belong to (Taipei or Giant), and that organisation's own identifier: the Kitchen ID or Store
 ID. A store's Store ID is its store number. QR codes point at
-`taipei_delivery_form3.html?store=<store number>` and every delivery row carries it, so a
-store can be renamed freely but changing its number re-keys it, and the Config tab says so.
+`taipei_delivery_form3.html?store=<System ID>`; codes printed before System IDs existed carry
+the store number, which the form still accepts. Every delivery row carries the number, so a
+store can be renamed freely but changing its number re-keys its records, and the Config tab
+says so.
 The other four lists are stored in the records by name, so renaming one leaves past records
 under the old name, and the Config tab says that too. The dashboard's home page opens the
 production form with the kitchen's UUID, `taipei_production_form3.html?kitchen=<uuid>`.
