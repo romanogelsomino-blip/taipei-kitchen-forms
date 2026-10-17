@@ -181,16 +181,16 @@
         <input type="number" inputmode="numeric" id="modal-before" min="0" placeholder="0" oninput="recalcModal()">
       </div>
       <div class="modal-field">
-        <label>Removed (Expired)</label>
+        <label>Removed</label>
         <input type="number" inputmode="numeric" id="modal-removed" min="0" placeholder="0" oninput="recalcModal()">
       </div>
       <div class="modal-field">
-        <label>Expire Reason</label>
+        <label>Removal Reason</label>
         <select id="modal-reason" onchange="handleModalReasonChange(true)">
           <option value="">—</option>
-          <option value="Out of date">Out of date</option>
           <option value="Damaged">Damaged</option>
-          <option value="Quality issue">Quality issue</option>
+          <option value="Expired">Expired</option>
+          <option value="Quality Issue">Quality Issue</option>
           <option value="__other__">Other (specify)</option>
         </select>
         <input type="text" id="modal-reason-custom" placeholder="Specify reason" style="display:none;margin-top:8px;">

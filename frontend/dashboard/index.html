@@ -293,7 +293,7 @@
           <h2 class="section-title" style="margin:0;">Delivery Records</h2>
           <div style="display:flex;gap:12px;align-items:center;">
             <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--mid);" id="delivery-record-count">—</span>
-            <select id="delivery-per-page" onchange="changeDeliveryPageSize()" style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.85rem;">
+            <select id="delivery-per-page" onchange="changeDeliveryPageSize()">
               <option value="20">20 per page</option>
               <option value="50">50 per page</option>
               <option value="100">100 per page</option>
@@ -428,7 +428,7 @@
           <h2 class="section-title" style="margin:0;">Production Records</h2>
           <div style="display:flex;gap:12px;align-items:center;">
             <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--mid);" id="production-record-count">—</span>
-            <select id="production-per-page" onchange="changeProductionPageSize()" style="border:1.5px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.85rem;">
+            <select id="production-per-page" onchange="changeProductionPageSize()">
               <option value="20">20 per page</option>
               <option value="50">50 per page</option>
               <option value="100">100 per page</option>
@@ -515,7 +515,7 @@
           <!-- Store Filter -->
           <div>
             <label class="filter-label" style="display: block; margin-bottom: 6px;">Store</label>
-            <select id="shrink-store-filter" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--dark);">
+            <select id="shrink-store-filter" style="width:100%;">
               <option value="">All Stores</option>
             </select>
           </div>
@@ -523,7 +523,7 @@
           <!-- Item Filter -->
           <div>
             <label class="filter-label" style="display: block; margin-bottom: 6px;">Item</label>
-            <select id="shrink-item-filter" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--dark);">
+            <select id="shrink-item-filter" style="width:100%;">
               <option value="">All Items</option>
             </select>
           </div>

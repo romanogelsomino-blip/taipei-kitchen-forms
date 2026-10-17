@@ -28,6 +28,11 @@ const lastSubmission = createRecall({
   }
 });
 
+/** The reason as the sheet records it: the typed text when "Other (specify)" is chosen, else the option. */
+function effectiveDiscardReason(data) {
+  return data.discardReason === '__other__' ? (data.discardReasonCustom || '').trim() : data.discardReason;
+}
+
 /**
  * What one dish still needs, or null. Only the produced count is required outright — the
  * rest stand at zero — but a discard has to say why it was discarded.
@@ -36,8 +41,11 @@ function dishProblem(data) {
   if (data.produced === '') {
     return { id: 'modal-produced', message: 'Enter a produced count for this dish. Enter 0 if none were made.' };
   }
-  if ((parseInt(data.discarded) || 0) > 0 && !(data.discardReason || '').trim()) {
-    return { id: 'modal-discard-reason', message: 'Say why this dish was discarded.' };
+  if ((parseInt(data.discarded) || 0) > 0 && !effectiveDiscardReason(data)) {
+    return {
+      id: data.discardReason === '__other__' ? 'modal-discard-reason-custom' : 'modal-discard-reason',
+      message: 'Say why this dish was discarded.'
+    };
   }
   return null;
 }
@@ -46,21 +54,33 @@ function dishProblem(data) {
 const dishEntry = createDishEntry({
   dishes: () => DISHES,
   fields: [
-    { key: 'produced',      id: 'modal-produced' },
-    { key: 'discarded',     id: 'modal-discarded' },
-    { key: 'discardReason', id: 'modal-discard-reason' }
+    { key: 'produced',            id: 'modal-produced' },
+    { key: 'discarded',           id: 'modal-discarded' },
+    { key: 'discardReason',       id: 'modal-discard-reason' },
+    { key: 'discardReasonCustom', id: 'modal-discard-reason-custom' }
   ],
   status(data) {
     if (data.produced !== '') return 'complete';
-    return (data.discarded !== '' || data.discardReason) ? 'partial' : 'empty';
+    return (data.discarded !== '' || effectiveDiscardReason(data)) ? 'partial' : 'empty';
   },
   validate: dishProblem,
   totals: [
     { key: 'produced',  id: 'total-produced' },
     { key: 'discarded', id: 'total-discarded' }
   ],
-  storageKey: 'tk_production_dish_data'
+  storageKey: 'tk_production_dish_data',
+  onOpen()  { handleDiscardReasonChange(false); },
+  onClear() { handleDiscardReasonChange(false); }
 });
+
+function handleDiscardReasonChange(focusCustom) {
+  const select = document.getElementById('modal-discard-reason');
+  const custom = document.getElementById('modal-discard-reason-custom');
+  const isOther = select.value === '__other__';
+  custom.style.display = isOther ? 'block' : 'none';
+  if (!isOther) custom.value = '';
+  if (isOther && focusCustom) custom.focus();
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Page load
@@ -164,7 +184,7 @@ function buildPayload() {
       dishSystemId:  dishSystemIdOf(dish),
       qtyProduced:   data.produced || '0',
       qtyDiscarded:  data.discarded || '0',
-      discardReason: data.discardReason,
+      discardReason: effectiveDiscardReason(data),
       cookTemp:      cookTemp,
       cookStart:     cookStart,
       cookEnd:       cookEnd,

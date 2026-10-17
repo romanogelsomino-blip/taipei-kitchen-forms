@@ -43,6 +43,37 @@ body {
   overflow-x: hidden;
 }
 
+/* Dropdowns: the closed control is themed; the open list is the browser's own. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 34px 8px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.88rem;
+  color: var(--dark);
+  background-color: var(--row-alt);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%239B9B9B' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 8px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+select:focus {
+  border-color: var(--red);
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23d35042' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+select option {
+  color: var(--dark);
+  background: var(--surface);
+}
+
 /* Top Header */
 .top-header {
   background: var(--header-bg);
@@ -645,15 +676,17 @@ body {
   font-family: 'Inter', sans-serif;
   font-size: 0.88rem;
   color: var(--dark);
-  background: var(--row-alt);
+  background-color: var(--row-alt);
   outline: none;
   transition: border-color 0.15s;
 }
 
+.filter-field select { padding-right: 34px; }
+
 .filter-field select:focus,
 .filter-field input:focus {
   border-color: var(--red);
-  background: #fff;
+  background-color: #fff;
 }
 
 .btn-apply-filters,
@@ -2028,14 +2061,15 @@ body {
   font-family: 'Inter', sans-serif;
   font-size: 0.88rem;
   color: var(--dark);
-  background: var(--row-alt);
+  background-color: var(--row-alt);
   outline: none;
   transition: border-color 0.15s;
 }
+.config-add select { padding-right: 34px; }
 .config-add input[type="text"]:focus,
-.config-add select:focus { border-color: var(--red); background: #fff; }
+.config-add select:focus { border-color: var(--red); background-color: #fff; }
 .config-add input.missing,
-.config-add select.missing { border-color: var(--red); background: var(--red-lt); }
+.config-add select.missing { border-color: var(--red); background-color: var(--red-lt); }
 .config-add .config-type { flex: 0 1 140px; min-width: 120px; }
 .config-add .config-orgId { flex: 0 1 150px; min-width: 120px; font-family: 'DM Mono', monospace; }
 .config-add .config-text { flex: 1.4; }
