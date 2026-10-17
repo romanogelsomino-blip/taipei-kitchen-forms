@@ -19,18 +19,6 @@ const driverPicker = createPeoplePicker({
   addLabel: '+ Add new driver'
 });
 
-// T-041: one-tap recall of the previous submission's driver
-const lastSubmission = createRecall({
-  storageKey: 'tk_delivery_last_submission',
-  capture() {
-    const snap = driverPicker.snapshot();
-    return { driver: driverPicker.value(), driverSelectValue: snap.select, driverCustomValue: snap.custom };
-  },
-  restore(values) {
-    driverPicker.restore({ select: values.driverSelectValue, custom: values.driverCustomValue });
-  }
-});
-
 // ═══════════════════════════════════════════════════════════════════════════
 // T-008: Client-Side Image Compression
 // ═══════════════════════════════════════════════════════════════════════════
@@ -189,7 +177,6 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   dishEntry.buildList();
   driverPicker.load(activeNames(lists, 'drivers'));
-  lastSubmission.offerIfRecent();
   reportAbandonedSubmissions();
 });
 
@@ -663,9 +650,6 @@ async function submitForm() {
       payload.rows.length + ' dish rows saved for ' +
       (storeData ? storeData.name : 'store ' + storeId) + '. No photos attached. You can close this page.');
   }
-
-  // T-041: Save last submission values for quick recall
-  lastSubmission.save();
 
   showStatusDone();
 }

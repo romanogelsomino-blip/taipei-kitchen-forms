@@ -223,72 +223,7 @@ function createPeoplePicker({ selectId, customId, addLabel }) {
     return select().value === '__custom__' ? customId : selectId;
   }
 
-  /** Raw select and custom-input values, for last-submission recall. */
-  function snapshot() {
-    return { select: select().value, custom: custom().value };
-  }
-
-  function restore(snap) {
-    select().value = snap.select;
-    if (snap.select === '__custom__') {
-      custom().style.display = 'block';
-      custom().value = snap.custom;
-    } else {
-      custom().style.display = 'none';
-    }
-  }
-
-  return { load, handleChange, value, activeId, snapshot, restore };
-}
-
-// ─── Last-submission recall ──────────────────────────────────────────────────
-// After a successful submit the form remembers a few values (who, where) so the next one
-// can restore them with a tap. `capture` returns the values to keep, `restore` applies
-// them, and the button is offered for 24 hours.
-function createRecall({ storageKey, capture, restore }) {
-  function save() {
-    localStorage.setItem(storageKey, JSON.stringify({ ...capture(), timestamp: new Date().toISOString() }));
-    console.log('[Recall] Saved last submission values');
-  }
-
-  function recall() {
-    const saved = localStorage.getItem(storageKey);
-    if (!saved) return;
-    try {
-      const lastValues = JSON.parse(saved);
-      restore(lastValues);
-      console.log('[Recall] Restored last submission from', lastValues.timestamp);
-
-      const btn = document.getElementById('recall-btn');
-      const originalText = btn.textContent;
-      btn.textContent = '✓ Values Restored';
-      btn.style.background = '#27AE60';
-      setTimeout(() => {
-        btn.textContent = originalText;
-        btn.style.background = 'var(--green)';
-      }, 2000);
-    } catch (e) {
-      console.error('[Recall] Failed to restore:', e);
-    }
-  }
-
-  function offerIfRecent() {
-    const saved = localStorage.getItem(storageKey);
-    if (!saved) return;
-    try {
-      const lastValues = JSON.parse(saved);
-      const savedDate = new Date(lastValues.timestamp);
-      const hoursSince = (new Date() - savedDate) / 1000 / 60 / 60;
-      if (hoursSince < 24) {
-        document.getElementById('recall-btn').style.display = 'block';
-        console.log('[Recall] Last submission available from', savedDate.toLocaleString());
-      }
-    } catch (e) {
-      console.error('[Recall] Failed to check last submission:', e);
-    }
-  }
-
-  return { save, recall, offerIfRecent };
+  return { load, handleChange, value, activeId };
 }
 
 // ─── Status overlay ──────────────────────────────────────────────────────────

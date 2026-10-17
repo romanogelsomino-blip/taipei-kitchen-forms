@@ -10,24 +10,6 @@ const supervisorPicker = createPeoplePicker({
   addLabel: '+ Add new supervisor'
 });
 
-// T-041: one-tap recall of the previous submission's supervisor and kitchen
-const lastSubmission = createRecall({
-  storageKey: 'tk_production_last_submission',
-  capture() {
-    const snap = supervisorPicker.snapshot();
-    return {
-      supervisor: supervisorPicker.value(),
-      supervisorSelectValue: snap.select,
-      supervisorCustomValue: snap.custom,
-      kitchen: document.getElementById('f-kitchen').value
-    };
-  },
-  restore(values) {
-    supervisorPicker.restore({ select: values.supervisorSelectValue, custom: values.supervisorCustomValue });
-    document.getElementById('f-kitchen').value = values.kitchen;
-  }
-});
-
 /** The reason as the sheet records it: the typed text when "Other (specify)" is chosen, else the option. */
 function effectiveDiscardReason(data) {
   return data.discardReason === '__other__' ? (data.discardReasonCustom || '').trim() : data.discardReason;
@@ -96,7 +78,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('f-date').value = localDateISO();
   dishEntry.buildList();
   supervisorPicker.load(activeNames(lists, 'supervisors'));
-  lastSubmission.offerIfRecent();
 });
 
 // ─── Production kitchen ───────────────────────────────────
@@ -244,7 +225,6 @@ async function submitForm() {
   if (wrote.ok) {
     showStatus('✅', 'Submitted!', payload.length + ' dish rows saved. You can close this page.');
     showStatusDone();
-    lastSubmission.save();
   } else {
     // The batch is kept locally so nothing is lost, but it does not resend by itself: the
     // kitchen is at a desk and can press submit again, and a silent resend is what put
