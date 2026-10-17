@@ -1,15 +1,4 @@
-  if (tab !== 'Deliveries') return records;
-  let stores = null;
-  records.forEach(record => {
-    const store = String(record.store || '').trim();
-    if (!store) return;
-    if (!record.storeId) record.storeId = store;
-    if (String(record.storeId) === store) {
-      if (!stores) stores = storeList();
-      const match = stores.find(s => String(s.id) === store);
-      if (match) record.store = match.name;
-    }
-  });// Schemas.gs — the four tabs of a monthly file: headers, keys, and how rows are built and read.
+// Schemas.gs — the four tabs of a monthly file: headers, keys, and how rows are built and read.
 //
 // Header text is the read contract; column position is not. A column entry is
 // { header, key, type, width?, value? }: `key` is the payload field on write and the output key
