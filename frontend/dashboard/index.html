@@ -315,7 +315,7 @@
     <!-- Food Safety Panel -->
     <section id="panel-food-safety" class="panel">
       <h1 class="panel-title">Weekly Food Safety Summary</h1>
-      <p class="panel-subtitle">HACCP Cooling Violations & Delivery Temp Violations</p>
+      <p class="panel-subtitle">Temperature violations by store for the week, one per violation. Every violation is listed below.</p>
 
       <div class="week-selector">
         <label>Week Ending:</label>
@@ -323,38 +323,32 @@
       </div>
 
       <div id="safety-summary" class="safety-summary">
-        <div class="loading">Select a week to view food safety summary</div>
+        <div class="loading">Loading…</div>
       </div>
 
-      <!-- Violations Queue Mini-Panel -->
-      <div style="margin-top: 32px; padding-top: 24px; border-top: 2px solid var(--border);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <!-- Violations: one card per violation, resolved in place -->
+      <div class="violations">
+        <div class="violations-head">
           <div>
-            <h2 class="section-title">Violations Tracker</h2>
-            <p style="font-size: 0.9rem; color: var(--mid); margin: 4px 0 0;">Track and resolve HACCP violations</p>
+            <h2 class="section-title">Violations</h2>
+            <p class="home-launcher-blurb">A delivery whose product or cooler temperature was above 41°F. To resolve one, name who resolved it and the corrective action taken.</p>
           </div>
-          <button onclick="refreshViolationsQueue()" style="background: var(--red); color: white; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
-            Refresh
-          </button>
+          <div class="violations-controls">
+            <div class="violations-range" role="group" aria-label="Range">
+              <button type="button" class="btn-time-range" data-range="today" onclick="setViolationRange('today')">Today</button>
+              <button type="button" class="btn-time-range" data-range="7" onclick="setViolationRange(7)">7 Days</button>
+              <button type="button" class="btn-time-range active" data-range="30" onclick="setViolationRange(30)">30 Days</button>
+              <button type="button" class="btn-time-range" data-range="all" onclick="setViolationRange('all')">All</button>
+            </div>
+            <div class="violations-filter" role="group" aria-label="Show">
+              <button type="button" class="violation-filter-btn active" data-filter="open" onclick="setViolationFilter('open')">Open</button>
+              <button type="button" class="violation-filter-btn" data-filter="resolved" onclick="setViolationFilter('resolved')">Resolved</button>
+              <button type="button" class="violation-filter-btn" data-filter="all" onclick="setViolationFilter('all')">All</button>
+            </div>
+          </div>
         </div>
-
-        <!-- Status Filter Buttons -->
-        <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
-          <button class="violation-filter-btn active" onclick="setViolationFilter('all')">All</button>
-          <button class="violation-filter-btn" onclick="setViolationFilter('open')">Open</button>
-          <button class="violation-filter-btn" onclick="setViolationFilter('resolved')">Resolved</button>
-        </div>
-
         <div id="violations-queue" class="violations-queue">
-          <div class="loading">Loading violations...</div>
-        </div>
-
-        <div style="margin-top: 16px; padding: 12px; background: var(--light); border-radius: 6px; border-left: 4px solid var(--yellow);">
-          <p style="font-size: 0.85rem; color: var(--mid); margin: 0;">
-            <strong>Note:</strong> Violation tracking and status management require backend configuration.
-            Currently showing recent violations from the last 7 days.
-            Contact your administrator to enable status tracking (open/in_progress/resolved) and automated email alerts.
-          </p>
+          <div class="loading">Loading violations…</div>
         </div>
       </div>
     </section>
@@ -798,12 +792,6 @@ ${lastError ? `
 
 
 
-<!-- HACCP Violation Drill-Down Modal -->
-<div id="violation-modal" class="modal" onclick="if(event.target === this) closeViolationModal()">
-  <div class="modal-content" id="violation-modal-content">
-    <!-- Content populated by openViolationModal() -->
-  </div>
-</div>
 
 <!-- Config confirmation: what a Save will change, built by configConfirm() in app.js -->
 <div id="config-modal" class="modal" onclick="if(event.target === this) configModalResolve(false)">

@@ -23,8 +23,9 @@ function doPost(e) {
     const payload = JSON.parse(e.postData.contents);
     Logger.log(`[DEBUG] Received payload - formType: ${payload.formType}, type: ${payload.type}, has photos: ${!!payload.photos}, has rows: ${!!payload.rows}`);
 
-    if (payload.type === 'bugReport') return handleBugReport(payload, ctx);
-    if (payload.type === 'config')    return handleConfigWrite(payload, ctx);   // the reference lists; see Reference.gs
+    if (payload.type === 'bugReport')        return handleBugReport(payload, ctx);
+    if (payload.type === 'config')           return handleConfigWrite(payload, ctx);        // the reference lists; see Reference.gs
+    if (payload.type === 'resolveViolation') return handleViolationResolve(payload, ctx);   // see Violations.gs
 
     ctx.logEntry.formType = payload.formType || 'unknown';
     ctx.logEntry.rowCount = payload.rows ? payload.rows.length : 0;
@@ -291,7 +292,6 @@ function actions() {
     referenceStatus:       { fn: action_referenceStatus,       admin: true },
     // Public
     getViolations:         { fn: action_getViolations,         admin: false },
-    updateViolationStatus: { fn: action_updateViolationStatus, admin: false },
     reference:             { fn: action_reference,             admin: false }
   };
 }

@@ -90,22 +90,28 @@ function deliveriesSchema() {
   ];
 }
 
-/** One row per violation; open until Resolved At is filled. */
+/**
+ * One row per violation; open until Resolved At is filled. The row keys on the store's System
+ * ID and carries its name; the store number is not stored, the dashboard attaches it when
+ * needed. Files written before this shape held the number under Store and alert-email
+ * columns; see normaliseRecords.
+ */
 function violationsSchema() {
   return [
-    { header: 'Date',          key: 'date',          type: 'date' },
-    { header: 'Store',         key: 'storeId',       type: 'text',    width: 80 },
-    { header: 'Driver',        key: 'driver',        type: 'text' },
-    { header: 'Type',          key: 'violationType', type: 'text',    width: 170 },
-    { header: 'Temp °F',       key: 'value',         type: 'number' },
-    { header: 'Resolved By',   key: 'resolvedBy',    type: 'text',    width: 140 },
-    { header: 'Resolved At',   key: 'resolvedAt',    type: 'instant' },
-    { header: 'Alert Sent To', key: 'recipients',    type: 'text',    width: 240 },
-    { header: 'Alert Status',  key: 'emailStatus',   type: 'text',    width: 110 },
-    { header: 'Alert Error',   key: 'errorMessage',  type: 'text',    width: 260 },
-    { header: 'Detected At',   key: 'timestamp',     type: 'instant' },
-    { header: 'Submission ID', key: 'submissionId',  type: 'text',    width: 290 },
-    { header: 'Violation ID',  key: 'violationId',   type: 'text',    width: 180 }
+    { header: 'Date',              key: 'date',             type: 'date' },
+    { header: 'Arrival Time',      key: 'arrive',           type: 'time',    width: 110 },
+    { header: 'Store',             key: 'store',            type: 'text',    width: 120 },
+    { header: 'Driver',            key: 'driver',           type: 'text' },
+    { header: 'Type',              key: 'violationType',    type: 'text',    width: 170 },
+    { header: 'Temp °F',           key: 'value',            type: 'number' },
+    { header: 'Store Notes',       key: 'notes',            type: 'text',    width: 260 },
+    { header: 'Corrective Action', key: 'correctiveAction', type: 'text',    width: 300 },
+    { header: 'Resolved By',       key: 'resolvedBy',       type: 'text',    width: 140 },
+    { header: 'Resolved At',       key: 'resolvedAt',       type: 'instant' },
+    { header: 'Detected At',       key: 'timestamp',        type: 'instant' },
+    { header: 'Store System ID',   key: 'storeSystemId',    type: 'text',    width: 290 },
+    { header: 'Submission ID',     key: 'submissionId',     type: 'text',    width: 290 },
+    { header: 'Violation ID',      key: 'violationId',      type: 'text',    width: 290 }
   ];
 }
 
@@ -207,23 +213,34 @@ function normaliseCell(value, type) {
 }
 
 /**
- * Per-tab repair of rows read from a file written under an earlier schema. Deliveries:
- * before Store ID existed, Store held the store number, so such a row reads with the number
- * under `store` and nothing under `storeId`. Put the number under storeId and the name,
- * looked up from the Reference sheet, under store. A row that already has both is left
- * alone. Call on every read of the tab; never on a write.
+ * Per-tab repair of rows read from a file written under an earlier schema, where Store held
+ * the store number. Deliveries: put the number under storeId and the store's name under
+ * store. Violations: put the store's System ID under storeSystemId and its name under store.
+ * Rows that already have the newer fields are left alone. Call on every read of the tab;
+ * never on a write.
  */
 function normaliseRecords(tab, records) {
-  if (tab !== 'Deliveries') return records;
+  if (tab !== 'Deliveries' && tab !== 'Violations') return records;
   let stores = null;
+  const byNumber = number => {
+    if (!stores) stores = storeList();
+    return stores.find(s => String(s.id) === number) || null;
+  };
   records.forEach(record => {
     const store = String(record.store || '').trim();
     if (!store) return;
-    if (!record.storeId) record.storeId = store;
-    if (String(record.storeId) === store) {
-      if (!stores) stores = storeList();
-      const match = stores.find(s => String(s.id) === store);
-      if (match) record.store = match.name;
+    if (tab === 'Deliveries') {
+      if (!record.storeId) record.storeId = store;
+      if (String(record.storeId) === store) {
+        const match = byNumber(store);
+        if (match) record.store = match.name;
+      }
+    } else if (!record.storeSystemId) {
+      const match = byNumber(store);
+      if (match) {
+        record.store = match.name;
+        record.storeSystemId = match.key;
+      }
     }
   });
   return records;

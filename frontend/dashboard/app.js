@@ -783,134 +783,59 @@ function hasTemperatureViolation(delivery) {
 // T-054: Weekly Food Safety Summary Panel
 // ═══════════════════════════════════════════════════════════════════════════
 
+const VIOLATION_TYPES = ['Cooler Temperature', 'Arrival Temperature'];   // the rule names in backend/Violations.gs, in its order
+
+/** A store's name from its number, for rows that carry only the number. */
+function storeNameFor(number) {
+  const store = DATA.stores.find(s => String(s.id) === String(number));
+  return store ? store.name : 'Store ' + number;
+}
+
+/**
+ * Per-store counts for the week ending on the chosen day, from the Violations tab: one per
+ * violation, split by type. A store delivered to that week with no violation shows zeros, so
+ * the week reads as a checklist. A type the list above does not know gets its own column.
+ */
 function loadFoodSafety() {
   const weekEnd = document.getElementById('safety-week-end').value;
-  if (!weekEnd) return;
-
-  const weekStart = addDaysISO(weekEnd, -6);
-  ensureWindow(weekStart);
-
-  const weekDeliveries = DATA.deliveries.filter(d => {
-    const date = normalizeDate(d.date);
-    return date >= weekStart && date <= weekEnd;
-  });
-
-  // Group by store
-  const storeViolations = {};
-  weekDeliveries.forEach(d => {
-    if (!storeViolations[d.store]) {
-      storeViolations[d.store] = { coolerViolations: 0, deliveryTempViolations: 0 };
-    }
-    if (hasTemperatureViolation(d)) {
-      storeViolations[d.store].coolerViolations++;
-      // Note: deliveryTempViolations deprecated (arrivalTemp no longer tracked)
-    }
-  });
-
   const container = document.getElementById('safety-summary');
-  if (Object.keys(storeViolations).length === 0) {
-    container.innerHTML = '<div class="loading">No data for this week</div>';
+  if (!weekEnd) return;
+  const weekStart = addDaysISO(weekEnd, -6);
+  ensureWindow(weekStart);   // a wider window refetches and re-renders this panel
+
+  const inWeek = date => { const d = normalizeDate(date); return d >= weekStart && d <= weekEnd; };
+  const violations = (DATA.violations || []).filter(v => inWeek(v.date));
+  const types = VIOLATION_TYPES.slice();
+  violations.forEach(v => { if (v.violationType && !types.includes(v.violationType)) types.push(v.violationType); });
+
+  const stores = new Map();   // store number → { name, counts }
+  const storeEntry = (number, name) => {
+    const key = String(number || name || '');
+    if (!stores.has(key)) stores.set(key, { name: name || storeNameFor(number), counts: Object.fromEntries(types.map(t => [t, 0])) });
+    return stores.get(key);
+  };
+  DATA.deliveries.filter(d => inWeek(d.date)).forEach(d => storeEntry(d.store, d.storeName));
+  violations.forEach(v => { storeEntry(v.storeId, v.storeName).counts[v.violationType] += 1; });
+
+  container.textContent = '';
+  if (!stores.size) {
+    container.appendChild(violationNode('div', 'loading', 'No deliveries or violations in this week.'));
     return;
   }
-
-  container.innerHTML = Object.entries(storeViolations).map(([storeId, violations]) => {
-    const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
-    const totalViolations = violations.coolerViolations + violations.deliveryTempViolations;
-    const countClass = totalViolations === 0 ? 'zero' : '';
-    const clickableClass = totalViolations === 0 ? '' : 'clickable';
-
-    return `
-      <div class="safety-store-card">
-        <div class="safety-store-name">${storeName}</div>
-        <div class="safety-violations">
-          <div>
-            <div class="violation-count ${countClass} ${clickableClass}"
-                 onclick="${violations.coolerViolations > 0 ? `openViolationModal('${storeId}', 'cooler', '${weekStart}', '${weekEnd}')` : ''}">
-              ${violations.coolerViolations}
-            </div>
-            <div class="violation-label">Cooler Temp Violations</div>
-          </div>
-          <div>
-            <div class="violation-count ${countClass} ${clickableClass}"
-                 onclick="${violations.deliveryTempViolations > 0 ? `openViolationModal('${storeId}', 'delivery', '${weekStart}', '${weekEnd}')` : ''}">
-              ${violations.deliveryTempViolations}
-            </div>
-            <div class="violation-label">Delivery Temp Violations</div>
-          </div>
-        </div>
-        ${totalViolations === 0 ? '<p style="color:var(--green);font-weight:600;margin-top:12px;">All checks passed this week</p>' : ''}
-      </div>
-    `;
-  }).join('');
-}
-
-function openViolationModal(storeId, violationType, weekStart, weekEnd) {
-  const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
-
-  // Filter deliveries for this store and date range
-  const storeDeliveries = DATA.deliveries.filter(d => {
-    const date = normalizeDate(d.date);
-    return d.store === storeId && date >= weekStart && date <= weekEnd;
+  Array.from(stores.values()).sort((a, b) => a.name.localeCompare(b.name)).forEach(store => {
+    const card = violationNode('div', 'safety-store-card');
+    card.appendChild(violationNode('div', 'safety-store-name', store.name));
+    const counts = violationNode('div', 'safety-violations');
+    types.forEach(type => {
+      const cell = violationNode('div');
+      cell.appendChild(violationNode('div', 'violation-count' + (store.counts[type] ? '' : ' zero'), String(store.counts[type])));
+      cell.appendChild(violationNode('div', 'violation-label', type));
+      counts.appendChild(cell);
+    });
+    card.appendChild(counts);
+    if (!Object.values(store.counts).some(Boolean)) card.appendChild(violationNode('p', 'safety-all-clear', 'No violations this week'));
+    container.appendChild(card);
   });
-
-  // Filter for cooler temp violations (arrivalTemp no longer tracked)
-  const violations = storeDeliveries.filter(d => {
-    return hasTemperatureViolation(d);
-  });
-
-  const violationTypeLabel = 'Cooler Temp';
-  const tempField = 'coolerTemp';
-  const threshold = TEMP_LIMIT_F + '°F';
-
-  // Build modal content
-  const modalContent = `
-    <div class="violation-modal-header">
-      <h2>${violationTypeLabel} Violations</h2>
-      <p>${storeName} • ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-    </div>
-    <div class="violation-modal-body">
-      ${violations.length === 0 ? '<p class="hint">No violations found</p>' : `
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Time</th>
-              <th>Recorded Temp</th>
-              <th>Threshold</th>
-              <th>Received By</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${violations.map(v => `
-              <tr>
-                <td>${v.date}</td>
-                <td>${v.arrive || 'N/A'}</td>
-                <td style="color: var(--red); font-weight: 600;">${v[tempField]}°F</td>
-                <td>${threshold}</td>
-                <td>${v.receivedBy || 'N/A'}</td>
-                <td>${v.notes || '—'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `}
-    </div>
-    <div class="violation-modal-footer">
-      <button class="btn btn-secondary" onclick="closeViolationModal()">Close</button>
-      <button class="btn btn-primary" onclick="window.print()">Export to PDF</button>
-    </div>
-  `;
-
-  // Show modal
-  const modal = document.getElementById('violation-modal');
-  const modalBody = document.getElementById('violation-modal-content');
-  modalBody.innerHTML = modalContent;
-  modal.style.display = 'flex';
-}
-
-function closeViolationModal() {
-  document.getElementById('violation-modal').style.display = 'none';
 }
 
 // Violation Alert Banner Functions
@@ -1784,172 +1709,201 @@ function nextProductionPage() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function renderFoodSafety() {
-  // Check for violations and update alert banner
-  checkForViolations();
-  // Load violations queue
-  refreshViolationsQueue();
-  console.log('[Food Safety] Panel rendered');
+  const week = document.getElementById('safety-week-end');
+  if (week && !week.value) week.value = getTodayDate();   // the current week, until someone picks another
+  checkForViolations();   // the banner
+  loadFoodSafety();
+  renderViolations();
 }
 
-let violationStatusFilter = 'all'; // all, open, resolved — a violation is open until it is resolved
+// ─── Violations ──────────────────────────────────────────────────────────────
+// One card per violation, built with DOM calls and textContent: store names, notes and
+// corrective actions are typed by people. A violation is resolved on its own card by naming
+// the supervisor and the corrective action; both are required here and on the backend.
 
-function refreshViolationsQueue() {
-  const container = document.getElementById('violations-queue');
-  if (!container) return;
-
-  // Defensive: ensure violations array exists
-  if (!DATA.violations || !Array.isArray(DATA.violations)) {
-    console.warn('[Violations] DATA.violations is not an array, initializing to empty array');
-    DATA.violations = [];
-  }
-
-  // Apply status filter
-  let filteredViolations = DATA.violations;
-  if (violationStatusFilter !== 'all') {
-    // FIX: Default to 'open' status if violation doesn't have status field
-    filteredViolations = DATA.violations.filter(v => (v.status || 'open') === violationStatusFilter);
-  }
-
-  // Sort newest first
-  filteredViolations = filteredViolations.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-  if (filteredViolations.length === 0) {
-    const message = violationStatusFilter === 'all'
-      ? '✓ No violations found'
-      : `✓ No ${violationStatusFilter} violations`;
-    container.innerHTML = `<div class="loading" style="color: var(--green);">${message}</div>`;
-    return;
-  }
-
-  container.innerHTML = filteredViolations.map(v => {
-    const statusBadge = getStatusBadge(v.status);
-    const timestamp = new Date(v.timestamp);
-    const displayDate = timestamp.toLocaleDateString();
-    const displayTime = timestamp.toLocaleTimeString();
-
-    return `
-      <div class="violation-queue-item" data-violation-id="${v.violationId}">
-        <div class="violation-queue-header">
-          <div class="violation-queue-badge">${v.violationType}</div>
-          ${statusBadge}
-          <div class="violation-queue-date">${displayDate} ${displayTime}</div>
-        </div>
-        <div class="violation-queue-details">
-          <div class="violation-queue-store">📍 ${v.storeName}</div>
-          <div class="violation-queue-temp" style="color: var(--red); font-weight: 700;">${v.value}°F</div>
-          ${v.resolvedAt ? `<div class="violation-queue-resolved">✅ Resolved ${new Date(v.resolvedAt).toLocaleDateString()} by ${v.resolvedBy}</div>` : ''}
-        </div>
-        <div class="violation-queue-actions">
-          ${v.status !== 'resolved' ? `
-            <button class="violation-queue-btn" onclick="markViolationResolved('${v.violationId}')">
-              Mark Resolved
-            </button>
-          ` : `
-            <button class="violation-queue-btn" disabled style="opacity: 0.5;">
-              Resolved
-            </button>
-          `}
-          <button class="violation-queue-btn-secondary" onclick="openViolationDetailsModal('${v.violationId}')">
-            View Details
-          </button>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-function getStatusBadge(status) {
-  const badges = {
-    'open': '<span class="status-badge status-open">Open</span>',
-    'resolved': '<span class="status-badge status-resolved">Resolved</span>'
-  };
-  return badges[status] || badges['open'];
-}
+let violationStatusFilter = 'open';   // open | resolved | all
+let violationRange = 30;              // 'today' | 7 | 30 | 'all', by the reading's date, like the other panels' ranges
+const VIOLATION_DRAFTS = {};          // violationId → what has been typed on its card, kept across re-renders
 
 function setViolationFilter(status) {
   violationStatusFilter = status;
-
-  // Update filter button states
-  const buttons = document.querySelectorAll('.violation-filter-btn');
-  buttons.forEach((btn, index) => {
-    btn.classList.remove('active');
-    // Match button to status by order: all, open, resolved
-    const statuses = ['all', 'open', 'resolved'];
-    if (statuses[index] === status) {
-      btn.classList.add('active');
-    }
-  });
-
-  refreshViolationsQueue();
+  document.querySelectorAll('.violation-filter-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === status));
+  renderViolations();
 }
 
-async function markViolationResolved(violationId) {
-  if (!CONFIG.webAppUrl) {
-    alert('Backend not configured. Cannot update violation status.');
+/** Pick a range; a wider one widens the loaded window first, which re-renders on arrival. */
+function setViolationRange(range) {
+  violationRange = range;
+  document.querySelectorAll('.violations-range .btn-time-range').forEach(btn => btn.classList.toggle('active', btn.dataset.range == range));
+  const from = violationRangeStart();
+  if (from) ensureWindow(from);
+  renderViolations();
+}
+
+/** The first date the chosen range covers, or null for a range the loaded window already bounds. */
+function violationRangeStart() {
+  const today = getTodayDate();
+  if (violationRange === 'today') return today;
+  if (violationRange === 'all') return earliestWindowFrom();
+  return addDaysISO(today, -violationRange);
+}
+
+function violationNode(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function violationField(label, value) {
+  const field = violationNode('div', 'violation-field');
+  field.appendChild(violationNode('span', 'violation-field-label', label));
+  field.appendChild(violationNode('span', 'violation-field-value', value));
+  return field;
+}
+
+function violationTemp(value) {
+  const n = parseFloat(value);
+  return isNaN(n) ? '—' : n + '°F';
+}
+
+function violationWhen(instant) {
+  const date = new Date(instant);
+  return isNaN(date) ? String(instant || '') : date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+/** Active supervisors by name, for the "resolved by" picker. */
+function violationResolvers() {
+  const list = (DATA.reference && DATA.reference.supervisors) || [];
+  return list.filter(s => s.active && !s.deletedAt)
+    .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0))
+    .map(s => s.name);
+}
+
+function renderViolations() {
+  const container = document.getElementById('violations-queue');
+  if (!container) return;
+  const all = Array.isArray(DATA.violations) ? DATA.violations : [];
+  const from = violationRangeStart();
+  const shown = all
+    .filter(v => normalizeDate(v.date) >= from)
+    .filter(v => violationStatusFilter === 'all' || (v.status || 'open') === violationStatusFilter)
+    .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));   // newest first
+
+  container.textContent = '';
+  if (!shown.length) {
+    const span = violationRange === 'today' ? 'today' : violationRange === 'all' ? 'in the loaded window' : 'in the last ' + violationRange + ' days';
+    const what = violationStatusFilter === 'all' ? 'violations' : violationStatusFilter + ' violations';
+    container.appendChild(violationNode('div', 'violations-empty', 'No ' + what + ' ' + span + '.'));
     return;
   }
-
-  if (!confirm('Mark this violation as resolved?')) return;
-
-  try {
-    const url = `${CONFIG.webAppUrl}?action=updateViolationStatus` +
-      `&violationId=${encodeURIComponent(violationId)}&status=resolved&resolvedBy=${encodeURIComponent('Dashboard User')}`;
-    const response = await fetch(url, { method: 'GET', mode: 'cors' });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
-    if (data.status === 'ok') {
-      // Update local data
-      const violation = DATA.violations.find(v => v.violationId === violationId);
-      if (violation) {
-        violation.status = 'resolved';
-        violation.resolvedAt = new Date().toISOString();
-        violation.resolvedBy = 'Dashboard User';
-      }
-      refreshViolationsQueue();
-      alert('Violation marked as resolved!');
-    } else {
-      throw new Error(data.message);
-    }
-  } catch (e) {
-    console.error('[Violation] Update failed:', e);
-    alert(`Failed to update violation: ${e.message}`);
-  }
+  const resolvers = violationResolvers();
+  shown.forEach(v => container.appendChild(violationCard(v, resolvers)));
 }
 
-function openViolationDetailsModal(violationId) {
-  const violation = DATA.violations.find(v => v.violationId === violationId);
-  if (!violation) return;
+function violationCard(v, resolvers) {
+  const resolved = v.status === 'resolved';
+  const card = violationNode('article', 'violation-card' + (resolved ? ' resolved' : ''));
+  card.dataset.violationId = v.violationId;
 
-  const timestamp = new Date(violation.timestamp);
+  const head = violationNode('div', 'violation-head');
+  head.appendChild(violationNode('span', 'violation-status ' + (resolved ? 'is-resolved' : 'is-open'), resolved ? 'Resolved' : 'Open'));
+  head.appendChild(violationNode('span', 'violation-store', v.storeName || v.store || 'Unknown store'));
+  head.appendChild(violationNode('span', 'violation-when', 'Detected ' + violationWhen(v.timestamp)));
+  card.appendChild(head);
 
-  const modal = document.createElement('div');
-  modal.className = 'modal-overlay';
-  modal.innerHTML = `
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Violation Details</h2>
-        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
-      </div>
-      <div class="modal-body">
-        ${getStatusBadge(violation.status)}
-        <p><strong>Type:</strong> ${violation.violationType}</p>
-        <p><strong>Store:</strong> ${violation.storeName} (${violation.storeId})</p>
-        <p><strong>Timestamp:</strong> ${timestamp.toLocaleString()}</p>
-        <p><strong>Temperature:</strong> <span style="color: var(--red); font-weight: 700;">${violation.value}°F</span></p>
-        <p><strong>Violation ID:</strong> <code>${violation.violationId}</code></p>
-        ${violation.resolvedAt ? `
-          <p><strong>Resolved:</strong> ${new Date(violation.resolvedAt).toLocaleString()}</p>
-          <p><strong>Resolved By:</strong> ${violation.resolvedBy}</p>
-        ` : ''}
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Close</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
+  // The reading: the type says which temperature this is, the value sits beside it with the limit.
+  const reading = violationNode('div', 'violation-reading');
+  reading.appendChild(violationNode('span', 'violation-reading-type', v.violationType || 'Temperature'));
+  reading.appendChild(violationNode('span', 'violation-reading-value', violationTemp(v.value)));
+  reading.appendChild(violationNode('span', 'violation-reading-limit', 'limit ' + TEMP_LIMIT_F + '°F'));
+  card.appendChild(reading);
+
+  const meta = violationNode('div', 'violation-meta');
+  if (v.driver) meta.appendChild(violationField('Driver', v.driver));
+  meta.appendChild(violationField('Store notes', v.notes || 'None'));
+  card.appendChild(meta);
+
+  if (resolved) {
+    const done = violationNode('div', 'violation-resolution');
+    done.appendChild(violationField('Resolved', violationWhen(v.resolvedAt) + (v.resolvedBy ? ' by ' + v.resolvedBy : '')));
+    done.appendChild(violationField('Corrective action', v.correctiveAction || 'Not recorded'));
+    card.appendChild(done);
+    return card;
+  }
+
+  const draft = VIOLATION_DRAFTS[v.violationId] || (VIOLATION_DRAFTS[v.violationId] = { resolvedBy: '', correctiveAction: '' });
+  const form = violationNode('div', 'violation-resolve');
+
+  const who = violationNode('label', 'violation-resolve-field');
+  who.appendChild(violationNode('span', 'violation-resolve-label', 'Resolved by'));
+  const select = document.createElement('select');
+  const blank = document.createElement('option');
+  blank.value = '';
+  blank.textContent = resolvers.length ? '— Select a supervisor —' : 'No supervisors on the list';
+  select.appendChild(blank);
+  resolvers.forEach(name => {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    select.appendChild(option);
+  });
+  select.value = draft.resolvedBy;
+  select.disabled = !resolvers.length;
+  select.onchange = () => { draft.resolvedBy = select.value; select.classList.remove('missing'); };
+  who.appendChild(select);
+  form.appendChild(who);
+
+  const what = violationNode('label', 'violation-resolve-field grow');
+  what.appendChild(violationNode('span', 'violation-resolve-label', 'Corrective action taken'));
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 500;
+  input.placeholder = 'e.g. Product discarded; cooler reset and rechecked at 38°F';
+  input.value = draft.correctiveAction;
+  input.oninput = () => { draft.correctiveAction = input.value; input.classList.remove('missing'); };
+  what.appendChild(input);
+  form.appendChild(what);
+
+  const button = violationNode('button', 'btn-apply-filters violation-resolve-btn', 'Mark resolved');
+  button.type = 'button';
+  form.appendChild(button);
+  card.appendChild(form);
+
+  const status = violationNode('div', 'violation-resolve-status');
+  card.appendChild(status);
+  button.onclick = () => resolveViolation(v, { select, input, button, status });
+  return card;
+}
+
+async function resolveViolation(v, ui) {
+  const resolvedBy = ui.select.value;
+  const correctiveAction = ui.input.value.replace(/\s+/g, ' ').trim();
+  const refuse = (message, control) => {
+    ui.status.textContent = message;
+    ui.status.className = 'violation-resolve-status bad';
+    if (control) { control.classList.add('missing'); control.focus(); }
+  };
+  if (!resolvedBy) return refuse('Choose who resolved it.', ui.select);
+  if (!correctiveAction) return refuse('Describe the corrective action taken.', ui.input);
+  if (!CONFIG.webAppUrl) return refuse('Demo mode: there is no backend to record this.');
+  if (!v.month) return refuse('This violation has no month file and cannot be resolved here.');
+
+  ui.button.disabled = true;
+  ui.status.className = 'violation-resolve-status';
+  ui.status.textContent = 'Saving…';
+  try {
+    const sent = await dashboardPost({ type: 'resolveViolation', violationId: v.violationId, month: v.month, resolvedBy, correctiveAction });
+    if (!sent.ok) throw new Error(sent.error);
+    const data = sent.data;
+    Object.assign(v, { status: 'resolved', resolvedAt: data.resolvedAt, resolvedBy: data.resolvedBy, correctiveAction: data.correctiveAction });
+    delete VIOLATION_DRAFTS[v.violationId];
+    renderViolations();
+    checkForViolations();
+  } catch (e) {
+    ui.button.disabled = false;
+    refuse('Not saved: ' + e.message);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3301,7 +3255,8 @@ window.addEventListener('beforeunload', e => {
  * cannot answer, and the body read whatever the HTTP status, since Apps Script answers 200
  * for everything and puts the outcome in `status`. Never throws.
  */
-async function configPost(payload) {
+/** POST a JSON body to the backend as text/plain (no preflight; see forms/common.js). Returns { ok, data, error }. */
+async function dashboardPost(payload) {
   try {
     const response = await fetch(CONFIG.webAppUrl, {
       method: 'POST',
@@ -3335,7 +3290,7 @@ async function configSave() {
   CONFIG_PANEL.busy = true;
   configRefreshActions();
   configSetStatus('Saving…', '');
-  const result = await configPost({ type: 'config', list: key, baseVersion: CONFIG_PANEL.loaded.version, publish: true, ops: ops });
+  const result = await dashboardPost({ type: 'config', list: key, baseVersion: CONFIG_PANEL.loaded.version, publish: true, ops: ops });
   CONFIG_PANEL.busy = false;
 
   if (!result.ok) {

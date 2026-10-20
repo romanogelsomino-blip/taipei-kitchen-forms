@@ -638,6 +638,13 @@ select option {
   color: var(--mid);
 }
 
+.safety-all-clear {
+  margin-top: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--green);
+}
+
 /* Filter Controls */
 .filter-controls {
   background: var(--surface);
@@ -1445,48 +1452,41 @@ select option {
    Violations Queue Styles
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.violations-queue {
+.violations-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.violations-controls {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  align-items: flex-end;
+  gap: 8px;
 }
 
-/* Status Badges */
-.status-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.violations-range,
+.violations-filter {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.status-open {
-  background: #FEE2E2;
-  color: #991B1B;
-}
-
-.status-in-progress {
-  background: #FEF3C7;
-  color: #92400E;
-}
-
-.status-resolved {
-  background: #D1FAE5;
-  color: #065F46;
-}
-
-/* Violation Filter Buttons */
 .violation-filter-btn {
   padding: 8px 16px;
   border: 2px solid var(--border);
-  background: white;
+  background: var(--surface);
+  color: var(--dark);
   border-radius: 6px;
+  font-family: 'Inter', sans-serif;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s;
 }
 
 .violation-filter-btn:hover {
@@ -1497,124 +1497,207 @@ select option {
 .violation-filter-btn.active {
   border-color: var(--red);
   background: var(--red);
-  color: white;
+  color: #fff;
 }
 
-.violation-queue-item {
-  background: var(--surface);
-  border: 2px solid var(--border);
-  border-left: 4px solid var(--red);
+.violations-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.violations-empty {
+  padding: 18px;
+  text-align: center;
+  color: var(--soft);
+  font-size: 0.9rem;
+  background: var(--row-alt);
   border-radius: 8px;
-  padding: 16px;
-  transition: all 0.2s ease;
 }
 
-.violation-queue-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-left-width: 6px;
-}
-
-.violation-queue-header {
+/* One violation */
+.violation-card {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.violation-queue-badge {
-  background: var(--red);
-  color: white;
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.violation-queue-date {
-  color: var(--mid);
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.violation-queue-details {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  flex-direction: column;
   gap: 12px;
-  margin-bottom: 16px;
-  padding: 12px;
-  background: var(--light);
-  border-radius: 6px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-left: 5px solid var(--red);
+  border-radius: 8px;
 }
 
-.violation-queue-details > div {
-  font-size: 0.9rem;
-  color: var(--dark);
-}
+.violation-card.resolved { border-left-color: var(--green); }
 
-.violation-queue-store {
-  font-weight: 600;
-}
-
-.violation-queue-actions {
+.violation-head {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.violation-queue-btn,
-.violation-queue-btn-secondary {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.violation-status {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 999px;
 }
 
-.violation-queue-btn {
-  background: var(--red);
-  color: white;
-}
+.violation-status.is-open { background: var(--red-lt); color: var(--red-dk); }
+.violation-status.is-resolved { background: var(--green-lt); color: #1B6B3A; }
 
-.violation-queue-btn:hover:not(:disabled) {
-  background: var(--red-dk);
-  transform: translateY(-1px);
-}
-
-.violation-queue-btn:disabled {
-  background: var(--soft);
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.violation-queue-btn-secondary {
-  background: transparent;
-  border: 2px solid var(--border);
+.violation-store {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 1.05rem;
   color: var(--dark);
 }
 
-.violation-queue-btn-secondary:hover {
-  background: var(--light);
-  border-color: var(--mid);
+.violation-when {
+  margin-left: auto;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--soft);
 }
 
-/* Mobile responsive */
+/* The reading: which temperature, how high, against what limit */
+.violation-reading {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--row-alt);
+  border-radius: 6px;
+}
+
+.violation-reading-type {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mid);
+}
+
+.violation-reading-value {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--red);
+}
+
+.violation-card.resolved .violation-reading-value { color: var(--dark); }
+
+.violation-reading-limit {
+  font-size: 0.8rem;
+  color: var(--soft);
+}
+
+.violation-meta,
+.violation-resolution {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 20px;
+}
+
+.violation-resolution {
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.violation-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.violation-field-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+
+.violation-field-value {
+  font-size: 0.92rem;
+  color: var(--dark);
+  overflow-wrap: anywhere;
+}
+
+/* Resolving, on the card */
+.violation-resolve {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+.violation-resolve-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 1 220px;
+  min-width: 180px;
+}
+
+.violation-resolve-field.grow { flex: 1 1 320px; }
+
+.violation-resolve-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+
+.violation-resolve-field input {
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.88rem;
+  color: var(--dark);
+  background-color: var(--row-alt);
+  outline: none;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.violation-resolve-field input:focus {
+  border-color: var(--red);
+  background-color: #fff;
+}
+
+.violation-resolve-field select.missing,
+.violation-resolve-field input.missing {
+  border-color: var(--red);
+  background-color: var(--red-lt);
+}
+
+.violation-resolve-btn { white-space: nowrap; }
+
+.violation-resolve-status {
+  min-height: 1.2em;
+  font-size: 0.85rem;
+  color: var(--mid);
+}
+
+.violation-resolve-status.bad { color: var(--red-dk); }
+
 @media (max-width: 600px) {
-  .violation-queue-details {
-    grid-template-columns: 1fr;
-  }
-
-  .violation-queue-actions {
-    flex-direction: column;
-  }
-
-  .violation-queue-btn,
-  .violation-queue-btn-secondary {
-    width: 100%;
-  }
+  .violations-controls { align-items: stretch; }
+  .violations-range,
+  .violations-filter { justify-content: flex-start; }
+  .violation-resolve { flex-direction: column; align-items: stretch; }
+  .violation-resolve-field,
+  .violation-resolve-field.grow { flex: 1 1 auto; min-width: 0; }
+  .violation-when { margin-left: 0; width: 100%; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1657,14 +1740,12 @@ select option {
   to { transform: translateY(0); opacity: 1; }
 }
 
-/* The .modal-* names are the same parts as used by the violation-details and config modals. */
-.violation-modal-header,
+/* The .modal-* parts of the config modal. */
 .modal-header {
   padding: 24px 24px 16px;
   border-bottom: 1px solid var(--border);
 }
 
-.violation-modal-header h2,
 .modal-header h2 {
   margin: 0 0 8px;
   color: var(--dark);
@@ -1672,24 +1753,17 @@ select option {
   font-weight: 700;
 }
 
-.violation-modal-header p,
 .modal-header p {
   margin: 0;
   color: var(--mid);
   font-size: 0.95rem;
 }
 
-.violation-modal-body,
 .modal-body {
   padding: 24px;
   overflow-x: auto;
 }
 
-.violation-modal-body .data-table {
-  margin: 0;
-}
-
-.violation-modal-footer,
 .modal-footer {
   padding: 16px 24px;
   border-top: 1px solid var(--border);
@@ -1721,18 +1795,6 @@ select option {
   border: 1.5px solid var(--border);
 }
 
-/* Clickable violation count */
-.violation-count.clickable {
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.violation-count.clickable:hover {
-  transform: scale(1.05);
-  background: var(--red);
-  color: white;
-  box-shadow: 0 4px 12px rgba(192, 57, 43, 0.3);
-}
 
 /* Mobile responsive */
 @media (max-width: 600px) {
@@ -1744,24 +1806,19 @@ select option {
     max-height: 95vh;
   }
 
-  .violation-modal-header,
-  .violation-modal-body,
   .modal-header,
   .modal-body {
     padding: 16px;
   }
 
-  .violation-modal-header h2,
   .modal-header h2 {
     font-size: 1.25rem;
   }
 
-  .violation-modal-footer,
   .modal-footer {
     flex-direction: column;
   }
 
-  .violation-modal-footer .btn,
   .modal-footer .btn,
   .modal-footer .btn-primary,
   .modal-footer .btn-secondary {

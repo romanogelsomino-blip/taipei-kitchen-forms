@@ -673,8 +673,8 @@ function publishReference(version) {
  * The one way the reference store changes. Parses, validates, plans and applies a batch of
  * ops for one list under the script lock, then asks GitHub to republish the static lists.
  *
- * Authorisation is decided here, in one place. Today there is none, the same as
- * updateViolationStatus. To gate these writes, this is the line:
+ * Authorisation is decided here, in one place. Today there is none, the same as resolving a
+ * violation. To gate these writes, this is the line:
  *   if (!verifyAdminToken(payload.token)) throw referenceRejection('Unauthorized', 'unauthorized');
  *
  * A rejection (a bad request) is answered with its reason and recorded as REJECTED, which

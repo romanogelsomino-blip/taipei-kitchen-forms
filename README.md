@@ -119,8 +119,9 @@ The HACCP cooling rule is printed on the production form: hot food must cool fro
 - The delivery form flags both temperatures it records, the product temperature on arrival
   and the store cooler temperature, above 41°F.
 - The backend checks both once per submission, not once per dish. Each breach sends one email
-  and writes one row on the month's Violations tab, carrying who the alert went to and whether
-  it sent. The row is written even when the email fails.
+  and writes one row on the month's Violations tab: the reading, where and when it was taken,
+  the driver's notes, and later the corrective action and who resolved it. The row is written
+  even when the email fails; a failed alert is noted on that request's Executions row.
 - 41°F is fixed in the code. It is the regulatory cold-holding limit, not a setting.
 - The dashboard lists those violations. One is open until someone resolves it.
 

@@ -88,10 +88,10 @@ async function postToBackend(payload) {
 // Kitchens, supervisors, dishes, stores and drivers come from data/<list>.json, one file per
 // list, published by the site build from the dashboard's Config tab. They are static files
 // on the same host as this page, so they cost what the page cost. An entry is
-// { id, name, active, sortOrder }, where `id` is a UUID nothing on a form uses; kitchens add
+// { id, name, active, sortOrder }, where `id` is the entry's System ID, a UUID; kitchens add
 // kitchenType, kitchenId and location, stores add storeType, storeId and location. The
-// delivery form finds its store by storeId, the number in the QR code and in every delivery
-// row. The forms show active entries only.
+// delivery form finds its store by `id`, which its QR code carries, or by storeId, the number
+// in older codes and in every delivery row. The forms show active entries only.
 
 // Used when a list cannot be fetched: offline past the browser's cache, or a local server
 // started from frontend/ where data/ is not reachable. A last resort that only has to let a
