@@ -283,18 +283,22 @@ jobs:
               || { echo "::error::the monthly $tab tab went $before -> $after instead of growing by one; the write did not reach the monthly store."; return 1; }
             echo "monthly $tab rows: $before -> $after"
           }
-          # Payloads come from the same builders the test scripts use, mirroring the forms.
-          node scripts/smoke-payload.js production tag=ZZ-CI-SMOKE > production.json
+          # Payloads come from the same builders the test scripts use, mirroring the forms. The
+          # kitchen, store, driver, supervisor and dish are real entries from this environment's
+          # reference lists, so the rows look like real ones; the capitalised note is the marker.
+          BEFORE=$(webapp_get reference) \
+            || { echo "::error::reference never answered with JSON."; exit 1; }
+          printf '%s' "$BEFORE" > reference.json
+          NOTE="CI SMOKE TEST - run ${{ github.run_id }} - safe to delete"
+          node scripts/smoke-payload.js production reference=reference.json "note=$NOTE" > production.json
           smoke_write Production production.json
-          echo "production submission $(jq -r '.rows[0].submissionId' production.json)"
+          echo "production submission $(jq -r '.rows[0].submissionId' production.json): $(jq -r '.rows[0] | "\(.kitchen) / \(.supervisor) / \(.dish)"' production.json)"
 
-          node scripts/smoke-payload.js packaging tag=ZZ-CI-SMOKE store=0000 \
-            "note=CI smoke test run ${{ github.run_id }} - safe to delete" > packaging.json
+          node scripts/smoke-payload.js packaging reference=reference.json "note=$NOTE" > packaging.json
           smoke_write Packaging packaging.json
-          echo "packaging submission $(jq -r '.rows[0].submissionId' packaging.json)"
+          echo "packaging submission $(jq -r '.rows[0].submissionId' packaging.json): $(jq -r '.rows[0] | "\(.kitchen) -> \(.store) / \(.driver) / \(.dish)"' packaging.json)"
 
-          node scripts/smoke-payload.js delivery tag=ZZ-CI-SMOKE store=0000 \
-            "note=CI smoke test run ${{ github.run_id }} - safe to delete" > delivery.json
+          node scripts/smoke-payload.js delivery reference=reference.json "note=$NOTE" > delivery.json
           smoke_write Deliveries delivery.json
           DELIVERY_ID=$(jq -r '.rows[0].submissionId' delivery.json)
           echo "delivery submission $DELIVERY_ID"
@@ -309,8 +313,6 @@ jobs:
           # An update is idempotent, so webapp_post's single attempt is enough; publish:false
           # keeps a routine dev push from firing a second Pages publish behind itself. The
           # name carries the attempt as well as the run, so a re-run still changes something.
-          BEFORE=$(webapp_get reference) \
-            || { echo "::error::reference never answered with JSON."; exit 1; }
           jq -n --arg run "${{ github.run_id }}-${{ github.run_attempt }}" \
             '{type:"config", list:"stores", publish:false,
               ops:[{op:"update", entry:{id:"00000000-0000-4000-8000-000000000000", name:("(reserved) CI smoke test " + $run)}}]}' > config.json

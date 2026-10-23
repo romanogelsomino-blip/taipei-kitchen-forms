@@ -30,6 +30,8 @@
     "reference:status:production": "node scripts/admin-action.js production referenceStatus",
     "reference:snapshot:staging": "node scripts/reference-snapshot.js staging",
     "reference:snapshot:production": "node scripts/reference-snapshot.js production",
+    "mock:staging": "node scripts/mock-data.js staging",
+    "mock:staging:dry": "node scripts/mock-data.js staging dry=true",
     "query:staging": "node scripts/admin-action.js staging queryDeliveries",
     "query:production": "node scripts/admin-action.js production queryDeliveries",
     "mail:staging": "node scripts/admin-action.js staging mailStatus",

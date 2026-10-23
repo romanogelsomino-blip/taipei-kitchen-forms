@@ -271,6 +271,12 @@ npm run test:violation:production    # simulate a HACCP violation alert
 
 Every command has a `:staging` equivalent, e.g. `npm run ping:staging`.
 
+`npm run mock:staging` fills staging with realistic records for the past months — each day's
+batch, coolers and deliveries, named from the environment's own reference lists — so the
+dashboard can be seen with real-looking data. It is manual only: every run adds everything
+again, and each warm reading it generates sends a real alert email. `npm run mock:staging:dry`
+reports the plan without posting.
+
 ---
 
 ## Contact
