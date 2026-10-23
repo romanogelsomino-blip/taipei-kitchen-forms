@@ -114,8 +114,8 @@ function buildDay(iso, lists) {
   // Packaging: one cooler per store, loaded in the morning, sharing the batch
   const coolers = stores.map((store, i) => {
     const time = hhmm(6 * 60 + i * 4 + randInt(0, 3));
-    const coolerTemp = temperature(33, 39);
-    if (coolerTemp > TEMP_LIMIT_F) warm.packaging++;
+    const productTemp = temperature(33, 39);
+    if (productTemp > TEMP_LIMIT_F) warm.packaging++;
     const id = smoke.newSubmissionId();
     const notes = pick(PACKAGING_NOTES);
     const rows = lists.dishes.map(dish => {
@@ -127,7 +127,7 @@ function buildDay(iso, lists) {
         driver, store: store.name, storeId: store.storeId, storeSystemId: store.id,
         dish: dish.name, dishSystemId: dish.id,
         loaded: String(share), discarded: String(discarded), discardReason: discarded ? pick(DISCARD_REASONS) : '',
-        coolerTemp: String(coolerTemp), notes,
+        productTemp: String(productTemp), notes,
         formType: 'packaging', clientTimestamp: instantNY(iso, hhmm(6 * 60 + i * 4 + 3))
       };
     });

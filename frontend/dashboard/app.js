@@ -351,10 +351,10 @@ async function loadDemoData() {
       { submittedAt: `${yesterday}T09:20:55.000Z`, date: yesterday, driver: 'Sam Blumenthal', store: '6564', arrivalTime: '09:15', coolerTemp: 39, dish: 'Spring Roll (Veg)', qtyAdded: 25, removed: 0, reason: '', receivedBy: 'Emily' }
     ],
     packaging: [
-      { submissionId: 'demo-cooler-1', date: today, time: '06:40', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6006', storeName: 'Store 6006', dish: 'Spring Roll (Veg)', loaded: 24, discarded: 0, discardReason: '', coolerTemp: 36, notes: '' },
-      { submissionId: 'demo-cooler-1', date: today, time: '06:40', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6006', storeName: 'Store 6006', dish: 'Shrimp Egg Roll', loaded: 30, discarded: 1, discardReason: 'Damaged', coolerTemp: 36, notes: '' },
-      { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Chicken Lo Mein', loaded: 18, discarded: 0, discardReason: '', coolerTemp: 43, notes: 'Cooler was slow to come down' },
-      { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Beef Chow Fun', loaded: 15, discarded: 0, discardReason: '', coolerTemp: 43, notes: 'Cooler was slow to come down' }
+      { submissionId: 'demo-cooler-1', date: today, time: '06:40', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6006', storeName: 'Store 6006', dish: 'Spring Roll (Veg)', loaded: 24, discarded: 0, discardReason: '', productTemp: 36, notes: '' },
+      { submissionId: 'demo-cooler-1', date: today, time: '06:40', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6006', storeName: 'Store 6006', dish: 'Shrimp Egg Roll', loaded: 30, discarded: 1, discardReason: 'Damaged', productTemp: 36, notes: '' },
+      { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Chicken Lo Mein', loaded: 18, discarded: 0, discardReason: '', productTemp: 43, notes: 'Cooler was slow to come down' },
+      { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Beef Chow Fun', loaded: 15, discarded: 0, discardReason: '', productTemp: 43, notes: 'Cooler was slow to come down' }
     ],
     production: [
       { submittedAt: `${today}T06:15:33.000Z`, date: today, kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Spring Roll (Veg)', qtyProduced: 120, qtyDiscarded: 2, discardReason: 'Quality Issue' },
@@ -756,7 +756,7 @@ function hasTemperatureViolation(delivery) {
 
 // The rule names in backend/Violations.gs, by the kind of location each applies to.
 const VIOLATION_TYPES = {
-  Kitchen: ['Packaging Temperature'],
+  Kitchen: ['Product Loading Temperature'],
   Store:   ['Store Cooler Temperature', 'Product Arrival Temperature']
 };
 
@@ -917,7 +917,7 @@ function packagingCoolers(rows) {
     if (!coolers.has(key)) {
       coolers.set(key, {
         key, date: r.date, time: r.time || '', kitchen: r.kitchen || '', driver: r.driver || '',
-        storeName: r.storeName || storeNameFor(r.store), coolerTemp: r.coolerTemp, notes: r.notes || '',
+        storeName: r.storeName || storeNameFor(r.store), productTemp: r.productTemp, notes: r.notes || '',
         loaded: 0, discarded: 0, dishes: []
       });
     }
@@ -933,7 +933,7 @@ function updatePackagingMetrics() {
   const coolers = PACKAGING_STATE.coolers;
   const loaded = coolers.reduce((sum, c) => sum + c.loaded, 0);
   const discarded = coolers.reduce((sum, c) => sum + c.discarded, 0);
-  const temps = coolers.map(c => parseFloat(c.coolerTemp)).filter(t => !isNaN(t));
+  const temps = coolers.map(c => parseFloat(c.productTemp)).filter(t => !isNaN(t));
   const warmest = temps.length ? Math.max(...temps) : null;
   const over = temps.filter(t => t > TEMP_LIMIT_F).length;
 
@@ -942,8 +942,8 @@ function updatePackagingMetrics() {
   [
     ['Coolers Loaded', coolers.length.toLocaleString(), 'One per store per pickup', false],
     ['Items Loaded', loaded.toLocaleString(), discarded.toLocaleString() + ' discarded at loading', false],
-    ['Warmest Cooler', warmest === null ? '—' : warmest + '°F', 'Limit ' + TEMP_LIMIT_F + '°F', warmest !== null && warmest > TEMP_LIMIT_F],
-    ['Over Limit', over.toLocaleString(), 'Coolers above ' + TEMP_LIMIT_F + '°F', over > 0]
+    ['Warmest Product', warmest === null ? '—' : warmest + '°F', 'Limit ' + TEMP_LIMIT_F + '°F', warmest !== null && warmest > TEMP_LIMIT_F],
+    ['Over Limit', over.toLocaleString(), 'Coolers with product above ' + TEMP_LIMIT_F + '°F', over > 0]
   ].forEach(([label, value, sub, alert]) => {
     const card = makeEl('div', 'metric-card' + (alert ? ' alert' : ''));
     card.appendChild(makeEl('div', 'metric-label', label));
@@ -973,15 +973,15 @@ function displayPackagingTable() {
   const table = makeEl('table', 'data-table packaging-table');
   const thead = makeEl('thead');
   const headRow = makeEl('tr');
-  ['Date', 'Time', 'Kitchen', 'Driver', 'Intended Store', 'Loaded', 'Discarded', 'Cooler Temp'].forEach(h => headRow.appendChild(makeEl('th', '', h)));
+  ['Date', 'Time', 'Kitchen', 'Driver', 'Intended Store', 'Loaded', 'Discarded', 'Product Temp'].forEach(h => headRow.appendChild(makeEl('th', '', h)));
   thead.appendChild(headRow);
   table.appendChild(thead);
   const tbody = makeEl('tbody');
   page.forEach(cooler => {
-    const warm = parseFloat(cooler.coolerTemp) > TEMP_LIMIT_F;
+    const warm = parseFloat(cooler.productTemp) > TEMP_LIMIT_F;
     const row = makeEl('tr', 'packaging-cooler' + (warm ? ' is-warm' : '') + (PACKAGING_STATE.open[cooler.key] ? ' is-open' : ''));
     [normalizeDate(cooler.date), cooler.time, cooler.kitchen, cooler.driver, cooler.storeName,
-     String(cooler.loaded), String(cooler.discarded), isNaN(parseFloat(cooler.coolerTemp)) ? '—' : parseFloat(cooler.coolerTemp) + '°F']
+     String(cooler.loaded), String(cooler.discarded), isNaN(parseFloat(cooler.productTemp)) ? '—' : parseFloat(cooler.productTemp) + '°F']
       .forEach(text => row.appendChild(makeEl('td', '', text)));
     row.onclick = () => {
       PACKAGING_STATE.open[cooler.key] = !PACKAGING_STATE.open[cooler.key];

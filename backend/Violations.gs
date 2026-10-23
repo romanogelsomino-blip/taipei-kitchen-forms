@@ -19,7 +19,7 @@ function violationSources() {
   return {
     packaging: {
       rules: [
-        { key: 'coolerTemp', type: 'Packaging Temperature', label: 'cooler at loading' }
+        { key: 'productTemp', type: 'Product Loading Temperature', label: 'product when loaded' }
       ],
       location: { type: 'Kitchen', name: 'kitchen', systemId: 'kitchenSystemId', orgId: 'kitchenId', time: 'time' }
     },

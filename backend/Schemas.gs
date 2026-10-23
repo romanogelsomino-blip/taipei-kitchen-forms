@@ -59,8 +59,9 @@ function productionSchema() {
 
 /**
  * One row per dish per cooler loaded at the kitchen, one cooler per intended store. The
- * cooler's temperature is on every row of its cooler. Kitchen and store are each carried as
- * name, System ID and the organisation's own id, as on the other tabs.
+ * product temperature, probed once per cooler, is on every row of its cooler. Kitchen and
+ * store are each carried as name, System ID and the organisation's own id, as on the other
+ * tabs.
  */
 function packagingSchema() {
   return [
@@ -73,7 +74,7 @@ function packagingSchema() {
     { header: 'Loaded',            key: 'loaded',          type: 'number' },
     { header: 'Discarded',         key: 'discarded',       type: 'number' },
     { header: 'Discard Reason',    key: 'discardReason',   type: 'text',    width: 200 },
-    { header: 'Cooler Temp °F',    key: 'coolerTemp',      type: 'number',  width: 120 },
+    { header: 'Product Temp °F',   key: 'productTemp',     type: 'number',  width: 120 },
     { header: 'Notes',             key: 'notes',           type: 'text',    width: 260 },
     { header: 'Kitchen System ID', key: 'kitchenSystemId', type: 'text',    width: 290 },
     { header: 'Kitchen ID',        key: 'kitchenId',       type: 'text',    width: 120 },

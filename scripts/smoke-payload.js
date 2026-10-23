@@ -139,7 +139,7 @@ function productionPayload(over = {}) {
 function packagingPayload(over = {}) {
   const s = settings(over);
   const time = hhmm(randInt(6 * 60, 7 * 60 + 30));
-  const coolerTemp = String(randInt(33, 39));
+  const productTemp = String(randInt(33, 39));
   const rows = s.cast.dishes.map(dish => {
     const loaded = randInt(5, 20);
     const discarded = Math.random() < 0.2 ? 1 : 0;
@@ -149,7 +149,7 @@ function packagingPayload(over = {}) {
       driver: s.cast.driver, store: s.cast.store.name, storeId: s.cast.store.storeId, storeSystemId: s.cast.store.id || '',
       dish: dish.name, dishSystemId: dish.id || '',
       loaded: String(loaded), discarded: String(discarded), discardReason: discarded ? pick(DISCARD_REASONS) : '',
-      coolerTemp, notes: s.note,
+      productTemp, notes: s.note,
       formType: 'packaging', clientTimestamp: s.now
     };
   });

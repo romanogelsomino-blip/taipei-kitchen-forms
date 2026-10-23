@@ -1,5 +1,5 @@
 // forms/packaging.js — the driver's per-cooler packaging form, filled at the kitchen before
-// the route: one cooler per store, its temperature, and what went in. Loads after
+// the route: one cooler per store, the product's temperature, and what went in. Loads after
 // forms/common.js.
 
 let DISHES = [];        // active dish names, set once the reference lists load
@@ -144,13 +144,13 @@ function setNow() {
 
 // ─── Payload ──────────────────────────────────────────────
 // One row per dish, keyed to match the Packaging tab's schema in backend/Schemas.gs. One
-// submission id covers the cooler. The cooler's temperature rides on every row.
+// submission id covers the cooler. The product temperature rides on every row.
 function buildPayload() {
   const submissionId = newSubmissionId();
   const date   = document.getElementById('f-date').value;
   const time   = document.getElementById('f-time').value;
   const driver = driverPicker.value();
-  const coolerTemp = document.getElementById('f-cooler-temp').value;
+  const productTemp = document.getElementById('f-product-temp').value;
   const notes  = document.getElementById('f-notes').value;
   const store  = selectedStore();
   const dishSystemIdOf = name => (DISH_ENTRIES.find(d => d.name === name) || {}).id || '';
@@ -173,7 +173,7 @@ function buildPayload() {
       loaded:          data.loaded || '0',
       discarded:       data.discarded || '0',
       discardReason:   effectiveDiscardReason(data),
-      coolerTemp,
+      productTemp,
       notes,
       formType:        'packaging',
       clientTimestamp: new Date().toISOString()
@@ -195,7 +195,7 @@ function formIsComplete() {
     { id: driverPicker.activeId(), label: 'Driver', value: driverPicker.value() },
     { id: 'f-time',                label: 'Time' },
     { id: 'f-store',               label: 'Intended Store' },
-    { id: 'f-cooler-temp',         label: 'Cooler Temp °F' }
+    { id: 'f-product-temp',         label: 'Product Temp °F' }
   ]);
   if (missing.length) {
     reportMissing('Fill these in before submitting:', missing);
@@ -217,7 +217,7 @@ function showSummary() {
   const store = selectedStore();
   const rows = buildPayload();
   document.getElementById('sum-store').textContent  = store ? store.name : '—';
-  document.getElementById('sum-temp').textContent   = document.getElementById('f-cooler-temp').value + '°F';
+  document.getElementById('sum-temp').textContent   = document.getElementById('f-product-temp').value + '°F';
   document.getElementById('sum-driver').textContent = driverPicker.value();
 
   // Built with textContent, never innerHTML: dish names are edited on the dashboard and must
@@ -290,11 +290,11 @@ async function submitForm() {
 function nextCooler() {
   closeStatus();
   document.getElementById('f-store').value = '';
-  document.getElementById('f-cooler-temp').value = '';
+  document.getElementById('f-product-temp').value = '';
   document.getElementById('f-notes').value = '';
   dishEntry.reset();
   document.querySelectorAll('.' + INVALID_CLASS).forEach(clearMissing);
-  flagTemp(document.getElementById('f-cooler-temp'));
+  flagTemp(document.getElementById('f-product-temp'));
   setNow();
   document.getElementById('submit-btn').disabled = false;
   window.scrollTo(0, 0);
@@ -306,6 +306,6 @@ function clearAll() {
   driverPicker.handleChange();
   dishEntry.reset();
   document.querySelectorAll('.' + INVALID_CLASS).forEach(clearMissing);
-  flagTemp(document.getElementById('f-cooler-temp'));
+  flagTemp(document.getElementById('f-product-temp'));
   setNow();
 }
