@@ -781,7 +781,7 @@ function hasTemperatureViolation(delivery) {
 // The rule names in backend/Violations.gs, by the kind of location each applies to.
 const VIOLATION_TYPES = {
   Kitchen: ['Packaging Temperature'],
-  Store:   ['Cooler Temperature', 'Arrival Temperature']
+  Store:   ['Store Cooler Temperature', 'Product Arrival Temperature']
 };
 
 /** A store's name from its number, for rows that carry only the number. */

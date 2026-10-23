@@ -25,8 +25,8 @@ function violationSources() {
     },
     delivery: {
       rules: [
-        { key: 'coolerTemp',  type: 'Cooler Temperature',  label: 'store cooler' },
-        { key: 'arrivalTemp', type: 'Arrival Temperature', label: 'product on arrival' }
+        { key: 'coolerTemp',  type: 'Store Cooler Temperature',    label: 'store cooler' },
+        { key: 'arrivalTemp', type: 'Product Arrival Temperature', label: 'product on arrival at the store' }
       ],
       location: { type: 'Store', name: 'store', systemId: 'storeSystemId', orgId: 'storeId', time: 'arrive' }
     }
