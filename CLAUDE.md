@@ -34,9 +34,9 @@
   build; a form only ever reads those static files. Every entry is keyed by a UUID the
   backend assigns and never changes; kitchens and stores also carry a Type (Taipei or Giant)
   and that organisation's own id, and a store's Store ID is the number its delivery rows
-  carry. A location's QR code carries its UUID: a kitchen's opens the packaging form, a
-  store's the delivery form, which also accepts the store number that codes printed earlier
-  carry. A row is never removed from the sheet: an entry is deleted to retire it
+  carry. QR codes carry the location's UUID: a kitchen has one for the production form and
+  one for the packaging form, a store one for the delivery form, which also accepts the store
+  number that codes printed earlier carry. A row is never removed from the sheet: an entry is deleted to retire it
   (hidden from the Config tab, restorable), and a dish may also be deactivated to pause it;
   history resolves its name either way. The git copies of `data/*.json` are seeds for local
   runs, not a source.

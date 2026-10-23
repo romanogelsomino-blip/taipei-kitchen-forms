@@ -45,12 +45,12 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 7. Delivery photos land in the Drive photo folder under year, month and day, and every
    row of the delivery links to them.
 
-None of the forms is linked here on purpose. Each needs a location to be any use: the
-packaging form opens from a kitchen's QR code as `?kitchen=<System ID>`, the delivery form
-from a store's as `?store=<System ID>`, and the dashboard's home page opens the production
-form as `?kitchen=<System ID>`. A code for a location no longer on the list is refused, and
-the production form opened bare has no kitchen chosen, which is how a batch gets logged
-against the wrong kitchen.
+None of the forms is linked here on purpose. Each needs a location to be any use, and opens
+from its location's QR code or from the dashboard's home page: the production and packaging
+forms as `?kitchen=<System ID>`, the delivery form as `?store=<System ID>`. The home page also
+generates the codes. A code for a location no longer on the list is refused, and the
+production form opened bare has no kitchen chosen, which is how a batch gets logged against
+the wrong kitchen.
 
 The pages live in `frontend/`, their scripts and stylesheet in `frontend/forms/`. See
 [Running locally](#running-locally) to try a change before pushing it.
@@ -100,10 +100,10 @@ retire it (hidden from the forms and the Config tab, restorable from its deleted
 dish can also be switched off to pause it; the row stays in the sheet either way, so past
 records keep their names. Kitchens and stores also carry a Type, the organisation they
 belong to (Taipei or Giant), and that organisation's own identifier: the Kitchen ID or Store
-ID. A store's Store ID is its store number. QR codes carry the UUID: a kitchen's points at
-`taipei_packaging_form.html?kitchen=<System ID>`, a store's at
-`taipei_delivery_form3.html?store=<System ID>`; store codes printed before System IDs existed
-carry the store number, which the delivery form still accepts. Every delivery and packaging
+ID. A store's Store ID is its store number. QR codes carry the UUID: a kitchen has one for the
+production form and one for the packaging form (`?kitchen=<System ID>`), a store one for the
+delivery form (`?store=<System ID>`); store codes printed before System IDs existed carry the
+store number, which the delivery form still accepts. Every delivery and packaging
 row carries the number, so a store can be renamed freely but changing its number re-keys its
 records, and the Config tab says so.
 The other four lists are stored in the records by name, so renaming one leaves past records

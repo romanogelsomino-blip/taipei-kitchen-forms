@@ -1886,10 +1886,19 @@ select option {
   line-height: 1.5;
   margin-bottom: 14px;
 }
-.home-launch {
+.home-launch-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
   margin-top: 14px;
-  margin-right: 0;
-  width: 100%;
+}
+.home-launch {
+  flex: 1 1 150px;
+  margin: 0;
+}
+.home-qr-note {
+  margin-top: 16px;
+  margin-bottom: 0;
 }
 .btn-apply-filters:disabled {
   background: var(--border);
@@ -1910,12 +1919,6 @@ select option {
 .mobile-nav-label { font-size: 0.6rem; letter-spacing: 0; }
 
 /* ── Home QR codes ─────────────────────────────────────────────────────── */
-.home-qr-pick {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-}
-
 .home-qr-actions {
   display: flex;
   gap: 12px;
@@ -1935,13 +1938,13 @@ select option {
   border-top: 1px solid var(--border);
 }
 .home-qr-canvas {
-  width: 220px;
-  height: 220px;
+  width: 200px;
+  height: 200px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
 }
-.home-qr-meta { flex: 1; min-width: 240px; }
+.home-qr-meta { flex: 1; min-width: 180px; }
 .home-qr-label { font-weight: 600; color: var(--dark); margin-bottom: 6px; }
 .home-qr-url {
   font-family: 'DM Mono', monospace;

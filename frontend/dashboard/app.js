@@ -575,11 +575,9 @@ function makeEl(tag, cls, text) {
 // from data/kitchens.json and data/stores.json, the same files the forms read.
 
 const HOME_FORMS = {
-  production: { page: '../taipei_production_form3.html', param: 'kitchen', list: 'kitchens', selectId: 'home-kitchen',      buttonId: 'home-open-production', label: 'Open Production Log', prompt: 'Select a kitchen' },
-  packaging:  { page: '../taipei_packaging_form.html',   param: 'kitchen', list: 'kitchens', selectId: 'home-pack-kitchen', buttonId: 'home-open-packaging',  label: 'Open Packaging Form', prompt: 'Select a kitchen',
-                qr: { noun: 'kitchen', caption: 'Packaging Form', file: k => 'taipei-packaging-' + (k.kitchenId || k.id) } },
-  delivery:   { page: '../taipei_delivery_form3.html',   param: 'store',   list: 'stores',   selectId: 'home-store',        buttonId: 'home-open-delivery',   label: 'Open Delivery Form',  prompt: 'Select a store',
-                qr: { noun: 'store',   caption: 'Delivery Form',  file: s => 'taipei-delivery-' + (s.storeId || s.id) } }   // named by the organisation's own id, which is how a printed code is recognised
+  production: { page: '../taipei_production_form3.html', param: 'kitchen', list: 'kitchens', selectId: 'home-kitchen',      label: 'Open Production Log', noun: 'kitchen', caption: 'Production Log', file: k => 'taipei-production-' + (k.kitchenId || k.id) },
+  packaging:  { page: '../taipei_packaging_form.html',   param: 'kitchen', list: 'kitchens', selectId: 'home-pack-kitchen', label: 'Open Packaging Form', noun: 'kitchen', caption: 'Packaging Form', file: k => 'taipei-packaging-' + (k.kitchenId || k.id) },
+  delivery:   { page: '../taipei_delivery_form3.html',   param: 'store',   list: 'stores',   selectId: 'home-store',        label: 'Open Delivery Form',  noun: 'store',   caption: 'Delivery Form',  file: s => 'taipei-delivery-' + (s.storeId || s.id) }   // QR files are named by the organisation's own id, which is how a printed code is recognised
 };
 
 const HOME_LISTS = { kitchens: [], stores: [] };   // the entries behind the home page's pickers
@@ -603,7 +601,6 @@ async function loadHomeLocations() {
     status.textContent = 'The kitchen and store lists could not be loaded. Reload to try again.';
   }
   homeUpdateLaunchers();
-  homeQrFormChange();
 }
 
 function homeEntryText(entry) {
@@ -628,38 +625,18 @@ function homeTarget(kind) {
   return id ? `${form.page}?${form.param}=${encodeURIComponent(id)}` : null;
 }
 
+/** Each card's two buttons follow its picker; a change of location also retires the code drawn for the old one. */
 function homeUpdateLaunchers() {
   Object.keys(HOME_FORMS).forEach(kind => {
     const form = HOME_FORMS[kind];
     const ready = homeTarget(kind) !== null;
-    const button = document.getElementById(form.buttonId);
-    button.disabled = !ready;
-    button.textContent = ready ? form.label : form.prompt;
+    const open = document.getElementById('home-open-' + kind);
+    open.disabled = !ready;
+    open.textContent = ready ? form.label : `Select a ${form.noun}`;
+    document.getElementById('home-qr-' + kind).disabled = !ready;
+    const output = document.getElementById('home-qr-output-' + kind);
+    if (output.dataset.systemId && output.dataset.systemId !== document.getElementById(form.selectId).value) output.hidden = true;
   });
-}
-
-/** The QR card's form choice decides which list its location picker shows. */
-function homeQrForm() {
-  return HOME_FORMS[document.getElementById('home-qr-form').value] || HOME_FORMS.packaging;
-}
-
-function homeQrFormChange() {
-  const form = homeQrForm();
-  const select = document.getElementById('home-qr-location');
-  const noun = form.qr.noun;
-  document.getElementById('home-qr-location-label').textContent = noun.charAt(0).toUpperCase() + noun.slice(1);
-  select.options[0].textContent = `— Select a ${noun} —`;
-  fillHomeSelect('home-qr-location', HOME_LISTS[form.list], homeEntryText, e => e.id);
-  select.value = '';
-  document.getElementById('home-qr-output').hidden = true;
-  homeQrUpdate();
-}
-
-function homeQrUpdate() {
-  const chosen = document.getElementById('home-qr-location').value;
-  const button = document.getElementById('home-qr-generate');
-  button.disabled = !chosen;
-  button.textContent = chosen ? 'Generate QR code' : `Select a ${homeQrForm().qr.noun}`;
 }
 
 /**
@@ -667,19 +644,18 @@ function homeQrUpdate() {
  * is what a link needs and what a phone camera cannot use. Resolving against the current
  * location also means a code generated on the staging dashboard points at the staging form.
  */
-function homeQrUrl(form, systemId) {
-  const target = `${form.page}?${form.param}=${encodeURIComponent(systemId)}`;
-  return new URL(target, window.location.href).href;
+function homeQrUrl(kind) {
+  return new URL(homeTarget(kind), window.location.href).href;
 }
 
-/** Draw the QR for the chosen location, at a size worth printing. */
-function homeGenerateQr() {
-  const status = document.getElementById('home-qr-status');
-  const output = document.getElementById('home-qr-output');
-  const form = homeQrForm();
-  const select = document.getElementById('home-qr-location');
+/** Draw the code for the card's chosen location into that card, at a size worth printing. */
+function homeGenerateQr(kind) {
+  const form = HOME_FORMS[kind];
+  const select = document.getElementById(form.selectId);
+  const output = document.getElementById('home-qr-output-' + kind);
+  const status = document.getElementById('home-locations-status');
   if (!select.value) return;
-  const url = homeQrUrl(form, select.value);
+  const url = homeQrUrl(kind);
 
   if (typeof qrcode !== 'function') {
     output.hidden = true;
@@ -696,7 +672,7 @@ function homeGenerateQr() {
   const quiet = 4;               // the quiet zone the spec requires around the symbol
   const size = (modules + quiet * 2) * scale;
 
-  const canvas = document.getElementById('home-qr-canvas');
+  const canvas = output.querySelector('.home-qr-canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
@@ -711,27 +687,27 @@ function homeGenerateQr() {
     }
   }
 
-  document.getElementById('home-qr-label').textContent =
-    form.qr.caption + ' — ' + select.options[select.selectedIndex].textContent;
-  document.getElementById('home-qr-url').textContent = url;
-
-  const download = document.getElementById('home-qr-download');
+  output.querySelector('.home-qr-label').textContent = form.caption + ' — ' + select.options[select.selectedIndex].textContent;
+  output.querySelector('.home-qr-url').textContent = url;
+  const download = output.querySelector('.home-qr-download');
   download.href = canvas.toDataURL('image/png');
   const entry = HOME_LISTS[form.list].find(e => e.id === select.value);
-  download.download = form.qr.file(entry || { id: select.value }) + '.png';
+  download.download = form.file(entry || { id: select.value }) + '.png';
 
+  output.dataset.systemId = select.value;
   output.hidden = false;
   status.textContent = '';
 }
 
-/** Print the code on its own page, captioned, so it can go straight on a wall. */
-function homePrintQr() {
-  const canvas = document.getElementById('home-qr-canvas');
-  const label = document.getElementById('home-qr-label').textContent;
-  const url = document.getElementById('home-qr-url').textContent;
+/** Print a card's code on its own page, captioned, so it can go straight on a wall. */
+function homePrintQr(kind) {
+  const output = document.getElementById('home-qr-output-' + kind);
+  const canvas = output.querySelector('.home-qr-canvas');
+  const label = output.querySelector('.home-qr-label').textContent;
+  const url = output.querySelector('.home-qr-url').textContent;
   const sheet = window.open('', '_blank', 'width=700,height=800');
   if (!sheet) {
-    document.getElementById('home-qr-status').textContent =
+    document.getElementById('home-locations-status').textContent =
       'The print window was blocked. Download the PNG and print that instead.';
     return;
   }
