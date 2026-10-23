@@ -6,8 +6,9 @@
  * added or dropped here.
  *
  * CLI: node scripts/smoke-payload.js <production|packaging|delivery|photos> [key=value ...]
- *   reference=<file>  a saved ?action=reference reply: kitchen, supervisor, driver, store and
- *                     dishes are then real entries picked at random, as a form would send them
+ *   reference=<file>  a saved ?action=reference reply (or, from code, the parsed reply): kitchen,
+ *                     supervisor, driver, store and dishes are then real entries picked at
+ *                     random, as a form would send them; store= and driver= pin those two
  *   tag=ZZ-CI-SMOKE   without a reference file, every name is the tag
  *   store=0000  date=YYYY-MM-DD  id=<submission id>  note=<text>  dishes=<count>
  * Prints the JSON body to POST.
@@ -74,7 +75,7 @@ function liveLists(reference) {
 function cast(over) {
   const tag = over.tag || 'ZZ-CI-SMOKE';
   const count = Math.max(1, parseInt(over.dishes, 10) || 1);
-  const reference = over.reference ? JSON.parse(fs.readFileSync(over.reference, 'utf8')) : null;
+  const reference = typeof over.reference === 'string' ? JSON.parse(fs.readFileSync(over.reference, 'utf8')) : (over.reference || null);
   if (!reference) {
     const store = over.store || '0000';
     return {
@@ -92,7 +93,7 @@ function cast(over) {
   return {
     kitchen: pick(lists.kitchens),
     supervisor: pick(lists.supervisors).name,
-    driver: pick(lists.drivers).name,
+    driver: over.driver || pick(lists.drivers).name,
     store: store,
     dishes: sample(lists.dishes, count),
     receivedBy: pick(STORE_STAFF)

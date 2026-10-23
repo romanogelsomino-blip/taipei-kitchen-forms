@@ -102,8 +102,9 @@ the forms are behind, and the next save or deploy publishes them.
 Releases are made by hand on GitHub, never by pushing `prod` from a terminal. A release is a
 pull request from `dev` to `prod`, merged there, then published as a GitHub Release.
 
-1. Confirm staging is healthy: `npm run ping:staging` and `npm run mail:staging`, and open
-   `/staging/dashboard/`. Whatever is wrong on staging will be wrong on production.
+1. Confirm staging is healthy: `node scripts/admin-action.js staging ping` and
+   `node scripts/admin-action.js staging mailStatus`, and open `/staging/dashboard/`.
+   Whatever is wrong on staging will be wrong on production.
 2. Confirm the production secrets exist for anything the release adds. The reconcile step
    fails the deploy if a Script Property it pushes has no secret behind it.
 3. Open a pull request from `dev` to `prod`. No checks run on it: the workflow triggers on
@@ -113,8 +114,8 @@ pull request from `dev` to `prod`, merged there, then published as a GitHub Rele
    rebase are both wrong here, because `prod` is a record of what was released and its
    history should keep the shape of the branch it came from.
 5. Watch the run under Actions until the backend and site jobs are both green.
-6. Confirm production directly: `npm run ping:production`, then load the live dashboard and
-   one form.
+6. Confirm production directly: `npm run prod:ping`, then load the live dashboard and one
+   form.
 7. Publish a GitHub Release against `prod`, continuing the existing tag sequence. Creating
    the release creates the tag, so do not also push one from a terminal. Auto-generated notes
    list the merged commits; add a line for anything an operator must do by hand, such as
@@ -194,9 +195,9 @@ Re-authorising, once per environment:
 
 1. Push first, so the project holds the new scope list. Merge to `dev` or `prod`, or run the
    workflow by hand; the backend job pushes before anything else.
-2. Open the project as the deploying account: `npm run open:staging` or
-   `npm run open:production`. Sign in as that account if the browser opens as someone else,
-   or the approval will be recorded against the wrong one.
+2. Open the project in the Apps Script editor as the deploying account: it is listed at
+   https://script.google.com under that account. Sign in as that account if the browser
+   opens as someone else, or the approval will be recorded against the wrong one.
 3. Pick `authorize` from the function dropdown and press Run. Normally the editor shows the
    consent dialog before running anything: approve it. It lists the whole declared scope
    set, not just what changed, and the unverified-app warning is expected: choose Advanced,
@@ -210,7 +211,8 @@ Re-authorising, once per environment:
 5. Read the execution log. `authorize` names each folder, spreadsheet, mail quota, sending
    account, verified alias and the GitHub API it reached, and marks anything it could not as
    FAILED. Run it once more after approving and expect no FAILED lines.
-6. Confirm from outside with `npm run ping:<env>` and `npm run mail:<env>`.
+6. Confirm from outside with `node scripts/admin-action.js <env> ping` and
+   `node scripts/admin-action.js <env> mailStatus`.
 
 If requests still fail after that, re-run the deploy workflow. The redeploy picks up the
 refreshed grant.
@@ -226,4 +228,4 @@ deploy reports itself once rather than once per driver.
 account the deployment runs as. A non-empty value works only if that address is a verified
 "Send mail as" alias on that account; otherwise the deploy logs a warning, alerts still go
 out from the account address, and the fallback is recorded on the execution row. Check with
-`npm run mail:<env>` before relying on a new address.
+`node scripts/admin-action.js <env> mailStatus` before relying on a new address.

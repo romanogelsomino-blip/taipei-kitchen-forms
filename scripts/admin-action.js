@@ -3,12 +3,19 @@
  * Call an admin action on the web app and print its JSON.
  * Usage: node scripts/admin-action.js <staging|production> <action> [key=value ...]
  * A bare word is sent as key=true; for getExecutionLog a bare first word is the limit.
+ *
+ * Production is read-only from here. CI owns every write to it — init, Script Properties,
+ * formatting — and `test` writes a real violation and emails the client's food-safety
+ * recipients. The one write a person may need, rotateAdminToken, requires write=production
+ * on the command line.
  */
 const { readPrefix, requireKeys } = require('./env');
 const webapp = require('./webapp');
 
+const PRODUCTION_READS = ['ping', 'storageStatus', 'referenceStatus', 'reference', 'getExecutionLog', 'queryDeliveries', 'mailStatus', 'getViolations'];
 const USAGE = 'Usage: node scripts/admin-action.js <staging|production> <action> [key=value ...]\n' +
-  'Actions: ping, storageStatus, referenceStatus, reference, init, test, getExecutionLog, queryDeliveries, formatStorage, mailStatus, setScriptProperty, rotateAdminToken';
+  'Actions: ping, storageStatus, referenceStatus, reference, getExecutionLog, queryDeliveries, mailStatus, init, test, formatStorage, setScriptProperty, rotateAdminToken\n' +
+  'Production accepts reads only; rotateAdminToken needs write=production.';
 const [,, environment, action, ...params] = process.argv;
 if (!environment || !action) {
   console.error(USAGE);
@@ -24,6 +31,15 @@ params.forEach((p, i) => {
   else if (i === 0 && action === 'getExecutionLog') query.limit = p;
   else query[p] = 'true';
 });
+
+if (environment === 'production' && !PRODUCTION_READS.includes(action)) {
+  if (action !== 'rotateAdminToken' || query.write !== 'production') {
+    console.error(`Refused: ${action} writes to production. Production is read-only from a laptop; CI does the writes.` +
+      (action === 'rotateAdminToken' ? ' Add write=production to rotate the token.' : ''));
+    process.exit(1);
+  }
+}
+delete query.write;
 
 console.log(`Calling ${action} on ${environment}...`);
 webapp.get(WEB_APP_URL, query)

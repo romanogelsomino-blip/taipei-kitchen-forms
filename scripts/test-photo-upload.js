@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 /**
- * End-to-end photo test: a two-dish delivery, then its photos, then the links read back.
- * Usage: node scripts/test-photo-upload.js <staging|production>
- * Leaves two rows marked ZZ-TEST-PHOTO (store 6006) and two photos in the environment.
+ * End-to-end photo test on staging: a two-dish delivery, then its photos, then the links read
+ * back. The only thing that exercises the photo path; the CI smoke does not.
+ * Usage: node scripts/test-photo-upload.js
+ * Leaves two delivery rows for a random real store, noted "PHOTO TEST - safe to delete", and
+ * two photos in the staging Drive folder.
  */
-const { readPrefix, requireKeys } = require('./env');
+const { requireKeys } = require('./env');
 const webapp = require('./webapp');
-const { deliveryPayload, photosPayload, newSubmissionId, todayNY } = require('./smoke-payload');
+const { deliveryPayload, photosPayload, newSubmissionId, todayNY, liveLists, pick } = require('./smoke-payload');
 
-const USAGE = 'Usage: node scripts/test-photo-upload.js <staging|production>';
-const { environment, prefix } = readPrefix(process.argv[2] || 'staging', USAGE);
-const { WEB_APP_URL, ADMIN_TOKEN } = requireKeys(prefix, ['WEB_APP_URL', 'ADMIN_TOKEN']);
-const over = { tag: 'ZZ-TEST-PHOTO', store: '6006', date: todayNY(), id: newSubmissionId(), dishes: 2 };
+const { WEB_APP_URL, ADMIN_TOKEN } = requireKeys('STAGING', ['WEB_APP_URL', 'ADMIN_TOKEN']);
 
 function fail(what, detail) {
   console.error(`FAIL: ${what}`, detail === undefined ? '' : JSON.stringify(detail));
@@ -19,7 +18,15 @@ function fail(what, detail) {
 }
 
 (async () => {
-  console.log(`Photo test on ${environment}: submission ${over.id}, date ${over.date}`);
+  const reference = await webapp.get(WEB_APP_URL, { action: 'reference' });
+  if (reference.status !== 'ok') fail('reference', reference);
+  const lists = liveLists(reference);
+  // One store and one driver for both requests, so the photos block names the rows' store.
+  const over = {
+    reference, store: pick(lists.stores).storeId, driver: pick(lists.drivers).name,
+    note: 'PHOTO TEST - safe to delete', date: todayNY(), id: newSubmissionId(), dishes: 2
+  };
+  console.log(`Photo test on staging: submission ${over.id}, date ${over.date}, store ${over.store}`);
 
   const delivery = deliveryPayload(over);
   const wrote = await webapp.post(WEB_APP_URL, delivery);
