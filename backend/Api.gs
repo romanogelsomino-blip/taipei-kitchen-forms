@@ -128,7 +128,7 @@ function action_init(e) {
 
 function action_test(e) {
   try {
-    const result = simulateViolation();
+    const result = simulateViolation(((e && e.parameter) || {}).note);
     return ContentService
       .createTextOutput(JSON.stringify(result))
       .setMimeType(ContentService.MimeType.JSON);

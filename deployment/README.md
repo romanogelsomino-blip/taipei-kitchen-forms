@@ -61,9 +61,10 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
    proves the deployment can reach its stores. Production gets no synthetic row. Then it
    renames the reserved store `0000` through the config endpoint and requires the reference
    version to change, which proves the write path and its cache invalidation. Last, it
-   raises one simulated violation under store `0000` (one alert email per run, to staging's
-   `ALERT_RECIPIENTS`), resolves it over POST as `ZZ-CI-SMOKE`, requires a second resolve to
-   be refused, and reads it back resolved.
+   raises one simulated violation for a random real store, driver and dish, noted
+   `CI SMOKE TEST - run <run id> - safe to resolve` (one alert email per run, to staging's
+   `ALERT_RECIPIENTS`), resolves it over POST as a random real supervisor, requires a second
+   resolve to be refused, and reads it back resolved.
 
 Every call to the web app after the redeploy retries while Google's error page comes back
 instead of JSON. The smoke writes are the exception: each is sent once, and the row count or

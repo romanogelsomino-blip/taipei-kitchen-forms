@@ -190,22 +190,10 @@ Web App deployment, spreadsheet, and Drive photo folder, so nothing written to s
 reach production. `dev` deploys to staging, `prod` to production.
 
 A single gitignored `.env` at the repo root holds every value for both environments,
-prefixed `PROD_` / `STAGING_`. The names match the GitHub Actions secrets one-for-one:
+prefixed `PROD_` / `STAGING_`. The names match the GitHub Actions secrets one-for-one —
 secrets share one flat namespace, the workflow needs both environments in a single run, and
-secrets cannot be read back once set, so `.env` is the readable copy.
-
-```
-CLASPRC_JSON                   clasp OAuth credentials, shared by both environments
-PROD_ADMIN_TOKEN               STAGING_ADMIN_TOKEN
-PROD_DEPLOYMENT_ID             STAGING_DEPLOYMENT_ID
-PROD_PHOTO_FOLDER_ID           STAGING_PHOTO_FOLDER_ID
-PROD_SCRIPT_ID                 STAGING_SCRIPT_ID
-PROD_SPREADSHEET_FOLDER_ID     STAGING_SPREADSHEET_FOLDER_ID
-PROD_WEB_APP_URL               STAGING_WEB_APP_URL
-PROD_ALERT_RECIPIENTS          STAGING_ALERT_RECIPIENTS
-PROD_SUPPORT_RECIPIENTS        STAGING_SUPPORT_RECIPIENTS
-PROD_ALERT_FROM                STAGING_ALERT_FROM
-```
+secrets cannot be read back once set, so `.env` is the readable copy. The list of secrets is
+in [deployment/README.md](deployment/README.md).
 
 Nothing reads `.env` at runtime, and locally the scripts read only `STAGING_WEB_APP_URL`,
 `STAGING_ADMIN_TOKEN`, `PROD_WEB_APP_URL` and `PROD_ADMIN_TOKEN`. The rest is the reference

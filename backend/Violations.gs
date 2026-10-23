@@ -134,37 +134,49 @@ function violationEmailBody(rule, value, row, locationLabel, where) {
 
 /**
  * End-to-end check of the alert path: writes one real violation and reports what happened.
- * Filed under the reserved store 0000, with notes that say what it is, so the row reads as a
- * test in the sheet and is safe to resolve.
+ * The row names a real store, driver and dish from the Reference sheet, as a delivery would,
+ * so it reads like any other; the note is what marks it as a test. `note` defaults to one
+ * that says so.
  */
-function simulateViolation() {
+function simulateViolation(note) {
   const recipients = alertRecipients();
   if (!recipients.length) {
     return { status: 'FAILED', error: 'No recipients. Set the ALERT_RECIPIENTS Script Property from the matching GitHub secret.' };
   }
 
+  const reference = referencePayload();
+  const live = list => (reference[list] || []).filter(e => e.active && !e.deletedAt);
+  const pick = list => list[Math.floor(Math.random() * list.length)];
+  const store = pick(live('stores').filter(s => s.id !== REFERENCE_RESERVED_STORE_UUID));
+  const driver = pick(live('drivers'));
+  const dish = pick(live('dishes'));
+  if (!store || !driver || !dish) {
+    return { status: 'FAILED', error: 'The reference lists need at least one active store, driver and dish.' };
+  }
+
   const ctx = newRequestContext(new Date());
   ctx.submissionId = 'sim-' + Utilities.getUuid().slice(0, 8);
-  const reserved = referencePayload().stores.find(s => s.storeId === '0000');   // the row names the store the way a form would
   const rows = [{
     submissionId: ctx.submissionId,
     date: todayNY(),
-    storeId: '0000',
-    store: reserved ? reserved.name : 'Store 0000',
-    storeSystemId: reserved ? reserved.id : '',
-    driver: 'TEST_DRIVER',
-    receivedBy: 'TEST_SUPERVISOR',
+    storeId: store.storeId,
+    store: store.name,
+    storeSystemId: store.id,
+    driver: driver.name,
+    receivedBy: 'Store staff',
     arrive: Utilities.formatDate(new Date(), NY_TZ, 'HH:mm'),
-    dish: 'General Tso Chicken Bento',
+    dish: dish.name,
+    dishSystemId: dish.id,
     coolerTemp: String(TEMP_LIMIT_F + 4),
     arrivalTemp: String(TEMP_LIMIT_F - 3),   // below the limit: proves only the breach raises
-    notes: 'Simulated violation, safe to resolve'
+    notes: String(note || '').trim() || 'VIOLATION TEST - safe to resolve'
   }];
   const raised = checkViolations(rows, ctx, 'delivery');
 
   return {
     status: raised.length === 1 && raised[0].alertStatus === 'SUCCESS' ? 'SUCCESS' : 'FAILED',
     recipients: recipients,
+    store: store.name,
     raised: raised.map(r => ({ violationId: r.violationId, violationType: r.violationType, value: r.value, alertStatus: r.alertStatus, alertError: r.alertError })),
     notes: ctx.notes
   };

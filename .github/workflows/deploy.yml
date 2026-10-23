@@ -325,19 +325,21 @@ jobs:
             || { echo "::error::the config write did not change the reference version; the cache was not invalidated."; exit 1; }
           echo "config write ok: $(webapp_field "$BEFORE" .version) -> $(webapp_field "$OUT" .version)"
 
-          # One real violation, filed under the reserved store with notes that say what it is:
-          # the Violations row, the alert email (one per run, to staging's ALERT_RECIPIENTS),
-          # the resolve over POST, the refusal of a second resolve, and the read-back.
-          SIM=$(WEBAPP_ATTEMPTS=1 webapp_get test) \
+          # One real violation for a real store, driver and dish, marked only by its note: the
+          # Violations row, the alert email (one per run, to staging's ALERT_RECIPIENTS), the
+          # resolve over POST by a real supervisor, the refusal of a second resolve, the read-back.
+          SIM=$(WEBAPP_ATTEMPTS=1 webapp_get test "note=CI SMOKE TEST - run ${{ github.run_id }} - safe to resolve") \
             || { echo "::error::test (simulated violation) did not answer with JSON; it is sent once, as it writes and emails."; exit 1; }
-          jq '{status, raised, notes}' <<<"$SIM"
+          jq '{status, store, raised, notes}' <<<"$SIM"
           [ "$(webapp_field "$SIM" .status)" = SUCCESS ] \
             || { echo "::error::the simulated violation did not raise and alert: $(jq -c '[.error, .raised, .notes]' <<<"$SIM")"; exit 1; }
           VIOLATION_ID=$(jq -r '.raised[0].violationId' <<<"$SIM")
           MONTH=$(TZ=America/New_York date +%Y-%m)
-          jq -n --arg id "$VIOLATION_ID" --arg month "$MONTH" --arg run "${{ github.run_id }}-${{ github.run_attempt }}" \
-            '{type:"resolveViolation", violationId:$id, month:$month, resolvedBy:"ZZ-CI-SMOKE",
-              correctiveAction:("CI smoke test run " + $run + " - simulated violation, nothing to correct")}' > resolve.json
+          SUPERVISORS=$(jq '[.supervisors[] | select(.active and .deletedAt == "")]' reference.json)
+          RESOLVER=$(jq -r --argjson i "$(( RANDOM % $(jq length <<<"$SUPERVISORS") ))" '.[$i].name' <<<"$SUPERVISORS")
+          jq -n --arg id "$VIOLATION_ID" --arg month "$MONTH" --arg who "$RESOLVER" --arg run "${{ github.run_id }}" \
+            '{type:"resolveViolation", violationId:$id, month:$month, resolvedBy:$who,
+              correctiveAction:("CI SMOKE TEST - run " + $run + " - simulated violation, nothing to correct")}' > resolve.json
           OUT=$(webapp_post resolve.json) \
             || { echo "::error::the resolve's reply was not JSON."; exit 1; }
           jq '{status, message, violationStatus, resolvedBy}' <<<"$OUT"
@@ -353,9 +355,9 @@ jobs:
             || { echo "::error::getViolations never answered with JSON."; exit 1; }
           ROW=$(jq -c --arg id "$VIOLATION_ID" '.violations[] | select(.violationId == $id)' <<<"$BACK")
           [ -n "$ROW" ] || { echo "::error::the simulated violation is not readable back for today."; exit 1; }
-          [ "$(jq -r .status <<<"$ROW")" = resolved ] && [ "$(jq -r .resolvedBy <<<"$ROW")" = ZZ-CI-SMOKE ] \
+          [ "$(jq -r .status <<<"$ROW")" = resolved ] && [ "$(jq -r .resolvedBy <<<"$ROW")" = "$RESOLVER" ] \
             || { echo "::error::the violation read back is not resolved as written: $ROW"; exit 1; }
-          echo "violation $VIOLATION_ID raised, alerted, resolved over POST, refused a second resolve, read back resolved"
+          echo "violation $VIOLATION_ID for $(webapp_field "$SIM" .store) raised, alerted, resolved over POST by $RESOLVER, refused a second resolve, read back resolved"
 
   # ───────────────────────────────────────────────────────────────────────────────
   frontend:
