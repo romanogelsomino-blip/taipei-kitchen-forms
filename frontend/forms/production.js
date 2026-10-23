@@ -204,6 +204,49 @@ function formIsComplete() {
   return true;
 }
 
+// ─── Review ───────────────────────────────────────────────
+function showSummary() {
+  if (!formIsComplete()) return;
+
+  const chosen = selectedKitchen();
+  const rows = buildPayload();
+  const cookTemp  = document.getElementById('b-cook-temp').value;
+  const cookStart = document.getElementById('b-cook-start').value;
+  const cookEnd   = document.getElementById('b-cook-end').value;
+  const minutes   = parseInt(document.getElementById('b-cook-time').dataset.minutes, 10);
+  document.getElementById('sum-kitchen').textContent    = chosen ? chosen.name : '—';
+  document.getElementById('sum-supervisor').textContent = supervisorPicker.value();
+  document.getElementById('sum-cook').textContent =
+    cookTemp + '°F · ' + cookStart + ' – ' + cookEnd + (isNaN(minutes) ? '' : ' (' + formatCookTime(minutes) + ')');
+
+  // Built with textContent, never innerHTML: dish names are edited on the dashboard and must
+  // render as text whatever they contain.
+  const dishContainer = document.getElementById('sum-dishes');
+  dishContainer.textContent = '';
+  rows.forEach(row => {
+    const line = document.createElement('div');
+    line.style.cssText = 'padding:4px 0;border-bottom:1px solid #f0f0f0;';
+    const name = document.createElement('strong');
+    name.textContent = row.dish;
+    line.appendChild(name);
+    const parts = [`${row.qtyProduced} produced`];
+    if (row.qtyDiscarded !== '0') parts.push(`−${row.qtyDiscarded} discarded (${row.discardReason})`);
+    line.appendChild(document.createTextNode(' · ' + parts.join(' · ')));
+    dishContainer.appendChild(line);
+  });
+
+  document.getElementById('summary-overlay').classList.add('show');
+}
+
+function closeSummary() {
+  document.getElementById('summary-overlay').classList.remove('show');
+}
+
+function confirmSubmit() {
+  closeSummary();
+  submitForm();
+}
+
 // ─── Submit ───────────────────────────────────────────────
 async function submitForm() {
   if (!formIsComplete()) return;

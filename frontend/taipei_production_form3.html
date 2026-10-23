@@ -116,11 +116,42 @@
   </div>
 
   <div class="submit-area">
-    <button class="btn-submit" id="submit-btn" onclick="submitForm()">Submit Production Log</button>
+    <button class="btn-submit" id="submit-btn" onclick="showSummary()">Review & Submit</button>
     <button class="btn-secondary" onclick="clearAll()">Clear Form</button>
   </div>
 
 </div><!-- end .page -->
+
+<div id="summary-overlay">
+  <div class="summary-box">
+    <h2 style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;margin-bottom:16px;">📋 Review Batch</h2>
+
+    <div class="summary-section">
+      <div class="summary-label">Production Kitchen</div>
+      <div class="summary-value" id="sum-kitchen">—</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-label">Supervisor</div>
+      <div class="summary-value" id="sum-supervisor">—</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-label">Cook</div>
+      <div class="summary-value" id="sum-cook">—</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-label">Dishes to Submit</div>
+      <div id="sum-dishes" style="font-size:.82rem;color:var(--mid);margin-top:8px;max-height:200px;overflow-y:auto;"></div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:24px;">
+      <button onclick="closeSummary()" style="flex:1;background:var(--border);color:var(--dark);border:none;border-radius:6px;padding:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;">← Edit</button>
+      <button onclick="confirmSubmit()" style="flex:2;background:var(--green);color:#fff;border:none;border-radius:6px;padding:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;">✓ Confirm & Submit</button>
+    </div>
+  </div>
+</div>
 
 <!-- STATUS OVERLAY -->
 <div id="status-overlay">
