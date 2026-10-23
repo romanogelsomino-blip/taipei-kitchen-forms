@@ -42,17 +42,12 @@ const { WEB_APP_URL } = requireKeys(prefix, ['WEB_APP_URL']);
 const NY = 'America/New_York';
 const TEMP_LIMIT_F = 41;
 const STORE_STAFF = ['Amanda', 'Michael', 'Sarah', 'James', 'Lisa', 'Emily', 'Chris', 'Dana', 'Priya', 'Marcus'];
-const CASE_FILL = ['0-25%', '25-50%', '50-75%', '75-100%'];
-const REMOVAL_REASONS = ['Damaged', 'Expired', 'Quality Issue'];
-const DELIVERY_NOTES = ['', '', '', '', '', '', 'Case was being restocked on arrival', 'Manager asked for more Spring Rolls next week', 'Cooler door seal looks worn', 'Store short-staffed, waited for sign-off'];
+const PRODUCTION_NOTES = ['', '', '', '', '', '', '', 'Oven 2 slow to preheat', 'Short on chicken, smaller batch', 'New supervisor shadowing'];
 const PACKAGING_NOTES = ['', '', '', '', '', '', 'Cooler took a while to come down', 'Short on one dish, see counts'];
+const DELIVERY_NOTES = ['', '', '', '', '', '', 'Case was being restocked on arrival', 'Manager asked for more Spring Rolls next week', 'Cooler door seal looks worn', 'Store short-staffed, waited for sign-off'];
 
 // ─── Small helpers ───────────────────────────────────────────────────────────
-const rand = (lo, hi) => lo + Math.random() * (hi - lo);
-const randInt = (lo, hi) => Math.floor(rand(lo, hi + 1));
-const pick = smoke.pick;
-const pad = n => String(n).padStart(2, '0');
-const hhmm = minutes => pad(Math.floor(minutes / 60) % 24) + ':' + pad(minutes % 60);
+const { pick, randInt, hhmm, DISCARD_REASONS, REMOVAL_REASONS, CASE_FILL } = smoke;
 
 /** `days` days before today in New York, as YYYY-MM-DD. */
 function dateNY(daysAgo) {
@@ -100,6 +95,7 @@ function buildDay(iso, lists) {
   const cookStart = randInt(13 * 60, 16 * 60);
   const cookMinutes = randInt(45, 150);
   const productionId = smoke.newSubmissionId();
+  const productionNotes = pick(PRODUCTION_NOTES);
   const production = lists.dishes.map(dish => {
     produced[dish.id] = randInt(30, 120);
     const discarded = Math.random() < 0.12 ? randInt(1, 3) : 0;
@@ -108,8 +104,9 @@ function buildDay(iso, lists) {
       kitchenSystemId: kitchen.id, kitchenId: kitchen.kitchenId,
       dish: dish.name, dishSystemId: dish.id,
       qtyProduced: String(produced[dish.id]), qtyDiscarded: String(discarded),
-      discardReason: discarded ? pick(['Quality Issue', 'Dropped tray', 'Under temperature']) : '',
+      discardReason: discarded ? pick(DISCARD_REASONS) : '',
       cookTemp: String(randInt(165, 195)), cookStart: hhmm(cookStart), cookEnd: hhmm(cookStart + cookMinutes), cookTime: String(cookMinutes),
+      notes: productionNotes,
       formType: 'production', clientTimestamp: instantNY(cooked, hhmm(cookStart + cookMinutes + randInt(5, 40)))
     };
   });
@@ -129,7 +126,7 @@ function buildDay(iso, lists) {
         kitchen: kitchen.name, kitchenSystemId: kitchen.id, kitchenId: kitchen.kitchenId,
         driver, store: store.name, storeId: store.storeId, storeSystemId: store.id,
         dish: dish.name, dishSystemId: dish.id,
-        loaded: String(share), discarded: String(discarded), discardReason: discarded ? pick(['Damaged', 'Quality Issue']) : '',
+        loaded: String(share), discarded: String(discarded), discardReason: discarded ? pick(DISCARD_REASONS) : '',
         coolerTemp: String(coolerTemp), notes,
         formType: 'packaging', clientTimestamp: instantNY(iso, hhmm(6 * 60 + i * 4 + 3))
       };

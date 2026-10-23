@@ -151,6 +151,7 @@ function buildPayload() {
   const cookStart  = document.getElementById('b-cook-start').value;
   const cookEnd    = document.getElementById('b-cook-end').value;
   const cookTime   = document.getElementById('b-cook-time').dataset.minutes || '';
+  const notes      = document.getElementById('f-notes').value;
   const dishSystemIdOf = name => (DISH_ENTRIES.find(d => d.name === name) || {}).id || '';
 
   const rows = [];
@@ -170,6 +171,7 @@ function buildPayload() {
       cookStart:     cookStart,
       cookEnd:       cookEnd,
       cookTime:      cookTime,
+      notes,
       formType:      'production',
       clientTimestamp: new Date().toISOString()
     });

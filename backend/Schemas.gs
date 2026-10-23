@@ -47,6 +47,7 @@ function productionSchema() {
     { header: 'Cook Start',          key: 'cookStart',       type: 'time' },
     { header: 'Cook End',            key: 'cookEnd',         type: 'time' },
     { header: 'Cook Time (min)',     key: 'cookTime',        type: 'number',  width: 120 },
+    { header: 'Notes',               key: 'notes',           type: 'text',    width: 260 },
     { header: 'Kitchen System ID',   key: 'kitchenSystemId', type: 'text',    width: 290 },
     { header: 'Kitchen ID',          key: 'kitchenId',       type: 'text',    width: 120 },
     { header: 'Dish System ID',      key: 'dishSystemId',    type: 'text',    width: 290 },
@@ -64,11 +65,11 @@ function productionSchema() {
 function packagingSchema() {
   return [
     { header: 'Date',              key: 'date',            type: 'date' },
-    { header: 'Time',              key: 'time',            type: 'time',    width: 90 },
     { header: 'Kitchen',           key: 'kitchen',         type: 'text',    width: 170 },
     { header: 'Driver',            key: 'driver',          type: 'text' },
     { header: 'Intended Store',    key: 'store',           type: 'text',    width: 120 },
     { header: 'Dish',              key: 'dish',            type: 'text',    width: 220 },
+    { header: 'Time',              key: 'time',            type: 'time',    width: 90 },
     { header: 'Loaded',            key: 'loaded',          type: 'number' },
     { header: 'Discarded',         key: 'discarded',       type: 'number' },
     { header: 'Discard Reason',    key: 'discardReason',   type: 'text',    width: 200 },
