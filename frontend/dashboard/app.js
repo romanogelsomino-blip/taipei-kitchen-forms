@@ -2660,17 +2660,17 @@ const CONFIG_LISTS = [
       { key: 'kitchenId',   label: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType' },
       { key: 'location',    label: 'Location',     kind: 'text', required: true, editable: true }
     ],
-    blurb: 'Where batches are cooked. The production form offers these, and its records carry the kitchen name. The Kitchen ID is the identifier the organisation named by Kitchen Type uses for it.' },
+    blurb: 'Where batches are cooked and coolers are loaded. The production and packaging forms carry the kitchen name, and its QR code carries its System ID. The Kitchen ID is the identifier the organisation named by Kitchen Type uses for it.' },
   { key: 'stores',      label: 'Stores',      noun: 'store',      byName: false,
     attrs: [
       { key: 'storeType', label: 'Store Type', kind: 'type' },
       { key: 'storeId',   label: 'Store ID',   kind: 'orgId', uniqueWith: null, printed: true },   // in the QR code posted at the store and in every delivery row
       { key: 'location',  label: 'Location',   kind: 'text', required: true, editable: true }
     ],
-    blurb: 'Where deliveries go. The Store ID is the store number: it is in the QR code posted at the store and in every delivery record. The name is a label and can be changed freely.' },
+    blurb: 'Where coolers are bound for and deliveries go. The packaging and delivery forms carry the store name, and its QR code carries its System ID. The Store ID is the identifier the organisation named by Store Type uses for it: for a Giant store, its store number.' },
   { key: 'dishes',      label: 'Dishes',      noun: 'dish',       byName: true, attrs: [],
     activeToggle: true,   // the one list with a pause switch as well as delete: a dish is tried for a while, then kept or not
-    blurb: 'What is cooked and delivered. Both forms show these as cards, in this order. Switch a dish off to pause it without losing its place; delete it to retire it.' },
+    blurb: 'What is cooked, loaded and delivered. All three forms show these as cards, in this order. Switch a dish off to pause it without losing its place; delete it to retire it.' },
   // `records` names where a form's free-text "+ Add new" lands, so the unlisted-names card
   // can offer what was typed. Only the two people pickers accept typed names.
   { key: 'supervisors', label: 'Supervisors', noun: 'supervisor', byName: true, attrs: [],
@@ -2678,7 +2678,7 @@ const CONFIG_LISTS = [
     blurb: 'Who signs off a batch. The production form offers these and also accepts a typed name.' },
   { key: 'drivers',     label: 'Drivers',     noun: 'driver',     byName: true, attrs: [],
     records: [{ source: 'deliveries', field: 'driver' }],
-    blurb: 'Who delivers. The delivery form offers these and also accepts a typed name.' }
+    blurb: 'Who loads the coolers and delivers. The packaging and delivery forms offer these and also accept a typed name.' }
 ];
 const CONFIG_TYPES_FALLBACK = { kitchens: ['Taipei', 'Giant'], stores: ['Giant'] };   // what the backend serves as `types`; for a payload without it
 const CONFIG_ORG_ID_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;                     // the backend's rule: URL- and filename-safe
