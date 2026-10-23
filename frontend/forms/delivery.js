@@ -7,15 +7,12 @@ let STORES = [];        // active store entries, likewise
 // The QR code at each store opens this page with ?store=<System ID>. Codes printed before
 // System IDs existed carry the store number instead, and both are accepted. Either way
 // `storeId` ends up as the store number, which every delivery row and photo name carries.
+// A code for a store that is no longer on the list is refused: it was retired on purpose.
 const params = new URLSearchParams(window.location.search);
 const storeParam = params.get('store') || '';
 let storeId   = storeParam;
 let storeData = null;         // the store's list entry, set once the store list has loaded
-let storeUnknown = false;     // a System ID the list does not have: nothing can file the rows
-
-function looksLikeSystemId(value) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-}
+let storeUnknown = false;     // the code named a store the list does not have
 
 // Compressed base64 photos, attached to the submission
 const photoData = { before: null, after: null };
@@ -175,9 +172,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('store-location').textContent = 'Giant Food Stores — Bento Program';
     document.getElementById('store-header').style.display = 'block';
     document.title = 'Taipei Kitchen · Delivery · ' + storeData.name;
-  } else if (looksLikeSystemId(storeParam)) {
-    // A store number the list lacks still files under that number. A System ID it lacks has
-    // no number behind it, so the rows could not be placed: refuse rather than write them.
+  } else if (storeParam) {
+    // Number or System ID, a store the list does not have is a retired store, or a code from
+    // the other environment. Refuse rather than file rows against it.
     storeUnknown = true;
     storeId = '';
     document.getElementById('store-title').textContent    = 'Unknown store';
@@ -263,7 +260,7 @@ function buildPayload() {
   const notes  = document.getElementById('f-notes').value;
   const rcvd   = document.getElementById('f-received-by').value;
   // The store number keys everything downstream; the name and System IDs come from the
-  // store's list entry, and the backend fills them in again from its own copy.
+  // store's list entry. The backend writes these as sent.
   const store  = storeData ? storeData.name : '';
   const storeIdClean = storeId;
   const storeSystemId = storeData ? storeData.id : '';

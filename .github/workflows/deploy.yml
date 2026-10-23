@@ -243,14 +243,15 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Reads can succeed while writes fail, so only real writes prove the deployment can
-      # reach its stores: one production row, then one delivery row. The two kinds share the
-      # dispatch but not the schema, tab or legacy writer. Staging only: production has no
+      # reach its stores: one production row, one packaging row, then one delivery row. The
+      # three kinds share the dispatch but not the schema or tab. Staging only: production has no
       # write-then-clean endpoint, so a synthetic row there would pollute the HACCP record.
       # Rows are dated today in New York so they file into the current month, and each tab
       # must grow by exactly one row: that is what proves the write reached the monthly store
       # and not only the legacy sheet. Each write is sent once; if its reply is Google's
-      # error page, the row count decides whether it landed. Last, one config write against
-      # the reserved store row proves the reference store's write path and its cache.
+      # error page, the row count decides whether it landed. Then one config write against
+      # the reserved store row proves the reference store's write path and its cache. Last,
+      # one simulated violation runs the alert path end to end and is resolved over POST.
       - name: Verify writes (staging only)
         if: github.ref_name == 'dev'
         env:
@@ -287,6 +288,11 @@ jobs:
           smoke_write Production production.json
           echo "production submission $(jq -r '.rows[0].submissionId' production.json)"
 
+          node scripts/smoke-payload.js packaging tag=ZZ-CI-SMOKE store=0000 \
+            "note=CI smoke test run ${{ github.run_id }} - safe to delete" > packaging.json
+          smoke_write Packaging packaging.json
+          echo "packaging submission $(jq -r '.rows[0].submissionId' packaging.json)"
+
           node scripts/smoke-payload.js delivery tag=ZZ-CI-SMOKE store=0000 \
             "note=CI smoke test run ${{ github.run_id }} - safe to delete" > delivery.json
           smoke_write Deliveries delivery.json
@@ -316,6 +322,38 @@ jobs:
           [ "$(webapp_field "$OUT" .version)" != "$(webapp_field "$BEFORE" .version)" ] \
             || { echo "::error::the config write did not change the reference version; the cache was not invalidated."; exit 1; }
           echo "config write ok: $(webapp_field "$BEFORE" .version) -> $(webapp_field "$OUT" .version)"
+
+          # One real violation, filed under the reserved store with notes that say what it is:
+          # the Violations row, the alert email (one per run, to staging's ALERT_RECIPIENTS),
+          # the resolve over POST, the refusal of a second resolve, and the read-back.
+          SIM=$(WEBAPP_ATTEMPTS=1 webapp_get test) \
+            || { echo "::error::test (simulated violation) did not answer with JSON; it is sent once, as it writes and emails."; exit 1; }
+          jq '{status, raised, notes}' <<<"$SIM"
+          [ "$(webapp_field "$SIM" .status)" = SUCCESS ] \
+            || { echo "::error::the simulated violation did not raise and alert: $(jq -c '[.error, .raised, .notes]' <<<"$SIM")"; exit 1; }
+          VIOLATION_ID=$(jq -r '.raised[0].violationId' <<<"$SIM")
+          MONTH=$(TZ=America/New_York date +%Y-%m)
+          jq -n --arg id "$VIOLATION_ID" --arg month "$MONTH" --arg run "${{ github.run_id }}-${{ github.run_attempt }}" \
+            '{type:"resolveViolation", violationId:$id, month:$month, resolvedBy:"ZZ-CI-SMOKE",
+              correctiveAction:("CI smoke test run " + $run + " - simulated violation, nothing to correct")}' > resolve.json
+          OUT=$(webapp_post resolve.json) \
+            || { echo "::error::the resolve's reply was not JSON."; exit 1; }
+          jq '{status, message, violationStatus, resolvedBy}' <<<"$OUT"
+          [ "$(webapp_field "$OUT" .status)" = ok ] \
+            || { echo "::error::the resolve was rejected: $(webapp_field "$OUT" .message)"; exit 1; }
+          AGAIN=$(webapp_post resolve.json) \
+            || { echo "::error::the second resolve's reply was not JSON."; exit 1; }
+          case "$(webapp_field "$AGAIN" .message)" in
+            *"already resolved"*) echo "second resolve refused, as it should be" ;;
+            *) echo "::error::resolving twice should be refused as already resolved; got $(jq -c . <<<"$AGAIN")"; exit 1 ;;
+          esac
+          BACK=$(webapp_get getViolations "date=$(TZ=America/New_York date +%F)") \
+            || { echo "::error::getViolations never answered with JSON."; exit 1; }
+          ROW=$(jq -c --arg id "$VIOLATION_ID" '.violations[] | select(.violationId == $id)' <<<"$BACK")
+          [ -n "$ROW" ] || { echo "::error::the simulated violation is not readable back for today."; exit 1; }
+          [ "$(jq -r .status <<<"$ROW")" = resolved ] && [ "$(jq -r .resolvedBy <<<"$ROW")" = ZZ-CI-SMOKE ] \
+            || { echo "::error::the violation read back is not resolved as written: $ROW"; exit 1; }
+          echo "violation $VIOLATION_ID raised, alerted, resolved over POST, refused a second resolve, read back resolved"
 
   # ───────────────────────────────────────────────────────────────────────────────
   frontend:

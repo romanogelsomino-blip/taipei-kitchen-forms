@@ -6,11 +6,11 @@
 - **Releases are made on GitHub, not from a terminal.** A production release is a pull
   request from `dev` to `prod`, merged with a merge commit, then published as a GitHub
   Release. Never propose pushing `prod` or a tag directly.
-- **Production precedes delivery.** Food is cooked before it is delivered, so wherever the
-  two appear together — navigation, lists, data files, documentation, code — production
-  comes first.
+- **Production, then packaging, then delivery.** Food is cooked, loaded into coolers, then
+  delivered, so wherever these appear together — navigation, lists, data files,
+  documentation, code — they come in that order.
 - **Records live in monthly spreadsheets.** One file per month inside a folder per year,
-  four tabs, headers generated from `backend/Schemas.gs`. A record is filed under its own
+  five tabs, headers generated from `backend/Schemas.gs`. A record is filed under its own
   date read in New York, so one submission can span two files.
 - **Header text is the read contract; column order is not.** Appends, reads and updates all
   locate columns by matching header text, so a tab can be reordered by hand without breaking
@@ -34,8 +34,9 @@
   build; a form only ever reads those static files. Every entry is keyed by a UUID the
   backend assigns and never changes; kitchens and stores also carry a Type (Taipei or Giant)
   and that organisation's own id, and a store's Store ID is the number its delivery rows
-  carry. A store's QR code carries its UUID; the delivery form also accepts the number, which
-  codes printed earlier carry. A row is never removed from the sheet: an entry is deleted to retire it
+  carry. A location's QR code carries its UUID: a kitchen's opens the packaging form, a
+  store's the delivery form, which also accepts the store number that codes printed earlier
+  carry. A row is never removed from the sheet: an entry is deleted to retire it
   (hidden from the Config tab, restorable), and a dish may also be deactivated to pause it;
   history resolves its name either way. The git copies of `data/*.json` are seeds for local
   runs, not a source.

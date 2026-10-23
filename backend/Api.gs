@@ -33,6 +33,7 @@ function doPost(e) {
 
     switch (payload.formType) {
       case 'production':  return handleProductionSubmission(payload, ctx);
+      case 'packaging':   return handlePackagingSubmission(payload, ctx);
       case 'delivery':    return handleDeliverySubmission(payload, ctx);
       case 'photos_only': return handlePhotoUpload(payload, ctx);
       default:

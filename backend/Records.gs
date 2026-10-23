@@ -23,6 +23,7 @@ function note(ctx, text) {
 function recordKinds() {
   return {
     production: { tab: 'Production' },
+    packaging:  { tab: 'Packaging' },
     deliveries: { tab: 'Deliveries' }
   };
 }

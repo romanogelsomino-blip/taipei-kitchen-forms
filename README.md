@@ -11,9 +11,10 @@ This system tracks every bento box from the moment it's cooked, through cooling,
 | Path | What it does |
 |---|---|
 | `frontend/taipei_production_form3.html` | Kitchen form. Logs each batch — cook times, per-dish counts produced and discarded. |
-| `frontend/taipei_delivery_form3.html` | Driver form. Logs each store delivery — product temperature on arrival, store cooler temperature, photos, what was loaded, what was left, case fill levels. |
-| `frontend/forms/` | The scripts and stylesheet behind both forms: `common.js` and `styles.css` are shared, then one script per form. |
-| `frontend/dashboard/` | Live web dashboard. Opens on a home page that explains the system and launches either form; then metrics, production, deliveries, waste analysis, HACCP compliance. |
+| `frontend/taipei_packaging_form.html` | Driver form, at pickup. Logs each cooler loaded at the kitchen — the store it is for, its temperature, per-dish counts loaded and discarded. |
+| `frontend/taipei_delivery_form3.html` | Driver form, at the store. Logs each store delivery — product temperature on arrival, store cooler temperature, photos, what was loaded, what was left, case fill levels. |
+| `frontend/forms/` | The scripts and stylesheet behind the forms: `common.js` and `styles.css` are shared, then one script per form. |
+| `frontend/dashboard/` | Live web dashboard. Opens on a home page that explains the system and launches the forms; then production, packaging, deliveries, waste analysis, HACCP compliance. |
 | `frontend/assets/` | Branding used by the forms. |
 | `backend/` | Google Apps Script handling form submissions and serving the dashboard API. One script, several files split by domain; `Api.gs` holds the two entry points. |
 | `data/` | The reference lists as the forms read them, one JSON file per list. Published by the site build from the backend; the git copies are seeds for local runs. |
@@ -34,7 +35,8 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 ## How It Works
 
 ### Forms
-1. An employee scans the QR code at their location.
+1. An employee scans the QR code at their location: the kitchen for a batch or a cooler being
+   loaded, the store for a delivery.
 2. The form opens on their phone.
 3. They fill it out with dropdowns for drivers, supervisors, stores, and standard options.
 4. Photos are compressed client-side before upload.
@@ -43,10 +45,12 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 7. Delivery photos land in the Drive photo folder under year, month and day, and every
    row of the delivery links to them.
 
-Neither form is linked here on purpose. Both need a location to be any use: the delivery form
-opens from a store's QR code as `?store=<System ID>`, and the dashboard's home page opens the
-production form as `?kitchen=<System ID>`. Opening one bare gives a form with no location chosen,
-which is how a delivery gets logged against the wrong store.
+None of the forms is linked here on purpose. Each needs a location to be any use: the
+packaging form opens from a kitchen's QR code as `?kitchen=<System ID>`, the delivery form
+from a store's as `?store=<System ID>`, and the dashboard's home page opens the production
+form as `?kitchen=<System ID>`. A code for a location no longer on the list is refused, and
+the production form opened bare has no kitchen chosen, which is how a batch gets logged
+against the wrong kitchen.
 
 The pages live in `frontend/`, their scripts and stylesheet in `frontend/forms/`. See
 [Running locally](#running-locally) to try a change before pushing it.
@@ -95,11 +99,12 @@ retire it (hidden from the forms and the Config tab, restorable from its deleted
 dish can also be switched off to pause it; the row stays in the sheet either way, so past
 records keep their names. Kitchens and stores also carry a Type, the organisation they
 belong to (Taipei or Giant), and that organisation's own identifier: the Kitchen ID or Store
-ID. A store's Store ID is its store number. QR codes point at
-`taipei_delivery_form3.html?store=<System ID>`; codes printed before System IDs existed carry
-the store number, which the form still accepts. Every delivery row carries the number, so a
-store can be renamed freely but changing its number re-keys its records, and the Config tab
-says so.
+ID. A store's Store ID is its store number. QR codes carry the UUID: a kitchen's points at
+`taipei_packaging_form.html?kitchen=<System ID>`, a store's at
+`taipei_delivery_form3.html?store=<System ID>`; store codes printed before System IDs existed
+carry the store number, which the delivery form still accepts. Every delivery and packaging
+row carries the number, so a store can be renamed freely but changing its number re-keys its
+records, and the Config tab says so.
 The other four lists are stored in the records by name, so renaming one leaves past records
 under the old name, and the Config tab says that too. The dashboard's home page opens the
 production form with the kitchen's UUID, `taipei_production_form3.html?kitchen=<uuid>`.
@@ -116,12 +121,15 @@ The HACCP cooling rule is printed on the production form: hot food must cool fro
 
 - A batch cools overnight from its cook end, so the production form records no cooling
   interval or final temperature, and production submissions raise no violations.
+- The packaging form records each cooler's temperature as it is loaded for a store — the first
+  reading after cooling — and flags it above 41°F.
 - The delivery form flags both temperatures it records, the product temperature on arrival
   and the store cooler temperature, above 41°F.
-- The backend checks both once per submission, not once per dish. Each breach sends one email
-  and writes one row on the month's Violations tab: the reading, where and when it was taken,
-  the driver's notes, and later the corrective action and who resolved it. The row is written
-  even when the email fails; a failed alert is noted on that request's Executions row.
+- The backend checks each submission once, not once per dish. Each breach sends one email and
+  writes one row on the month's Violations tab: the reading, the kitchen or store it belongs
+  to, when it was taken, the driver's notes, and later the corrective action and who resolved
+  it. The row is written even when the email fails; a failed alert is noted on that request's
+  Executions row.
 - 41°F is fixed in the code. It is the regulatory cold-holding limit, not a setting.
 - The dashboard lists those violations. One is open until someone resolves it.
 
@@ -130,8 +138,8 @@ The HACCP cooling rule is printed on the production form: hot food must cool fro
 ## Data store
 
 Records live in one spreadsheet per month, in a folder per year, under
-`SPREADSHEET_FOLDER_ID`: `<YYYY>/<YYYY-MM> Operations`. Each file has four tabs in this
-order: Production, Deliveries, Violations, Executions.
+`SPREADSHEET_FOLDER_ID`: `<YYYY>/<YYYY-MM> Operations`. Each file has five tabs in this
+order: Production, Packaging, Deliveries, Violations, Executions.
 
 - Headers come from the schemas in `backend/Schemas.gs` and are the read contract. Column
   order is not: readers match on header text, so a tab may be reordered by hand.

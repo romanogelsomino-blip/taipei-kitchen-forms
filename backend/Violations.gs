@@ -3,53 +3,77 @@
 // The limit is regulatory, not configurable: cold-held product must stay at or below 41°F.
 // Detection runs once per submission, not once per dish row, so one warm cooler is one email
 // and one row rather than one of each per dish. A row is the food-safety record: the reading,
-// where and when it was taken, the driver's notes, and what was done about it. Whether the
+// where and when it was taken, the driver's notes, and what was done about it. Its location
+// is a store (a delivery's readings) or a kitchen (a cooler loaded at packaging). Whether the
 // alert email went out is noted on the request's Executions row, not here.
 
 const TEMP_LIMIT_F = 41;
 const VIOLATION_ACTION_MAX = 500;   // characters of corrective action, more than a cell should hold
 
-/** The two temperatures a delivery records, and the violation each one raises. */
+/**
+ * What each form records that can breach the limit, and where the breach belongs. A delivery
+ * records two temperatures at a store; packaging records one per cooler at a kitchen. The
+ * field names are the submission's own.
+ */
+function violationSources() {
+  return {
+    packaging: {
+      rules: [
+        { key: 'coolerTemp', type: 'Packaging Temperature', label: 'cooler at loading' }
+      ],
+      location: { type: 'Kitchen', name: 'kitchen', systemId: 'kitchenSystemId', orgId: 'kitchenId', time: 'time' }
+    },
+    delivery: {
+      rules: [
+        { key: 'coolerTemp',  type: 'Cooler Temperature',  label: 'store cooler' },
+        { key: 'arrivalTemp', type: 'Arrival Temperature', label: 'product on arrival' }
+      ],
+      location: { type: 'Store', name: 'store', systemId: 'storeSystemId', orgId: 'storeId', time: 'arrive' }
+    }
+  };
+}
+
 function violationRules() {
-  return [
-    { key: 'coolerTemp',  type: 'Cooler Temperature',  label: 'store cooler' },
-    { key: 'arrivalTemp', type: 'Arrival Temperature', label: 'product on arrival' }
-  ];
+  return [].concat(...Object.keys(violationSources()).map(key => violationSources()[key].rules));
 }
 
 /**
- * Check one delivery submission and raise a violation per breached rule. Each breach sends one
- * email and writes one Violations row; the row is written whether or not the mail went, and a
- * failed alert is noted on the Executions row. Nothing here throws: losing an alert is
- * recoverable, losing the delivery record is not. The rows arrive enriched (see enrichRows), so
- * the store's name and System ID are already on them.
+ * Check one submission and raise a violation per breached rule of its source ('delivery' or
+ * 'packaging'). Each breach sends one email and writes one Violations row; the row is written
+ * whether or not the mail went, and a failed alert is noted on the Executions row. Nothing
+ * here throws: losing an alert is recoverable, losing the record is not. The rows carry the
+ * location's name and System ID as the form sent them.
  */
-function checkViolations(rows, ctx) {
+function checkViolations(rows, ctx, source) {
   if (!rows || !rows.length) return [];
+  const spec = violationSources()[source || 'delivery'];
+  if (!spec) throw new Error('Unknown violation source: ' + source);
   const first = rows[0];
   const filed = partitionDateFor(first.date);
   const monthKey = monthKeyOfDate(filed.date);
-  const storeId = first.storeId || '';
-  const storeName = first.store || ('Store ' + storeId);
-  const storeLabel = storeId && storeName !== 'Store ' + storeId ? storeName + ' (' + storeId + ')' : storeName;
+  const where = spec.location;
+  const orgId = first[where.orgId] || '';
+  const locationName = first[where.name] || (where.type + ' ' + orgId);
+  const locationLabel = orgId && locationName !== where.type + ' ' + orgId ? locationName + ' (' + orgId + ')' : locationName;
   const raised = [];
 
-  violationRules().forEach(rule => {
+  spec.rules.forEach(rule => {
     const value = parseFloat(first[rule.key]);
     if (isNaN(value) || value <= TEMP_LIMIT_F) return;
 
     const sent = sendMail(
       alertRecipients(),
-      'HACCP Violation Alert: ' + rule.type + ' - ' + storeLabel,
-      violationEmailBody(rule, value, first, storeLabel)
+      'HACCP Violation Alert: ' + rule.type + ' - ' + locationLabel,
+      violationEmailBody(rule, value, first, locationLabel, where)
     );
     if (sent.note) note(ctx, sent.note);
     if (sent.status !== 'SUCCESS') note(ctx, 'alert_failed=' + rule.type + ':' + sent.error);
 
     const row = {
       date: first.date,
-      arrive: first.arrive || '',
-      store: storeName,
+      time: first[where.time] || '',
+      location: locationName,
+      locationType: where.type,
       driver: first.driver || '',
       violationType: rule.type,
       value: value,
@@ -58,7 +82,7 @@ function checkViolations(rows, ctx) {
       resolvedBy: '',
       resolvedAt: '',
       timestamp: ctx && ctx.serverTimestamp ? ctx.serverTimestamp : formatInstant(new Date()),
-      storeSystemId: first.storeSystemId || '',
+      locationSystemId: first[where.systemId] || '',
       submissionId: (ctx && ctx.submissionId) || first.submissionId || '',
       violationId: Utilities.getUuid()
     };
@@ -76,7 +100,7 @@ function checkViolations(rows, ctx) {
   return raised;
 }
 
-function violationEmailBody(rule, value, delivery, storeLabel) {
+function violationEmailBody(rule, value, row, locationLabel, where) {
   return [
     '═══════════════════════════════════════════════════',
     '   TAIPEI KITCHEN · HACCP VIOLATION ALERT',
@@ -84,17 +108,17 @@ function violationEmailBody(rule, value, delivery, storeLabel) {
     '',
     'VIOLATION DETECTED',
     '',
-    'Location: ' + storeLabel,
-    'Date: ' + (delivery.date || ''),
-    'Arrival time: ' + (delivery.arrive || 'N/A'),
+    'Location: ' + locationLabel + ' (' + where.type.toLowerCase() + ')',
+    'Date: ' + (row.date || ''),
+    'Time: ' + (row[where.time] || 'N/A'),
     '',
     'Violation type: ' + rule.type + ' (' + rule.label + ')',
     'Recorded temperature: ' + value + '°F',
     'Limit: ' + TEMP_LIMIT_F + '°F',
     '',
-    'Driver: ' + (delivery.driver || 'N/A'),
-    'Received by: ' + (delivery.receivedBy || 'N/A'),
-    'Store notes: ' + (delivery.notes || 'None'),
+    'Driver: ' + (row.driver || 'N/A'),
+    where.type === 'Store' ? 'Received by: ' + (row.receivedBy || 'N/A') : 'Intended store: ' + (row.store || 'N/A'),
+    'Notes: ' + (row.notes || 'None'),
     '',
     '─────────────────────────────────────────────────',
     'ACTION REQUIRED: take corrective action, then mark the',
@@ -121,10 +145,13 @@ function simulateViolation() {
 
   const ctx = newRequestContext(new Date());
   ctx.submissionId = 'sim-' + Utilities.getUuid().slice(0, 8);
-  const rows = enrichRows('deliveries', [{
+  const reserved = referencePayload().stores.find(s => s.storeId === '0000');   // the row names the store the way a form would
+  const rows = [{
     submissionId: ctx.submissionId,
     date: todayNY(),
     storeId: '0000',
+    store: reserved ? reserved.name : 'Store 0000',
+    storeSystemId: reserved ? reserved.id : '',
     driver: 'TEST_DRIVER',
     receivedBy: 'TEST_SUPERVISOR',
     arrive: Utilities.formatDate(new Date(), NY_TZ, 'HH:mm'),
@@ -132,8 +159,8 @@ function simulateViolation() {
     coolerTemp: String(TEMP_LIMIT_F + 4),
     arrivalTemp: String(TEMP_LIMIT_F - 3),   // below the limit: proves only the breach raises
     notes: 'Simulated violation, safe to resolve'
-  }], ctx);
-  const raised = checkViolations(rows, ctx);
+  }];
+  const raised = checkViolations(rows, ctx, 'delivery');
 
   return {
     status: raised.length === 1 && raised[0].alertStatus === 'SUCCESS' ? 'SUCCESS' : 'FAILED',
@@ -146,27 +173,35 @@ function simulateViolation() {
 // ─── Read and resolve ────────────────────────────────────────────────────────
 
 /**
- * Violations in a window, newest last, with the derived status filled in. The store number is
- * attached from the Reference sheet as read-time metadata; the row itself keys on System ID.
+ * Violation records as the API returns them, oldest first: the derived status, the month file
+ * each came from, and the location's own id (store number or Kitchen ID) attached from the
+ * Reference sheet as read-time metadata; the row itself keys on System ID. The dashboard
+ * payload carries these; the getViolations action serves them alone.
  */
+function publicViolations(records) {
+  const reference = referencePayload();
+  const orgIdOf = row => {
+    const list = row.locationType === 'Kitchen' ? reference.kitchens : reference.stores;
+    const entry = list.find(e => e.id === row.locationSystemId);
+    return entry ? (row.locationType === 'Kitchen' ? entry.kitchenId : entry.storeId) : '';
+  };
+  return records.map(record => {
+    const row = publicRecord(record);
+    row.locationId = orgIdOf(row);
+    row.status = row.resolvedAt ? 'resolved' : 'open';
+    row.month = record._month;
+    return row;
+  });
+}
+
 function action_getViolations(e) {
   try {
     const win = requestWindow(e);
     const read = recordsInWindow(win, 'Violations');
-    const stores = storeList();
-
     return jsonResponse({
       status: 'ok',
       window: { from: win.from, to: win.to, missingMonths: read.missing },
-      violations: read.records.map(record => {
-        const row = publicRecord(record);
-        const store = stores.find(s => s.key === row.storeSystemId);
-        row.storeName = row.store;
-        row.storeId = store ? store.id : '';
-        row.status = row.resolvedAt ? 'resolved' : 'open';
-        row.month = record._month;
-        return row;
-      })
+      violations: publicViolations(read.records)
     });
   } catch (error) {
     return jsonResponse({ status: 'error', message: error.toString() });

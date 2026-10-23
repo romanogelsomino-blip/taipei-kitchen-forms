@@ -24,46 +24,6 @@ function normaliseRows(rows, ctx) {
   }));
 }
 
-/**
- * Fill what the Reference sheet knows about rows the form could only partly describe. A
- * delivery form has the store number from its QR code and the dish name; a production form
- * has the kitchen's name, and when current its ids, and the dish name. The sheet carries the
- * store's name and every System ID, so a stale phone or a rename cannot leave a row keyless.
- * Best effort: a row the lists cannot place is written as sent.
- */
-function enrichRows(kind, rows, ctx) {
-  let ref;
-  try {
-    ref = referencePayload();
-  } catch (e) {
-    note(ctx, 'reference_unavailable=' + e.message);
-    return rows;
-  }
-  const norm = value => String(value === undefined || value === null ? '' : value).replace(/\s+/g, ' ').trim().toLowerCase();
-  const named = (list, value) => (norm(value) && ref[list].find(entry => norm(entry.name) === norm(value))) || null;
-  return rows.map(row => {
-    const out = Object.assign({}, row);
-    const dish = named('dishes', row.dish);
-    if (!out.dishSystemId && dish) out.dishSystemId = dish.id;
-    if (kind === 'deliveries') {
-      const store = row.storeId ? ref.stores.find(s => String(s.storeId) === String(row.storeId)) : null;
-      if (store) {
-        out.store = store.name;
-        out.storeSystemId = store.id;
-      } else if (!out.store || String(out.store) === String(out.storeId)) {
-        out.store = row.storeId ? 'Store ' + row.storeId : '';   // a number the lists do not know, named the way the dashboard names it
-      }
-    } else {
-      const kitchen = (row.kitchenSystemId && ref.kitchens.find(k => k.id === row.kitchenSystemId)) || named('kitchens', row.kitchen);
-      if (kitchen) {
-        if (!out.kitchenSystemId) out.kitchenSystemId = kitchen.id;
-        if (!out.kitchenId) out.kitchenId = kitchen.kitchenId;
-      }
-    }
-    return out;
-  });
-}
-
 function handleBugReport(payload, ctx) {
   ctx.logEntry.formType = 'bugReport';
   const sent = sendMail(supportRecipients(), payload.subject, payload.body);
@@ -74,14 +34,34 @@ function handleBugReport(payload, ctx) {
 }
 
 function handleProductionSubmission(payload, ctx) {
-  const rows = enrichRows('production', normaliseRows(payload.rows || [], ctx), ctx);
+  const rows = normaliseRows(payload.rows || [], ctx);
   writeRecords('production', rows, ctx);
   ctx.logEntry.status = 'SUCCESS';
   return jsonResponse({ status: 'ok', duplicate: !!ctx.duplicate });
 }
 
+/**
+ * One cooler loaded at a kitchen for one store: the rows are written, then its temperature is
+ * checked the way a delivery's are. Written first, checked second, for the same reason as
+ * deliveries: losing an alert is recoverable, losing the record is not.
+ */
+function handlePackagingSubmission(payload, ctx) {
+  const rows = normaliseRows(payload.rows || [], ctx);
+  writeRecords('packaging', rows, ctx);
+  if (!ctx.duplicate) {
+    try {
+      checkViolations(rows, ctx, 'packaging');
+    } catch (alertError) {
+      note(ctx, 'violation_check_failed=' + alertError.message);
+      Logger.log(`Warning: violation check failed: ${alertError}`);
+    }
+  }
+  ctx.logEntry.status = 'SUCCESS';
+  return jsonResponse({ status: 'ok', duplicate: !!ctx.duplicate });
+}
+
 function handleDeliverySubmission(payload, ctx) {
-  const rows = enrichRows('deliveries', normaliseRows(payload.rows || [], ctx), ctx);
+  const rows = normaliseRows(payload.rows || [], ctx);
   writeRecords('deliveries', rows, ctx);
 
   // A replay has already been checked and alerted on; checking again would send a second
@@ -95,7 +75,7 @@ function handleDeliverySubmission(payload, ctx) {
   // failure here must not fail the submission: losing an alert is recoverable, losing the
   // record is not.
   try {
-    checkViolations(rows, ctx);
+    checkViolations(rows, ctx, 'delivery');
   } catch (alertError) {
     note(ctx, 'violation_check_failed=' + alertError.message);
     Logger.log(`Warning: violation check failed: ${alertError}`);

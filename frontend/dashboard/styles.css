@@ -69,6 +69,13 @@ select:focus {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23d35042' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
+select:disabled {
+  color: var(--soft);
+  background-color: var(--surface);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 select option {
   color: var(--dark);
   background: var(--surface);
@@ -644,6 +651,47 @@ select option {
   font-weight: 600;
   color: var(--green);
 }
+
+/* Kitchen or Store, beside a location's name */
+.violation-location-type {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--row-alt);
+  border: 1px solid var(--border);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mid);
+  vertical-align: middle;
+}
+
+/* Short grey guidance under a heading, and the empty-state line of a table */
+.hint {
+  color: var(--soft);
+  font-size: 0.85rem;
+}
+
+/* Packaging panel: one row per cooler, its dish lines a tap away */
+.packaging-table tr.packaging-cooler { cursor: pointer; }
+.packaging-table tr.packaging-cooler.is-warm td { background: var(--red-lt); }
+.packaging-table tr.packaging-cooler.is-open td { font-weight: 600; }
+.packaging-table tr.packaging-dishes > td { padding: 8px 12px 14px 28px; background: var(--row-alt); }
+.packaging-dishes-table { width: auto; min-width: 50%; border-collapse: collapse; }
+.packaging-dishes-table th,
+.packaging-dishes-table td { padding: 4px 14px 4px 0; text-align: left; font-size: 0.85rem; }
+.packaging-dishes-table th { font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--soft); }
+.packaging-notes { margin: 8px 0 0; font-size: 0.85rem; color: var(--mid); }
+.packaging-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+.packaging-pagination[hidden] { display: none; }
+.packaging-pagination span { font-family: 'DM Mono', monospace; font-size: 0.85rem; padding: 8px 16px; color: var(--mid); }
 
 /* Filter Controls */
 .filter-controls {
@@ -1855,13 +1903,19 @@ select option {
   color: var(--soft);
 }
 
-/* Seven sections share a phone-width bar: compact labels, and scroll rather than clip if
+/* Eight sections share a phone-width bar: compact labels, and scroll rather than clip if
    a screen is narrower still. */
 .mobile-nav { overflow-x: auto; }
 .mobile-nav-link { flex: 1 0 auto; padding: 12px 3px; }
 .mobile-nav-label { font-size: 0.6rem; letter-spacing: 0; }
 
 /* ── Home QR codes ─────────────────────────────────────────────────────── */
+.home-qr-pick {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
 .home-qr-actions {
   display: flex;
   gap: 12px;

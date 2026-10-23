@@ -1,4 +1,4 @@
-// Schemas.gs — the four tabs of a monthly file: headers, keys, and how rows are built and read.
+// Schemas.gs — the five tabs of a monthly file: headers, keys, and how rows are built and read.
 //
 // Header text is the read contract; column position is not. A column entry is
 // { header, key, type, width?, value? }: `key` is the payload field on write and the output key
@@ -11,12 +11,13 @@
 // serve both.
 
 function tabNames() {
-  return ['Production', 'Deliveries', 'Violations', 'Executions'];
+  return ['Production', 'Packaging', 'Deliveries', 'Violations', 'Executions'];
 }
 
 function schemaFor(tab) {
   switch (tab) {
     case 'Production': return productionSchema();
+    case 'Packaging':  return packagingSchema();
     case 'Deliveries': return deliveriesSchema();
     case 'Violations': return violationsSchema();
     case 'Executions': return executionsSchema();
@@ -56,6 +57,35 @@ function productionSchema() {
 }
 
 /**
+ * One row per dish per cooler loaded at the kitchen, one cooler per intended store. The
+ * cooler's temperature is on every row of its cooler. Kitchen and store are each carried as
+ * name, System ID and the organisation's own id, as on the other tabs.
+ */
+function packagingSchema() {
+  return [
+    { header: 'Date',              key: 'date',            type: 'date' },
+    { header: 'Time',              key: 'time',            type: 'time',    width: 90 },
+    { header: 'Kitchen',           key: 'kitchen',         type: 'text',    width: 170 },
+    { header: 'Driver',            key: 'driver',          type: 'text' },
+    { header: 'Intended Store',    key: 'store',           type: 'text',    width: 120 },
+    { header: 'Dish',              key: 'dish',            type: 'text',    width: 220 },
+    { header: 'Loaded',            key: 'loaded',          type: 'number' },
+    { header: 'Discarded',         key: 'discarded',       type: 'number' },
+    { header: 'Discard Reason',    key: 'discardReason',   type: 'text',    width: 200 },
+    { header: 'Cooler Temp °F',    key: 'coolerTemp',      type: 'number',  width: 120 },
+    { header: 'Notes',             key: 'notes',           type: 'text',    width: 260 },
+    { header: 'Kitchen System ID', key: 'kitchenSystemId', type: 'text',    width: 290 },
+    { header: 'Kitchen ID',        key: 'kitchenId',       type: 'text',    width: 120 },
+    { header: 'Store System ID',   key: 'storeSystemId',   type: 'text',    width: 290 },
+    { header: 'Store ID',          key: 'storeId',         type: 'text',    width: 80 },
+    { header: 'Dish System ID',    key: 'dishSystemId',    type: 'text',    width: 290 },
+    { header: 'Submission ID',     key: 'submissionId',    type: 'text',    width: 290, value: submissionIdOf },
+    { header: 'Submitted At',      key: 'clientTimestamp', type: 'instant' },
+    { header: 'Received At',       key: 'serverTimestamp', type: 'instant', value: (row, ctx) => ctx.serverTimestamp }
+  ];
+}
+
+/**
  * One row per dish per store visit. The store is carried three ways: its name under Store,
  * which is what a reader of the sheet wants, and its System ID and store number from the
  * Reference sheet; the number is what the QR code, the dashboard and the photo filenames
@@ -91,27 +121,29 @@ function deliveriesSchema() {
 }
 
 /**
- * One row per violation; open until Resolved At is filled. The row keys on the store's System
- * ID and carries its name; the store number is not stored, the dashboard attaches it when
- * needed. Files written before this shape held the number under Store and alert-email
- * columns; see normaliseRecords.
+ * One row per violation; open until Resolved At is filled. A violation belongs to a location,
+ * a store (from a delivery) or a kitchen (from packaging): the row keys on the location's
+ * System ID and carries its name and type; the organisation's own id is not stored, the
+ * dashboard attaches it when needed. Files written when violations were store-shaped held
+ * the store number or name under Store; see normaliseRecords.
  */
 function violationsSchema() {
   return [
-    { header: 'Date',              key: 'date',             type: 'date' },
-    { header: 'Arrival Time',      key: 'arrive',           type: 'time',    width: 110 },
-    { header: 'Store',             key: 'store',            type: 'text',    width: 120 },
-    { header: 'Driver',            key: 'driver',           type: 'text' },
-    { header: 'Type',              key: 'violationType',    type: 'text',    width: 170 },
-    { header: 'Temp °F',           key: 'value',            type: 'number' },
-    { header: 'Store Notes',       key: 'notes',            type: 'text',    width: 260 },
-    { header: 'Corrective Action', key: 'correctiveAction', type: 'text',    width: 300 },
-    { header: 'Resolved By',       key: 'resolvedBy',       type: 'text',    width: 140 },
-    { header: 'Resolved At',       key: 'resolvedAt',       type: 'instant' },
-    { header: 'Detected At',       key: 'timestamp',        type: 'instant' },
-    { header: 'Store System ID',   key: 'storeSystemId',    type: 'text',    width: 290 },
-    { header: 'Submission ID',     key: 'submissionId',     type: 'text',    width: 290 },
-    { header: 'Violation ID',      key: 'violationId',      type: 'text',    width: 290 }
+    { header: 'Date',               key: 'date',             type: 'date' },
+    { header: 'Time',               key: 'time',             type: 'time',    width: 90,  aliases: ['Arrival Time'] },
+    { header: 'Location',           key: 'location',         type: 'text',    width: 150, aliases: ['Store'] },
+    { header: 'Location Type',      key: 'locationType',     type: 'text',    width: 110 },   // Kitchen | Store
+    { header: 'Driver',             key: 'driver',           type: 'text' },
+    { header: 'Type',               key: 'violationType',    type: 'text',    width: 170 },
+    { header: 'Temp °F',            key: 'value',            type: 'number' },
+    { header: 'Notes',              key: 'notes',            type: 'text',    width: 260, aliases: ['Store Notes'] },
+    { header: 'Corrective Action',  key: 'correctiveAction', type: 'text',    width: 300 },
+    { header: 'Resolved By',        key: 'resolvedBy',       type: 'text',    width: 140 },
+    { header: 'Resolved At',        key: 'resolvedAt',       type: 'instant' },
+    { header: 'Detected At',        key: 'timestamp',        type: 'instant' },
+    { header: 'Location System ID', key: 'locationSystemId', type: 'text',    width: 290, aliases: ['Store System ID'] },
+    { header: 'Submission ID',      key: 'submissionId',     type: 'text',    width: 290 },
+    { header: 'Violation ID',       key: 'violationId',      type: 'text',    width: 290 }
   ];
 }
 
@@ -137,6 +169,7 @@ function executionsSchema() {
 function tabLayout(tab) {
   return {
     Production: { rows: 4000, filterThrough: 'Dish' },
+    Packaging:  { rows: 6000, filterThrough: 'Dish' },
     Deliveries: { rows: 6000, filterThrough: 'Dish' },
     Violations: { rows: 1000, filterThrough: null },
     Executions: { rows: 4000, filterThrough: null }
@@ -213,11 +246,11 @@ function normaliseCell(value, type) {
 }
 
 /**
- * Per-tab repair of rows read from a file written under an earlier schema, where Store held
- * the store number. Deliveries: put the number under storeId and the store's name under
- * store. Violations: put the store's System ID under storeSystemId and its name under store.
- * Rows that already have the newer fields are left alone. Call on every read of the tab;
- * never on a write.
+ * Per-tab repair of rows read from a file written under an earlier schema. Deliveries: Store
+ * once held the store number; put it under storeId and the store's name under store.
+ * Violations were store-shaped: a row with no Location System ID has the store number under
+ * Location, and a row with a System ID but no Location Type is a store. Rows that already
+ * have the newer fields are left alone. Call on every read of the tab; never on a write.
  */
 function normaliseRecords(tab, records) {
   if (tab !== 'Deliveries' && tab !== 'Violations') return records;
@@ -227,21 +260,25 @@ function normaliseRecords(tab, records) {
     return stores.find(s => String(s.id) === number) || null;
   };
   records.forEach(record => {
-    const store = String(record.store || '').trim();
-    if (!store) return;
     if (tab === 'Deliveries') {
+      const store = String(record.store || '').trim();
+      if (!store) return;
       if (!record.storeId) record.storeId = store;
       if (String(record.storeId) === store) {
         const match = byNumber(store);
         if (match) record.store = match.name;
       }
-    } else if (!record.storeSystemId) {
-      const match = byNumber(store);
+      return;
+    }
+    const location = String(record.location || '').trim();
+    if (!record.locationSystemId && location) {
+      const match = byNumber(location);
       if (match) {
-        record.store = match.name;
-        record.storeSystemId = match.key;
+        record.location = match.name;
+        record.locationSystemId = match.key;
       }
     }
+    if (!record.locationType && (record.locationSystemId || location)) record.locationType = 'Store';
   });
   return records;
 }

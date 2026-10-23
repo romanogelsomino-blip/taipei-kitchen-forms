@@ -11,8 +11,9 @@
 
 let CONFIG = { webAppUrl: null };
 let DATA = {
-  deliveries: [],
   production: [],
+  packaging: [],
+  deliveries: [],
   waste: [],
   stores: [],
   reference: null,   // the five reference lists plus their version, for the Config panel
@@ -222,6 +223,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadDemoData();
     updateStatus('demo', 'Demo Mode (sample data)');
     renderProduction();
+    renderPackaging();
     renderDeliveries();
     renderFoodSafety();
   }
@@ -348,6 +350,12 @@ async function loadDemoData() {
       { submittedAt: `${yesterday}T08:45:22.000Z`, date: yesterday, driver: 'Sam Blumenthal', store: '6542', arrivalTime: '08:40', coolerTemp: 38, dish: 'Pork Dumpling', qtyAdded: 28, removed: 1, reason: 'Out of date', receivedBy: 'Tom' },
       { submittedAt: `${yesterday}T09:20:55.000Z`, date: yesterday, driver: 'Sam Blumenthal', store: '6564', arrivalTime: '09:15', coolerTemp: 39, dish: 'Spring Roll (Veg)', qtyAdded: 25, removed: 0, reason: '', receivedBy: 'Emily' }
     ],
+    packaging: [
+      { submissionId: 'demo-cooler-1', date: today, time: '06:40', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6006', storeName: 'Store 6006', dish: 'Spring Roll (Veg)', loaded: 24, discarded: 0, discardReason: '', coolerTemp: 36, notes: '' },
+      { submissionId: 'demo-cooler-1', date: today, time: '06:40', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6006', storeName: 'Store 6006', dish: 'Shrimp Egg Roll', loaded: 30, discarded: 1, discardReason: 'Damaged', coolerTemp: 36, notes: '' },
+      { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Chicken Lo Mein', loaded: 18, discarded: 0, discardReason: '', coolerTemp: 43, notes: 'Cooler was slow to come down' },
+      { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Beef Chow Fun', loaded: 15, discarded: 0, discardReason: '', coolerTemp: 43, notes: 'Cooler was slow to come down' }
+    ],
     production: [
       { submittedAt: `${today}T06:15:33.000Z`, date: today, kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Spring Roll (Veg)', qtyProduced: 120, qtyDiscarded: 2, discardReason: 'Quality Issue' },
       { submittedAt: `${today}T06:45:10.000Z`, date: today, kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Shrimp Egg Roll', qtyProduced: 96, qtyDiscarded: 0, discardReason: '' },
@@ -424,10 +432,11 @@ async function fetchData(opts) {
     const data = await response.json();
     if (data.status === 'error') throw new Error(data.message || 'backend returned an error');
 
-    // Merge properties instead of replacing to preserve violations array
-    DATA.deliveries = data.deliveries || [];
     DATA.production = data.production || [];
+    DATA.packaging = data.packaging || [];
+    DATA.deliveries = data.deliveries || [];
     DATA.waste = data.waste || [];
+    DATA.violations = data.violations || [];
     DATA.stores = data.stores || [];
     DATA.reference = data.reference || null;
     DATA.window = data.window || null;   // absent until the backend serves windows
@@ -435,55 +444,17 @@ async function fetchData(opts) {
     LAST_FETCH_AT = Date.now();
 
     console.log('[Data] Fetched:', DATA);
-
-    // Fetch violations tracker data (await to prevent race condition)
-    await fetchViolations(win);
-
     updateStatus('connected', statusText());
 
     // Production precedes delivery: food is cooked before it is delivered.
     renderProduction();
+    renderPackaging();
     renderDeliveries();
     renderFoodSafety();
     configOnDataRefresh();   // the Config panel decides for itself what a poll may touch
   } catch (e) {
     console.error('[Data] Fetch failed:', e);
     updateStatus('error', `Fetch failed: ${e.message}`);
-  }
-}
-
-// Fetch violations from tracker
-async function fetchViolations(win) {
-  if (!CONFIG.webAppUrl) {
-    DATA.violations = [];
-    return;
-  }
-
-  try {
-    const range = win || defaultWindow();
-    const url = `${CONFIG.webAppUrl}?action=getViolations&from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      mode: 'cors'
-    });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
-    if (data.status === 'ok') {
-      DATA.violations = data.violations || [];
-      console.log('[Violations] Fetched:', DATA.violations.length);
-    } else {
-      console.warn('[Violations] API returned non-ok status:', {
-        status: data.status,
-        message: data.message || 'No message',
-        response: data
-      });
-      DATA.violations = [];
-    }
-  } catch (e) {
-    console.warn('[Violations] Endpoint not available or fetch failed (this is okay if endpoint not deployed):', e.message);
-    DATA.violations = [];
   }
 }
 
@@ -588,6 +559,14 @@ function showPanel(panelName) {
   }
 }
 
+/** An element with a class and text. Built nodes carry server strings as text, never as HTML. */
+function makeEl(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Home panel: form launchers
 // ═══════════════════════════════════════════════════════════════════════════
@@ -596,37 +575,39 @@ function showPanel(panelName) {
 // from data/kitchens.json and data/stores.json, the same files the forms read.
 
 const HOME_FORMS = {
-  production: { page: '../taipei_production_form3.html', param: 'kitchen', selectId: 'home-kitchen', buttonId: 'home-open-production', label: 'Open Production Log', prompt: 'Select a kitchen' },
-  delivery:   { page: '../taipei_delivery_form3.html',   param: 'store',   selectId: 'home-store',   buttonId: 'home-open-delivery',   label: 'Open Delivery Form',   prompt: 'Select a store',   qrLabel: 'Store QR code',   qrCaption: 'Delivery Form' }
+  production: { page: '../taipei_production_form3.html', param: 'kitchen', list: 'kitchens', selectId: 'home-kitchen',      buttonId: 'home-open-production', label: 'Open Production Log', prompt: 'Select a kitchen' },
+  packaging:  { page: '../taipei_packaging_form.html',   param: 'kitchen', list: 'kitchens', selectId: 'home-pack-kitchen', buttonId: 'home-open-packaging',  label: 'Open Packaging Form', prompt: 'Select a kitchen',
+                qr: { noun: 'kitchen', caption: 'Packaging Form', file: k => 'taipei-packaging-' + (k.kitchenId || k.id) } },
+  delivery:   { page: '../taipei_delivery_form3.html',   param: 'store',   list: 'stores',   selectId: 'home-store',        buttonId: 'home-open-delivery',   label: 'Open Delivery Form',  prompt: 'Select a store',
+                qr: { noun: 'store',   caption: 'Delivery Form',  file: s => 'taipei-delivery-' + (s.storeId || s.id) } }   // named by the organisation's own id, which is how a printed code is recognised
 };
 
-let HOME_STORES = [];   // the store entries behind the home page's pickers
+const HOME_LISTS = { kitchens: [], stores: [] };   // the entries behind the home page's pickers
 
 async function loadHomeLocations() {
   const status = document.getElementById('home-locations-status');
   try {
-    const [kitchens, stores] = await Promise.all(['kitchens', 'stores'].map(async key => {
+    await Promise.all(Object.keys(HOME_LISTS).map(async key => {
       const response = await fetch('../data/' + key + '.json');
       if (!response.ok) throw new Error(key + '.json: HTTP ' + response.status);
       const data = await response.json();
-      return (data[key] || []).filter(entry => entry.active && !entry.deletedAt)
+      HOME_LISTS[key] = (data[key] || []).filter(entry => entry.active && !entry.deletedAt)
         .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
     }));
-    const storeText = s => s.location ? `${s.name} · ${s.location}` : s.name;
-
     // Links and QR codes carry the entry's System ID. The delivery form resolves the store
     // number from it, and still accepts the number itself, which codes printed earlier carry.
-    HOME_STORES = stores;
-    fillHomeSelect('home-kitchen', kitchens, k => k.name, k => k.id);
-    fillHomeSelect('home-store', stores, storeText, s => s.id);
-    fillHomeSelect('home-qr-store', stores, storeText, s => s.id);
+    Object.values(HOME_FORMS).forEach(form => fillHomeSelect(form.selectId, HOME_LISTS[form.list], homeEntryText, e => e.id));
     status.textContent = '';
   } catch (e) {
     console.error('[Home] Could not load the kitchen and store lists:', e);
     status.textContent = 'The kitchen and store lists could not be loaded. Reload to try again.';
   }
   homeUpdateLaunchers();
-  homeQrUpdate();
+  homeQrFormChange();
+}
+
+function homeEntryText(entry) {
+  return entry.location ? `${entry.name} · ${entry.location}` : entry.name;
 }
 
 function fillHomeSelect(id, entries, text, value) {
@@ -651,20 +632,34 @@ function homeUpdateLaunchers() {
   Object.keys(HOME_FORMS).forEach(kind => {
     const form = HOME_FORMS[kind];
     const ready = homeTarget(kind) !== null;
-
     const button = document.getElementById(form.buttonId);
     button.disabled = !ready;
     button.textContent = ready ? form.label : form.prompt;
-
   });
 }
 
-/** The QR card carries its own store picker, so it does not depend on a choice made above. */
+/** The QR card's form choice decides which list its location picker shows. */
+function homeQrForm() {
+  return HOME_FORMS[document.getElementById('home-qr-form').value] || HOME_FORMS.packaging;
+}
+
+function homeQrFormChange() {
+  const form = homeQrForm();
+  const select = document.getElementById('home-qr-location');
+  const noun = form.qr.noun;
+  document.getElementById('home-qr-location-label').textContent = noun.charAt(0).toUpperCase() + noun.slice(1);
+  select.options[0].textContent = `— Select a ${noun} —`;
+  fillHomeSelect('home-qr-location', HOME_LISTS[form.list], homeEntryText, e => e.id);
+  select.value = '';
+  document.getElementById('home-qr-output').hidden = true;
+  homeQrUpdate();
+}
+
 function homeQrUpdate() {
-  const chosen = document.getElementById('home-qr-store').value;
+  const chosen = document.getElementById('home-qr-location').value;
   const button = document.getElementById('home-qr-generate');
   button.disabled = !chosen;
-  button.textContent = chosen ? 'Generate QR code' : 'Select a store';
+  button.textContent = chosen ? 'Generate QR code' : `Select a ${homeQrForm().qr.noun}`;
 }
 
 /**
@@ -672,8 +667,7 @@ function homeQrUpdate() {
  * is what a link needs and what a phone camera cannot use. Resolving against the current
  * location also means a code generated on the staging dashboard points at the staging form.
  */
-function homeQrUrl(systemId) {
-  const form = HOME_FORMS.delivery;
+function homeQrUrl(form, systemId) {
   const target = `${form.page}?${form.param}=${encodeURIComponent(systemId)}`;
   return new URL(target, window.location.href).href;
 }
@@ -682,9 +676,10 @@ function homeQrUrl(systemId) {
 function homeGenerateQr() {
   const status = document.getElementById('home-qr-status');
   const output = document.getElementById('home-qr-output');
-  const select = document.getElementById('home-qr-store');
+  const form = homeQrForm();
+  const select = document.getElementById('home-qr-location');
   if (!select.value) return;
-  const url = homeQrUrl(select.value);
+  const url = homeQrUrl(form, select.value);
 
   if (typeof qrcode !== 'function') {
     output.hidden = true;
@@ -717,13 +712,13 @@ function homeGenerateQr() {
   }
 
   document.getElementById('home-qr-label').textContent =
-    'Delivery Form — ' + select.options[select.selectedIndex].textContent;
+    form.qr.caption + ' — ' + select.options[select.selectedIndex].textContent;
   document.getElementById('home-qr-url').textContent = url;
 
   const download = document.getElementById('home-qr-download');
   download.href = canvas.toDataURL('image/png');
-  const entry = HOME_STORES.find(s => s.id === select.value);
-  download.download = 'taipei-delivery-' + (entry ? entry.storeId : select.value) + '.png';   // named by store number, which is how a printed code is recognised
+  const entry = HOME_LISTS[form.list].find(e => e.id === select.value);
+  download.download = form.qr.file(entry || { id: select.value }) + '.png';
 
   output.hidden = false;
   status.textContent = '';
@@ -783,7 +778,11 @@ function hasTemperatureViolation(delivery) {
 // T-054: Weekly Food Safety Summary Panel
 // ═══════════════════════════════════════════════════════════════════════════
 
-const VIOLATION_TYPES = ['Cooler Temperature', 'Arrival Temperature'];   // the rule names in backend/Violations.gs, in its order
+// The rule names in backend/Violations.gs, by the kind of location each applies to.
+const VIOLATION_TYPES = {
+  Kitchen: ['Packaging Temperature'],
+  Store:   ['Cooler Temperature', 'Arrival Temperature']
+};
 
 /** A store's name from its number, for rows that carry only the number. */
 function storeNameFor(number) {
@@ -792,9 +791,10 @@ function storeNameFor(number) {
 }
 
 /**
- * Per-store counts for the week ending on the chosen day, from the Violations tab: one per
- * violation, split by type. A store delivered to that week with no violation shows zeros, so
- * the week reads as a checklist. A type the list above does not know gets its own column.
+ * Per-location counts for the week ending on the chosen day, from the Violations tab: one per
+ * violation, split by type. A kitchen that loaded coolers or a store that was delivered to
+ * that week with no violation shows zeros, so the week reads as a checklist. Kitchens come
+ * first. A type the table above does not know gets its own column on that card.
  */
 function loadFoodSafety() {
   const weekEnd = document.getElementById('safety-week-end').value;
@@ -804,38 +804,46 @@ function loadFoodSafety() {
   ensureWindow(weekStart);   // a wider window refetches and re-renders this panel
 
   const inWeek = date => { const d = normalizeDate(date); return d >= weekStart && d <= weekEnd; };
-  const violations = (DATA.violations || []).filter(v => inWeek(v.date));
-  const types = VIOLATION_TYPES.slice();
-  violations.forEach(v => { if (v.violationType && !types.includes(v.violationType)) types.push(v.violationType); });
-
-  const stores = new Map();   // store number → { name, counts }
-  const storeEntry = (number, name) => {
-    const key = String(number || name || '');
-    if (!stores.has(key)) stores.set(key, { name: name || storeNameFor(number), counts: Object.fromEntries(types.map(t => [t, 0])) });
-    return stores.get(key);
+  const locations = new Map();   // "<type>:<own id>" → { type, name, counts }
+  const location = (type, id, name) => {
+    const key = type + ':' + String(id || name || '');
+    if (!locations.has(key)) locations.set(key, { type: type, name: name || (type + ' ' + id), counts: {} });
+    return locations.get(key);
   };
-  DATA.deliveries.filter(d => inWeek(d.date)).forEach(d => storeEntry(d.store, d.storeName));
-  violations.forEach(v => { storeEntry(v.storeId, v.storeName).counts[v.violationType] += 1; });
+  (DATA.packaging || []).filter(r => inWeek(r.date)).forEach(r => location('Kitchen', r.kitchenId, r.kitchen));
+  DATA.deliveries.filter(d => inWeek(d.date)).forEach(d => location('Store', d.store, d.storeName || storeNameFor(d.store)));
+  (DATA.violations || []).filter(v => inWeek(v.date)).forEach(v => {
+    const where = location(v.locationType || 'Store', v.locationId, v.location);
+    where.counts[v.violationType] = (where.counts[v.violationType] || 0) + 1;
+  });
 
   container.textContent = '';
-  if (!stores.size) {
-    container.appendChild(violationNode('div', 'loading', 'No deliveries or violations in this week.'));
+  if (!locations.size) {
+    container.appendChild(makeEl('div', 'loading', 'No coolers, deliveries or violations in this week.'));
     return;
   }
-  Array.from(stores.values()).sort((a, b) => a.name.localeCompare(b.name)).forEach(store => {
-    const card = violationNode('div', 'safety-store-card');
-    card.appendChild(violationNode('div', 'safety-store-name', store.name));
-    const counts = violationNode('div', 'safety-violations');
-    types.forEach(type => {
-      const cell = violationNode('div');
-      cell.appendChild(violationNode('div', 'violation-count' + (store.counts[type] ? '' : ' zero'), String(store.counts[type])));
-      cell.appendChild(violationNode('div', 'violation-label', type));
-      counts.appendChild(cell);
+  const order = { Kitchen: 0, Store: 1 };
+  Array.from(locations.values())
+    .sort((a, b) => (order[a.type] - order[b.type]) || a.name.localeCompare(b.name))
+    .forEach(where => {
+      const types = (VIOLATION_TYPES[where.type] || []).slice();
+      Object.keys(where.counts).forEach(type => { if (!types.includes(type)) types.push(type); });
+      const card = makeEl('div', 'safety-store-card');
+      const title = makeEl('div', 'safety-store-name', where.name);
+      title.appendChild(makeEl('span', 'violation-location-type', where.type));
+      card.appendChild(title);
+      const counts = makeEl('div', 'safety-violations');
+      types.forEach(type => {
+        const n = where.counts[type] || 0;
+        const cell = makeEl('div');
+        cell.appendChild(makeEl('div', 'violation-count' + (n ? '' : ' zero'), String(n)));
+        cell.appendChild(makeEl('div', 'violation-label', type));
+        counts.appendChild(cell);
+      });
+      card.appendChild(counts);
+      if (!Object.values(where.counts).some(Boolean)) card.appendChild(makeEl('p', 'safety-all-clear', 'No violations this week'));
+      container.appendChild(card);
     });
-    card.appendChild(counts);
-    if (!Object.values(store.counts).some(Boolean)) card.appendChild(violationNode('p', 'safety-all-clear', 'No violations this week'));
-    container.appendChild(card);
-  });
 }
 
 // Violation Alert Banner Functions
@@ -882,6 +890,160 @@ function checkForViolations() {
   } else {
     document.getElementById('violation-alert-banner').style.display = 'none';
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Packaging panel
+// ═══════════════════════════════════════════════════════════════════════════
+// One cooler per row: a submission's dish rows folded into their totals, with the dish lines
+// a tap away. Ranges work as on the other panels: filter what is loaded, widen when asked.
+
+const PACKAGING_STATE = {
+  quickRange: 7,
+  page: 1,
+  perPage: 25,
+  coolers: [],
+  open: {},   // cooler key → true while its dish lines are shown
+  isInitialized: false
+};
+
+function renderPackaging() {
+  PACKAGING_STATE.isInitialized = true;
+  setPackagingQuickRange(PACKAGING_STATE.quickRange);
+}
+
+function setPackagingQuickRange(range) {
+  PACKAGING_STATE.quickRange = range;
+  PACKAGING_STATE.page = 1;
+  document.querySelectorAll('#panel-packaging .btn-time-range').forEach(btn => btn.classList.toggle('active', btn.dataset.range == range));
+
+  const today = getTodayDate();
+  let rows = DATA.packaging || [];
+  if (range === 'today') {
+    rows = rows.filter(r => normalizeDate(r.date) === today);
+  } else if (range === 'all') {
+    ensureWindow(earliestWindowFrom());
+  } else {
+    const start = addDaysISO(today, -range);
+    ensureWindow(start);
+    rows = rows.filter(r => normalizeDate(r.date) >= start);
+  }
+  PACKAGING_STATE.coolers = packagingCoolers(rows);
+  updatePackagingMetrics();
+  displayPackagingTable();
+}
+
+/** Dish rows folded into coolers, newest first. */
+function packagingCoolers(rows) {
+  const coolers = new Map();
+  rows.forEach(r => {
+    const key = r.submissionId || [r.date, r.time, r.kitchen, r.store].join('|');
+    if (!coolers.has(key)) {
+      coolers.set(key, {
+        key, date: r.date, time: r.time || '', kitchen: r.kitchen || '', driver: r.driver || '',
+        storeName: r.storeName || storeNameFor(r.store), coolerTemp: r.coolerTemp, notes: r.notes || '',
+        loaded: 0, discarded: 0, dishes: []
+      });
+    }
+    const cooler = coolers.get(key);
+    cooler.loaded += parseInt(r.loaded, 10) || 0;
+    cooler.discarded += parseInt(r.discarded, 10) || 0;
+    cooler.dishes.push(r);
+  });
+  return Array.from(coolers.values()).sort((a, b) => (b.date + ' ' + b.time).localeCompare(a.date + ' ' + a.time));
+}
+
+function updatePackagingMetrics() {
+  const coolers = PACKAGING_STATE.coolers;
+  const loaded = coolers.reduce((sum, c) => sum + c.loaded, 0);
+  const discarded = coolers.reduce((sum, c) => sum + c.discarded, 0);
+  const temps = coolers.map(c => parseFloat(c.coolerTemp)).filter(t => !isNaN(t));
+  const warmest = temps.length ? Math.max(...temps) : null;
+  const over = temps.filter(t => t > TEMP_LIMIT_F).length;
+
+  const grid = document.getElementById('packaging-metrics');
+  grid.textContent = '';
+  [
+    ['Coolers Loaded', coolers.length.toLocaleString(), 'One per store per pickup', false],
+    ['Items Loaded', loaded.toLocaleString(), discarded.toLocaleString() + ' discarded at loading', false],
+    ['Warmest Cooler', warmest === null ? '—' : warmest + '°F', 'Limit ' + TEMP_LIMIT_F + '°F', warmest !== null && warmest > TEMP_LIMIT_F],
+    ['Over Limit', over.toLocaleString(), 'Coolers above ' + TEMP_LIMIT_F + '°F', over > 0]
+  ].forEach(([label, value, sub, alert]) => {
+    const card = makeEl('div', 'metric-card' + (alert ? ' alert' : ''));
+    card.appendChild(makeEl('div', 'metric-label', label));
+    card.appendChild(makeEl('div', 'metric-value', value));
+    card.appendChild(makeEl('div', 'metric-sub', sub));
+    grid.appendChild(card);
+  });
+}
+
+function displayPackagingTable() {
+  const coolers = PACKAGING_STATE.coolers;
+  const container = document.getElementById('packaging-table-container');
+  const pagination = document.getElementById('packaging-pagination');
+  document.getElementById('packaging-record-count').textContent = coolers.length + ' cooler' + (coolers.length === 1 ? '' : 's');
+  container.textContent = '';
+  if (!coolers.length) {
+    container.appendChild(makeEl('p', 'hint', 'No coolers in this range'));
+    pagination.hidden = true;
+    return;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(coolers.length / PACKAGING_STATE.perPage));
+  PACKAGING_STATE.page = Math.min(Math.max(1, PACKAGING_STATE.page), totalPages);
+  const start = (PACKAGING_STATE.page - 1) * PACKAGING_STATE.perPage;
+  const page = coolers.slice(start, start + PACKAGING_STATE.perPage);
+
+  const table = makeEl('table', 'data-table packaging-table');
+  const thead = makeEl('thead');
+  const headRow = makeEl('tr');
+  ['Date', 'Time', 'Kitchen', 'Driver', 'Intended Store', 'Loaded', 'Discarded', 'Cooler Temp'].forEach(h => headRow.appendChild(makeEl('th', '', h)));
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+  const tbody = makeEl('tbody');
+  page.forEach(cooler => {
+    const warm = parseFloat(cooler.coolerTemp) > TEMP_LIMIT_F;
+    const row = makeEl('tr', 'packaging-cooler' + (warm ? ' is-warm' : '') + (PACKAGING_STATE.open[cooler.key] ? ' is-open' : ''));
+    [normalizeDate(cooler.date), cooler.time, cooler.kitchen, cooler.driver, cooler.storeName,
+     String(cooler.loaded), String(cooler.discarded), isNaN(parseFloat(cooler.coolerTemp)) ? '—' : parseFloat(cooler.coolerTemp) + '°F']
+      .forEach(text => row.appendChild(makeEl('td', '', text)));
+    row.onclick = () => {
+      PACKAGING_STATE.open[cooler.key] = !PACKAGING_STATE.open[cooler.key];
+      displayPackagingTable();
+    };
+    tbody.appendChild(row);
+    if (PACKAGING_STATE.open[cooler.key]) tbody.appendChild(packagingDishesRow(cooler));
+  });
+  table.appendChild(tbody);
+  container.appendChild(table);
+
+  pagination.hidden = totalPages <= 1;
+  document.getElementById('packaging-page-info').textContent = 'Page ' + PACKAGING_STATE.page + ' of ' + totalPages;
+}
+
+/** The dish lines of one cooler, as a row spanning the table. */
+function packagingDishesRow(cooler) {
+  const row = makeEl('tr', 'packaging-dishes');
+  const cell = makeEl('td');
+  cell.colSpan = 8;
+  const inner = makeEl('table', 'packaging-dishes-table');
+  const head = makeEl('tr');
+  ['Dish', 'Loaded', 'Discarded', 'Reason'].forEach(h => head.appendChild(makeEl('th', '', h)));
+  inner.appendChild(head);
+  cooler.dishes.forEach(d => {
+    const line = makeEl('tr');
+    [d.dish || '', String(d.loaded || 0), String(d.discarded || 0), d.discardReason || ''].forEach(text => line.appendChild(makeEl('td', '', text)));
+    inner.appendChild(line);
+  });
+  cell.appendChild(inner);
+  if (cooler.notes) cell.appendChild(makeEl('p', 'packaging-notes', 'Notes: ' + cooler.notes));
+  row.appendChild(cell);
+  return row;
+}
+
+function packagingPage(delta) {
+  PACKAGING_STATE.page += delta;
+  displayPackagingTable();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1749,10 +1911,7 @@ function violationRangeStart() {
 }
 
 function violationNode(tag, cls, text) {
-  const node = document.createElement(tag);
-  if (cls) node.className = cls;
-  if (text !== undefined) node.textContent = text;
-  return node;
+  return makeEl(tag, cls, text);
 }
 
 function violationField(label, value) {
@@ -1808,7 +1967,9 @@ function violationCard(v, resolvers) {
 
   const head = violationNode('div', 'violation-head');
   head.appendChild(violationNode('span', 'violation-status ' + (resolved ? 'is-resolved' : 'is-open'), resolved ? 'Resolved' : 'Open'));
-  head.appendChild(violationNode('span', 'violation-store', v.storeName || v.store || 'Unknown store'));
+  const where = violationNode('span', 'violation-store', v.location || 'Unknown location');
+  where.appendChild(violationNode('span', 'violation-location-type', v.locationType || 'Store'));
+  head.appendChild(where);
   head.appendChild(violationNode('span', 'violation-when', 'Detected ' + violationWhen(v.timestamp)));
   card.appendChild(head);
 
@@ -1821,7 +1982,7 @@ function violationCard(v, resolvers) {
 
   const meta = violationNode('div', 'violation-meta');
   if (v.driver) meta.appendChild(violationField('Driver', v.driver));
-  meta.appendChild(violationField('Store notes', v.notes || 'None'));
+  meta.appendChild(violationField('Notes', v.notes || 'None'));
   card.appendChild(meta);
 
   if (resolved) {

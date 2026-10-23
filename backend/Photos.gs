@@ -5,7 +5,6 @@
 // and the links go onto every row of that delivery in the monthly Deliveries tab: matched by
 // submission id, or by store, date and driver for payloads sent before the forms carried one.
 
-
 /** The photo root for this environment, by id only: a wrong id or a sharing gap fails loudly instead of minting a second folder. */
 function getPhotoRootFolder() {
   const id = requireProperty('PHOTO_FOLDER_ID');
@@ -104,9 +103,9 @@ function findPhotoRows(photos, filedDate) {
   const idx = headerIndex(values[0], schema).idx;
   const wanted = photos.submissionId
     ? r => String(r.submissionId) === String(photos.submissionId)
-    : r => String(r.storeId) === String(photos.storeId) && String(r.date) === String(photos.date) &&
+    : r => String(r.storeId || r.store) === String(photos.storeId) && String(r.date) === String(photos.date) &&   // rows from before Store ID existed hold the number under Store
            String(r.driver) === String(photos.driver) && !r.beforePhotoLink && !r.afterPhotoLink;
-  return { sheet, idx, rows: normaliseRecords('Deliveries', readRows(values, schema).records).filter(wanted).map(r => r._row) };
+  return { sheet, idx, rows: readRows(values, schema).records.filter(wanted).map(r => r._row) };
 }
 
 /**

@@ -58,30 +58,38 @@ function publicRecord(record) {
 }
 
 /**
- * The dashboard payload for one window. `waste` is derived, not stored: it is the delivery
- * rows that had something removed from a shelf. It does not include what a kitchen discarded
+ * The dashboard payload for one window: everything the dashboard shows, in one request, so
+ * each month file is opened once. `waste` is derived, not stored: it is the delivery rows
+ * that had something removed from a shelf. It does not include what a kitchen discarded
  * during production, which lives on the Production tab.
  */
 function action_dashboard(e) {
   try {
     const win = requestWindow(e);
-    const production = recordsInWindow(win, 'Production').records.map(publicRecord);
-    const deliveryRead = recordsInWindow(win, 'Deliveries');
-    const deliveries = deliveryRead.records.map(record => {
+    // Delivery and packaging rows name the store two ways: the dashboard filters and groups
+    // on `store`, the store number, and shows `storeName`, the sheet's own column.
+    const byStoreNumber = record => {
       const row = publicRecord(record);
-      row.storeName = row.store;   // the sheet's Store column
-      row.store = row.storeId;     // the dashboard filters and groups on `store`, the store number
+      row.storeName = row.store;
+      row.store = row.storeId;
       return row;
-    });
+    };
+    const production = recordsInWindow(win, 'Production').records.map(publicRecord);
+    const packaging = recordsInWindow(win, 'Packaging').records.map(byStoreNumber);
+    const deliveryRead = recordsInWindow(win, 'Deliveries');
+    const deliveries = deliveryRead.records.map(byStoreNumber);
     const waste = deliveries
       .filter(row => (parseInt(row.removed, 10) || 0) > 0)
       .map(row => Object.assign({}, row, { qtyRemoved: row.removed }));
+    const violations = publicViolations(recordsInWindow(win, 'Violations').records);
 
     return jsonResponse({
       status: 'ok',
       production: production,
+      packaging: packaging,
       deliveries: deliveries,
       waste: waste,
+      violations: violations,
       stores: storeList(),
       reference: referencePayload(),   // the five lists, for the Config tab; same memo as storeList()
       window: { from: win.from, to: win.to, months: win.months, missingMonths: deliveryRead.missing },

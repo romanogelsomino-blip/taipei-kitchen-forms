@@ -57,6 +57,14 @@
       </svg>
       <span class="nav-label">Production</span>
     </a>
+    <a href="#packaging" class="nav-link" data-panel="packaging">
+      <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"></path>
+        <path d="M3 8l9 5 9-5"></path>
+        <path d="M12 13v8"></path>
+      </svg>
+      <span class="nav-label">Packaging</span>
+    </a>
     <a href="#deliveries" class="nav-link" data-panel="deliveries">
       <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="1" y="3" width="15" height="13"></rect>
@@ -111,6 +119,9 @@
     <a href="#production" class="mobile-nav-link" data-panel="production">
       <span class="mobile-nav-label">Kitchen</span>
     </a>
+    <a href="#packaging" class="mobile-nav-link" data-panel="packaging">
+      <span class="mobile-nav-label">Packing</span>
+    </a>
     <a href="#deliveries" class="mobile-nav-link" data-panel="deliveries">
       <span class="mobile-nav-label">Trucks</span>
     </a>
@@ -147,11 +158,11 @@
     <!-- Home Panel -->
     <section id="panel-home" class="panel active">
       <h1 class="panel-title">Taipei Kitchen Bento Operations</h1>
-      <p class="panel-subtitle">Production and delivery logging for the Giant bento program</p>
+      <p class="panel-subtitle">Production, packaging and delivery logging for the Giant bento program</p>
 
       <div class="section-card">
         <h2 class="section-title">What this system does</h2>
-        <p style="line-height:1.6;max-width:72ch;">Taipei Kitchen cooks ready-to-eat bento for Giant supermarkets across central Pennsylvania. Every batch is logged from kitchen to shelf: cook and cooling times when the food is made, then cooler temperatures, stock counts, and case photos at each store delivery.</p>
+        <p style="line-height:1.6;max-width:72ch;">Taipei Kitchen cooks ready-to-eat bento for Giant supermarkets across central Pennsylvania. Every batch is logged from kitchen to shelf: cook times when the food is made, the temperature of each cooler as it is loaded for a store, then cooler temperatures, stock counts, and case photos at each store delivery.</p>
         <p style="line-height:1.6;max-width:72ch;margin-top:10px;">Every entry lands in the operations spreadsheet, where it backs HACCP food-safety compliance and feeds this dashboard. The sections in the menu show what has been logged.</p>
       </div>
 
@@ -168,6 +179,17 @@
           <button class="btn-apply-filters home-launch" id="home-open-production" onclick="homeOpen('production')" disabled>Select a kitchen</button>
         </div>
         <div class="section-card">
+          <h2 class="section-title">Packaging Form</h2>
+          <p class="home-launcher-blurb">Drivers record each cooler at pickup: the store it is for, its temperature, and what was loaded or discarded.</p>
+          <div class="filter-field">
+            <label for="home-pack-kitchen">Kitchen</label>
+            <select id="home-pack-kitchen" onchange="homeUpdateLaunchers()">
+              <option value="">— Select a kitchen —</option>
+            </select>
+          </div>
+          <button class="btn-apply-filters home-launch" id="home-open-packaging" onclick="homeOpen('packaging')" disabled>Select a kitchen</button>
+        </div>
+        <div class="section-card">
           <h2 class="section-title">Delivery Form</h2>
           <p class="home-launcher-blurb">Drivers record each store drop: product and cooler temperatures, what was stocked and pulled, and case photos.</p>
           <div class="filter-field">
@@ -180,18 +202,28 @@
         </div>
       </div>
       <div class="section-card">
-        <h2 class="section-title">Store QR codes</h2>
+        <h2 class="section-title">QR codes</h2>
         <p class="home-launcher-blurb">
-          The code posted at a store opens the delivery form with that store already filled
-          in. Generate one here to replace a code that has been damaged or lost.
+          The code posted at a kitchen opens the packaging form for that kitchen; the code at a
+          store opens the delivery form for that store. Generate one here to replace a code
+          that has been damaged or lost.
         </p>
-        <div class="filter-field">
-          <label for="home-qr-store">Store</label>
-          <select id="home-qr-store" onchange="homeQrUpdate()">
-            <option value="">— Select a store —</option>
-          </select>
+        <div class="home-qr-pick">
+          <div class="filter-field">
+            <label for="home-qr-form">Form</label>
+            <select id="home-qr-form" onchange="homeQrFormChange()">
+              <option value="packaging">Packaging form (kitchen)</option>
+              <option value="delivery">Delivery form (store)</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="home-qr-location" id="home-qr-location-label">Kitchen</label>
+            <select id="home-qr-location" onchange="homeQrUpdate()">
+              <option value="">— Select a kitchen —</option>
+            </select>
+          </div>
         </div>
-        <button class="btn-apply-filters" id="home-qr-generate" onclick="homeGenerateQr()" disabled>Select a store</button>
+        <button class="btn-apply-filters" id="home-qr-generate" onclick="homeGenerateQr()" disabled>Select a kitchen</button>
         <div id="home-qr-output" class="home-qr-output" hidden>
           <canvas id="home-qr-canvas" class="home-qr-canvas"></canvas>
           <div class="home-qr-meta">
@@ -315,7 +347,7 @@
     <!-- Food Safety Panel -->
     <section id="panel-food-safety" class="panel">
       <h1 class="panel-title">Weekly Food Safety Summary</h1>
-      <p class="panel-subtitle">Temperature violations by store for the week, one per violation. Every violation is listed below.</p>
+      <p class="panel-subtitle">Temperature violations by store for the chosen week, one per violation. Every violation in the loaded date range, shown in the header, is listed below.</p>
 
       <div class="week-selector">
         <label>Week Ending:</label>
@@ -437,6 +469,40 @@
           <button class="btn-clear-filters" onclick="prevProductionPage()">← Previous</button>
           <span style="font-family:'DM Mono',monospace;font-size:0.85rem;padding:8px 16px;color:var(--mid);" id="production-page-info">Page 1 of 1</span>
           <button class="btn-apply-filters" onclick="nextProductionPage()">Next →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Packaging Panel -->
+    <section id="panel-packaging" class="panel">
+      <h1 class="panel-title">Packaging</h1>
+      <p class="panel-subtitle">Coolers loaded at the kitchen: one per store, its temperature, and what went in</p>
+
+      <div style="margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--mid);font-weight:600;">QUICK:</span>
+        <button class="btn-time-range" data-range="today" onclick="setPackagingQuickRange('today')">Today</button>
+        <button class="btn-time-range active" data-range="7" onclick="setPackagingQuickRange(7)">7 Days</button>
+        <button class="btn-time-range" data-range="30" onclick="setPackagingQuickRange(30)">30 Days</button>
+        <button class="btn-time-range" data-range="all" onclick="setPackagingQuickRange('all')">All</button>
+      </div>
+
+      <div class="metrics-grid" id="packaging-metrics">
+        <div class="loading">Loading metrics...</div>
+      </div>
+
+      <div class="section-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h2 class="section-title" style="margin:0;">Coolers</h2>
+          <span style="font-family:'DM Mono',monospace;font-size:0.8rem;color:var(--mid);" id="packaging-record-count">—</span>
+        </div>
+        <p class="hint" style="margin:-8px 0 12px;">Tap a cooler for its dishes.</p>
+        <div id="packaging-table-container">
+          <div class="loading">Loading coolers...</div>
+        </div>
+        <div id="packaging-pagination" class="packaging-pagination" hidden>
+          <button class="btn-clear-filters" onclick="packagingPage(-1)">← Previous</button>
+          <span id="packaging-page-info">Page 1 of 1</span>
+          <button class="btn-apply-filters" onclick="packagingPage(1)">Next →</button>
         </div>
       </div>
     </section>
