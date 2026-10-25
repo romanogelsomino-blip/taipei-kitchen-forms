@@ -58,9 +58,10 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
    environment's reference lists and carrying the note `CI SMOKE TEST - run <run id> - safe to
    delete`; requires the current month file's Production, Packaging and Deliveries tabs to
    each grow by one row, and reads the delivery row back by its submission id. Then it
-   imports one sales row for the reserved store `0000`, requires the Sales tab to grow by
-   one, imports the same row again and requires the tab not to grow. Reads can succeed while writes fail, and a write is the only thing that
-   proves the deployment can reach its stores. Production gets no synthetic row. Then it
+   imports one sales row for a random real store and dish, requires the Sales tab to grow by
+   one, imports the same row again and requires the tab not to grow. Reads can succeed while
+   writes fail, and a write is the only thing that proves the deployment can reach its
+   stores. Production gets no synthetic row. Then it
    renames the reserved store `0000` through the config endpoint and requires the reference
    version to change, which proves the write path and its cache invalidation. Last, it
    raises one simulated violation for a random real store, driver and dish, noted

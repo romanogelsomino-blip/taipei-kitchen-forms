@@ -311,8 +311,8 @@ jobs:
             || { echo "::error::the smoke row is not readable back by its submission id ($(webapp_field "$BACK" .matched) matched)."; exit 1; }
           echo "read back 1 row for $DELIVERY_ID"
 
-          # One sales row for the reserved store and a real dish: the Sales tab grows by one,
-          # and the same row sent again is replaced where it stands, so the tab does not grow.
+          # One sales row for a real store and a real dish: the Sales tab grows by one, and the
+          # same row sent again is replaced where it stands, so the tab does not grow.
           node scripts/smoke-payload.js sales reference=reference.json > sales.json
           smoke_write Sales sales.json
           BEFORE_SALES=$(tab_rows Sales) \

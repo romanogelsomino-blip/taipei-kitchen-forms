@@ -185,9 +185,8 @@ function deliveryPayload(over = {}) {
 }
 
 /**
- * The body a sales import POSTs: rows already reduced to one per store, UPC and day. The
- * smoke's row is for the reserved store 0000 — Sales has no notes column to mark a test row,
- * so the store is the marker — and a real dish's UPC when a reference file is given.
+ * The body a sales import POSTs: rows already reduced to one per store, UPC and day. With a
+ * reference file the row names a real store and a real dish, like every other smoke row.
  */
 function salesPayload(over = {}) {
   const s = settings(over);
@@ -197,8 +196,8 @@ function salesPayload(over = {}) {
     type: 'sales',
     rows: [{
       date: s.date,
-      storeId: over.store || '0000',
-      upc: (over.reference && s.cast.dishes[0].upc) || '00000000000000',   // a real dish's code, else the reserved dish's
+      storeId: s.cast.store.storeId,
+      upc: s.cast.dishes[0].upc || '00000000000000',   // the dish's code; the reserved dish's only when the list has none
       units: units,
       transactions: randInt(Math.max(1, units - 5), units),
       netSales: Math.round(units * price * 100) / 100,
