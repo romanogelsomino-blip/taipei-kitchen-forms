@@ -145,7 +145,7 @@ function simulateViolation(note) {
   }
 
   const reference = referencePayload();
-  const live = list => (reference[list] || []).filter(e => e.active && !e.deletedAt);
+  const live = list => (reference[list] || []).filter(e => e.active !== false && e.verified !== false && !e.deletedAt);   // what a form would offer
   const pick = list => list[Math.floor(Math.random() * list.length)];
   const store = pick(live('stores').filter(s => s.id !== REFERENCE_RESERVED_STORE_UUID));
   const driver = pick(live('drivers'));
