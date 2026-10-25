@@ -6,7 +6,7 @@
       "kitchenType": "Taipei",
       "kitchenId": "legacy-park",
       "location": "",
-      "active": true,
+      "verified": true,
       "deletedAt": "",
       "sortOrder": 1
     },
@@ -16,7 +16,7 @@
       "kitchenType": "Giant",
       "kitchenId": "6112",
       "location": "255 S Spring Garden St, Carlisle, PA",
-      "active": true,
+      "verified": true,
       "deletedAt": "",
       "sortOrder": 2
     },
@@ -26,7 +26,7 @@
       "kitchenType": "Taipei",
       "kitchenId": "other",
       "location": "",
-      "active": true,
+      "verified": true,
       "deletedAt": "",
       "sortOrder": 3
     }

@@ -339,7 +339,7 @@ async function loadDemoData() {
 
   DATA = {
     // As the backend's storeList(): `id` is the store number the records carry, `key` the UUID.
-    stores: reference.stores.map(s => ({ id: s.storeId, key: s.id, name: s.name, location: s.location, active: s.active })),
+    stores: reference.stores.map(s => ({ id: s.storeId, key: s.id, name: s.name, location: s.location, verified: s.verified, deletedAt: s.deletedAt })),
     reference: reference,
     deliveries: [
       { submittedAt: `${today}T08:32:15.000Z`, date: today, driver: 'Owen', store: '6006', arrivalTime: '08:30', coolerTemp: 38, dish: 'Spring Roll (Veg)', qtyAdded: 24, removed: 2, reason: 'Out of date', receivedBy: 'Amanda' },
@@ -582,6 +582,11 @@ const HOME_FORMS = {
 
 const HOME_LISTS = { kitchens: [], stores: [] };   // the entries behind the home page's pickers
 
+/** Whether a reference entry is one the forms offer: verified, not switched off, not deleted. Same rule as forms/common.js. */
+function referenceOffered(entry) {
+  return entry.active !== false && entry.verified !== false && !entry.deletedAt;
+}
+
 async function loadHomeLocations() {
   const status = document.getElementById('home-locations-status');
   try {
@@ -589,7 +594,7 @@ async function loadHomeLocations() {
       const response = await fetch('../data/' + key + '.json');
       if (!response.ok) throw new Error(key + '.json: HTTP ' + response.status);
       const data = await response.json();
-      HOME_LISTS[key] = (data[key] || []).filter(entry => entry.active && !entry.deletedAt)
+      HOME_LISTS[key] = (data[key] || []).filter(referenceOffered)
         .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
     }));
     // Links and QR codes carry the entry's System ID. The delivery form resolves the store
@@ -1910,7 +1915,7 @@ function violationWhen(instant) {
 /** Active supervisors by name, for the "resolved by" picker. */
 function violationResolvers() {
   const list = (DATA.reference && DATA.reference.supervisors) || [];
-  return list.filter(s => s.active && !s.deletedAt)
+  return list.filter(referenceOffered)
     .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0))
     .map(s => s.name);
 }
@@ -2636,6 +2641,7 @@ const CONFIG_LISTS = [
       { key: 'kitchenId',   label: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType' },
       { key: 'location',    label: 'Location',     kind: 'text', required: true, editable: true }
     ],
+    verified: true,
     blurb: 'Where batches are cooked and coolers are loaded. The production and packaging forms carry the kitchen name, and its QR code carries its System ID. The Kitchen ID is the identifier the organisation named by Kitchen Type uses for it.' },
   { key: 'stores',      label: 'Stores',      noun: 'store',      byName: false,
     attrs: [
@@ -2643,9 +2649,12 @@ const CONFIG_LISTS = [
       { key: 'storeId',   label: 'Store ID',   kind: 'orgId', uniqueWith: null, printed: true },   // in the QR code posted at the store and in every delivery row
       { key: 'location',  label: 'Location',   kind: 'text', required: true, editable: true }
     ],
+    verified: true,
     blurb: 'Where coolers are bound for and deliveries go. The packaging and delivery forms carry the store name, and its QR code carries its System ID. The Store ID is the identifier the organisation named by Store Type uses for it: for a Giant store, its store number.' },
-  { key: 'dishes',      label: 'Dishes',      noun: 'dish',       byName: true, attrs: [],
+  { key: 'dishes',      label: 'Dishes',      noun: 'dish',       byName: true,
+    attrs: [{ key: 'upc', label: 'UPC', kind: 'upc', editable: true }],   // Giant's 14-digit code for the dish, which its sales rows carry
     activeToggle: true,   // the one list with a pause switch as well as delete: a dish is tried for a while, then kept or not
+    verified: true,
     blurb: 'What is cooked, loaded and delivered. All three forms show these as cards, in this order. Switch a dish off to pause it without losing its place; delete it to retire it.' },
   // `records` names where a form's free-text "+ Add new" lands, so the unlisted-names card
   // can offer what was typed. Only the two people pickers accept typed names.
@@ -2774,8 +2783,9 @@ function configDiffOps(key) {
     def.attrs.forEach(attr => {
       if (configNormalise(entry[attr.key]) !== configNormalise(was[attr.key])) patch[attr.key] = configNormalise(entry[attr.key]);
     });
+    if (def.verified && !!entry.verified !== !!was.verified) patch.verified = !!entry.verified;
     if (Object.keys(patch).length) ops.push({ op: 'update', entry: Object.assign({ id: entry.id }, patch) });
-    if (!!entry.active !== !!was.active) ops.push({ op: 'setActive', id: entry.id, active: !!entry.active });
+    if (def.activeToggle && !!entry.active !== !!was.active) ops.push({ op: 'setActive', id: entry.id, active: !!entry.active });
     if (!!entry.deletedAt !== !!was.deletedAt) ops.push({ op: entry.deletedAt ? 'delete' : 'restore', id: entry.id });
   });
 
@@ -2812,6 +2822,10 @@ function configValidate(key) {
             && (!attr.uniqueWith || configNormalise(other[attr.uniqueWith]) === configNormalise(entry[attr.uniqueWith])))) {
           problems.push({ index: index, message: 'Another ' + def.noun + ' already has ' + attr.label + ' ' + value + (attr.uniqueWith ? ' for that type' : '') + '.' });
         }
+      } else if (attr.kind === 'upc') {
+        if (!value) problems.push({ index: index, message: attr.label + ' is required.' });
+        else if (!/^\d{14}$/.test(value)) problems.push({ index: index, message: attr.label + ' must be the 14 digits of the code.' });
+        else if (buffer.some((other, j) => j !== index && configNormalise(other[attr.key]) === value)) problems.push({ index: index, message: 'Another ' + def.noun + ' already has UPC ' + value + '.' });
       } else if (value.length > 120) {
         problems.push({ index: index, message: attr.label + ' is at most 120 characters.' });
       } else if (attr.required && !value) {
@@ -2821,7 +2835,9 @@ function configValidate(key) {
       }
     });
   });
-  if (buffer.length && !buffer.some(entry => entry.active && !entry.deletedAt)) problems.push({ message: 'At least one ' + def.noun + ' must stay active and not deleted.' });
+  if (buffer.length && !buffer.some(entry => (!def.activeToggle || entry.active) && !entry.deletedAt)) {
+    problems.push({ message: 'At least one ' + def.noun + ' must stay' + (def.activeToggle ? ' active and' : '') + ' not deleted.' });
+  }
   return problems;
 }
 
@@ -2972,7 +2988,7 @@ function configRenderList() {
   document.getElementById('config-list-blurb').textContent = def.blurb;
 
   const container = document.getElementById('config-rows');
-  container.className = 'config-rows ' + (def.attrs.length ? 'with-attrs' : 'no-attrs') + (def.activeToggle ? ' with-active' : '');   // picks the column template
+  container.className = 'config-rows ' + (def.attrs.length ? 'with-attrs attrs-' + def.attrs.length : 'no-attrs') + (def.activeToggle ? ' with-active' : '');   // picks the column template
   container.textContent = '';
   const buffer = CONFIG_PANEL.buffer[def.key] || [];
   const loadedById = {};
@@ -2991,7 +3007,8 @@ function configRenderList() {
     const editing = !readOnly && !isDeleted && !!CONFIG_PANEL.editing && CONFIG_PANEL.editing.key === def.key && CONFIG_PANEL.editing.ref === ref;
     const wrap = configEl('div', 'config-entry');
     wrap.dataset.index = index;
-    const card = configEl('div', 'config-card' + (entry.active ? '' : ' inactive') + (isDeleted ? ' deleted' : '') + (problems[index] ? ' invalid' : '') + (editing ? ' editing' : ''));
+    const unverified = def.verified && !entry._new && entry.verified === false;
+    const card = configEl('div', 'config-card' + (def.activeToggle && !entry.active ? ' inactive' : '') + (unverified ? ' unverified' : '') + (isDeleted ? ' deleted' : '') + (problems[index] ? ' invalid' : '') + (editing ? ' editing' : ''));
 
     const move = configEl('div', 'config-card-move');
     const at = movable.indexOf(index);
@@ -3008,6 +3025,7 @@ function configRenderList() {
       let node;
       if (editing && attr.editable) node = configInput(entry[attr.key], attr.label, 120, v => configEdit(def.key, index, attr.key, v));
       else if (attr.kind === 'orgId') node = configIdValue(value, 12);
+      else if (attr.kind === 'upc') node = configIdValue(value, 14);
       else node = configTextValue(value || '—', !value);
       fields.appendChild(configField(attr.label, node));
     });
@@ -3037,6 +3055,12 @@ function configRenderList() {
       edit.type = 'button';
       edit.onclick = () => configToggleEdit(def.key, ref);
       actions.appendChild(edit);
+      if (editing && unverified) {
+        const verify = configEl('button', 'btn-apply-filters config-edit', 'Mark verified');
+        verify.type = 'button';
+        verify.onclick = () => configEdit(def.key, index, 'verified', true);
+        actions.appendChild(verify);
+      }
       if (editing) {
         // A new entry is only in this buffer, so removing it is free; a saved one is deleted
         // in the sheet on Save and can be restored from the deleted list.
@@ -3085,9 +3109,11 @@ function configRowWarning(def, entry, was, problem) {
     }
     return configEl('div', 'config-warn safe', 'Safe: delivery records carry the store number, so renaming only changes the label.');
   }
-  if (!entry.active && was.active) {
-    if (def.key === 'stores') return configEl('div', 'config-warn', 'Its printed QR code will still open the delivery form, which will no longer recognise the store. Print a replacement before the next delivery, or leave it active.');
+  if (def.activeToggle && !entry.active && was.active) {
     return configEl('div', 'config-warn', 'Removed from the forms on their next load. Past records keep it.');
+  }
+  if (def.verified && entry.verified === false && !entry.deletedAt) {
+    return configEl('div', 'config-warn', 'Unverified: an import created this ' + def.noun + ' from the data it met. Check the name and details, then Edit and mark it verified; the forms do not offer it until then.');
   }
   return null;
 }
@@ -3125,7 +3151,7 @@ function configAddControl(def, attr) {
   input.type = 'text';
   input.id = 'config-add-' + attr.key;
   input.placeholder = attr.label;
-  input.maxLength = attr.kind === 'orgId' ? 40 : 120;
+  input.maxLength = attr.kind === 'orgId' ? 40 : attr.kind === 'upc' ? 14 : 120;
   return input;
 }
 
@@ -3148,6 +3174,7 @@ function configRenderAdd() {
   name.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); configAdd(); } };
   add.appendChild(name);
   byKind('text').forEach(attr => add.appendChild(configAddControl(def, attr)));
+  byKind('upc').forEach(attr => add.appendChild(configAddControl(def, attr)));
   const button = configEl('button', 'btn-clear-filters', 'Add');
   button.type = 'button';
   button.onclick = configAdd;
@@ -3157,7 +3184,9 @@ function configRenderAdd() {
     ? 'The Store ID is the identifier the organisation named by Store Type uses for this store (eg for a Giant store, the store number Giant assigns it).'
     : def.key === 'kitchens'
       ? 'The Kitchen ID is the identifier the organisation named by Kitchen Type uses for this kitchen (eg for a Giant kitchen, the kitchen ID Giant assigns it).'
-      : 'An id is assigned on save and never changes.';
+      : def.key === 'dishes'
+        ? 'An id is assigned on save and never changes. The UPC is the 14-digit code Giant\'s sales data carries for the dish.'
+        : 'An id is assigned on save and never changes.';
   add.appendChild(configEl('div', 'config-add-help', help));
 }
 
@@ -3187,8 +3216,8 @@ function configEdit(key, index, field, value) {
     CONFIG_PANEL.editing = null;        // the card leaves the list (or comes back); nothing is open any more
     if (value) CONFIG_PANEL.showDeleted = true;
     configRenderList();
-  } else if (field === 'active') {
-    configRenderList();                 // the card's look and the last-active guard both change
+  } else if (field === 'active' || field === 'verified') {
+    configRenderList();                 // the card's look, its note and the last-active guard all change
   } else {
     configRefreshEntry(key, index);
   }
@@ -3233,7 +3262,7 @@ function configAdd() {
   const nameInput = document.getElementById('config-add-name');
   const name = configNormalise(nameInput.value);
   if (!name) { configAddRefuse(nameInput, 'Type a name first.'); return; }
-  const entry = { _new: true, _tmp: configTempRef(), name: name, active: true, sortOrder: 0 };
+  const entry = Object.assign({ _new: true, _tmp: configTempRef(), name: name, sortOrder: 0 }, def.activeToggle ? { active: true } : {}, def.verified ? { verified: true } : {});
   def.attrs.forEach(attr => {
     const control = document.getElementById('config-add-' + attr.key);
     entry[attr.key] = control ? configNormalise(control.value) : '';
@@ -3255,7 +3284,8 @@ function configAdd() {
 function configUnlistedAdd(name) {
   const key = CONFIG_PANEL.list;
   if ((CONFIG_PANEL.buffer[key] || []).some(entry => configNormalise(entry.name).toLowerCase() === name.toLowerCase())) return;
-  CONFIG_PANEL.buffer[key].push({ _new: true, _tmp: configTempRef(), name: name, active: true, sortOrder: 0 });
+  const def = configListDef(key);
+  CONFIG_PANEL.buffer[key].push(Object.assign({ _new: true, _tmp: configTempRef(), name: name, sortOrder: 0 }, def.activeToggle ? { active: true } : {}, def.verified ? { verified: true } : {}));
   configRenderList();
   configRefreshActions();
   configRenderUnlisted();
@@ -3333,15 +3363,16 @@ function configChangeSummary(key) {
         items.push({ cls: '', text: 'Change the ' + attr.label + ' of "' + name + '"' + (from ? ' from "' + from + '"' : '') + ' to "' + to + '".' });
       }
     });
-    if (!!entry.active !== !!was.active) {
+    if (def.activeToggle && !!entry.active !== !!was.active) {
       if (entry.active) items.push({ cls: 'safe', text: 'Reactivate "' + name + '". The forms will offer it again on their next load.' });
-      else if (key === 'stores') items.push({ cls: 'caution', text: 'Deactivate "' + name + '" (' + configNormalise(entry.storeId) + '). Its QR code is printed and posted at the store. Scanning it will still open the delivery form, but the form will not recognise the store: the header will be blank and the delivery will be filed under store ' + configNormalise(entry.storeId) + ' with no name. Print a replacement code before the next delivery, or leave this store active.' });
-      else if (key === 'kitchens') items.push({ cls: 'caution', text: 'Deactivate "' + name + '". The Home tab\'s launcher and the production form will no longer offer it. Past records keep it.' });
       else items.push({ cls: 'caution', text: 'Deactivate "' + name + '". Removed from the forms on their next load. Past records keep it.' });
+    }
+    if (def.verified && entry.verified && !was.verified) {
+      items.push({ cls: 'safe', text: 'Mark "' + name + '" verified. The forms will offer it on their next load.' });
     }
     if (!!entry.deletedAt !== !!was.deletedAt) {
       if (entry.deletedAt) items.push({ cls: 'caution', text: 'Delete "' + name + '". It leaves this list and the forms; past records keep it and still show its name on the dashboard. It can be restored from the deleted ' + def.noun + 's below the list.' + (key === 'stores' ? ' Its printed QR code will open a delivery form that does not recognise the store.' : '') });
-      else items.push({ cls: 'safe', text: 'Restore "' + name + '". It returns to this list as it was' + (entry.active ? ' and to the forms on their next load.' : ', still inactive.') });
+      else items.push({ cls: 'safe', text: 'Restore "' + name + '". It returns to this list as it was' + (def.activeToggle && !entry.active ? ', still inactive.' : ' and to the forms on their next load.') });
     }
   });
 

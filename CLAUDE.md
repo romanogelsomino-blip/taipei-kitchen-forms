@@ -38,7 +38,11 @@
   one for the packaging form, a store one for the delivery form, which also accepts the store
   number that codes printed earlier carry. A row is never removed from the sheet: an entry is deleted to retire it
   (hidden from the Config tab, restorable), and a dish may also be deactivated to pause it;
-  history resolves its name either way. The git copies of `data/*.json` are seeds for local
+  history resolves its name either way. A dish carries `upc`, Giant's 14-digit code for it,
+  required and unique; the reserved `NON-TAIPEI DISH` (UPC `00000000000000`, deleted and
+  inactive) takes sales of items no dish claims, and the reserved store `0000` the CI smoke. Kitchens, stores and dishes carry `verified`: true
+  for a person's entry, false for one an import created until a person confirms it; the forms
+  offer only verified entries. The git copies of `data/*.json` are seeds for local
   runs, not a source.
 - **The lists are a picker source, not a constraint.** Nothing validates a submitted
   kitchen, dish, driver or supervisor against them, and nothing may: the pickers allow free

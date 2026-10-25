@@ -55,9 +55,9 @@ function sample(list, count) {
   return list.filter(entry => out.includes(entry));
 }
 
-/** The active, undeleted entries of a saved reference reply, less the reserved store. */
+/** The entries of a saved reference reply the forms would offer, less the reserved store: verified, not switched off, not deleted. */
 function liveLists(reference) {
-  const live = list => (reference[list] || []).filter(e => e.active && !e.deletedAt);
+  const live = list => (reference[list] || []).filter(e => e.active !== false && e.verified !== false && !e.deletedAt);
   return {
     kitchens:    live('kitchens'),
     stores:      live('stores').filter(s => s.id !== RESERVED_STORE_ID),

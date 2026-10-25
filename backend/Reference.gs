@@ -25,9 +25,9 @@
 
 const REFERENCE_FILE_NAME = 'Reference';
 const REFERENCE_MEMO = {};                          // per-execution: opened, ensured, payload
-const REFERENCE_CACHE_KEY = 'reference:payload:v3';
+const REFERENCE_CACHE_KEY = 'reference:payload:v4';
 const REFERENCE_CACHE_SEC = 600;                    // bounds staleness after a hand edit in Sheets, which nothing invalidates
-const REFERENCE_VERSION_PREFIX = 'r3-';             // payload-shape revision; bump when an entry's shape changes
+const REFERENCE_VERSION_PREFIX = 'r4-';             // payload-shape revision; bump when an entry's shape changes
 const REFERENCE_ROW_CAP = 500;                      // an unauthenticated append endpoint needs a ceiling
 const REFERENCE_WRITES_PER_MINUTE = 20;
 const REFERENCE_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -35,6 +35,7 @@ const REFERENCE_ORG_ID_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;   // goes i
 const REFERENCE_CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
 const REFERENCE_LIMITS = { orgId: 40, name: 80, text: 120, reorder: 500 };   // reorder matches REFERENCE_ROW_CAP
 const REFERENCE_RESERVED_STORE_UUID = '00000000-0000-4000-8000-000000000000';   // store 0000, which the dev deploy's smoke test writes to
+const REFERENCE_CATCHALL_DISH_UUID = '00000000-0000-4000-8000-000000000001';    // NON-TAIPEI DISH, UPC 00000000000000: where sales of items no dish claims are filed
 
 // ─── The lists ───────────────────────────────────────────────────────────────
 
@@ -44,32 +45,39 @@ const REFERENCE_RESERVED_STORE_UUID = '00000000-0000-4000-8000-000000000000';   
  *
  * `attrs` are the columns beyond name: kind 'type' is one of `types`, 'orgId' is the
  * organisation's own identifier (unique on its own, or per type when `uniqueWith` names the
- * type column), 'text' is free text, required when `required` is set. `storedAs` names the
+ * type column), 'upc' is the 14-digit code the retailer's sales data carries for a dish
+ * (required, unique), 'text' is free text, required when `required` is set. `storedAs` names the
  * monthly tab and field that carry one of an entry's attributes, which is what a change to
  * it leaves behind in the records.
+ *
+ * Two flags beyond deletion, each on the lists that have a use for it. `active` is the pause
+ * switch, dishes only: off the forms without losing its place. `verified` marks an entry a
+ * person added or confirmed, as against one an import created from the data it met; the
+ * forms offer only verified entries.
  */
 function referenceLists() {
   const location = { key: 'location', header: 'Location', kind: 'text', required: true };
   return [
-    { tab: 'Kitchens', key: 'kitchens', noun: 'kitchen', types: ['Taipei', 'Giant'],
+    { tab: 'Kitchens', key: 'kitchens', noun: 'kitchen', types: ['Taipei', 'Giant'], active: false, verified: true,
       attrs: [
         { key: 'kitchenType', header: 'Kitchen Type', kind: 'type' },
         { key: 'kitchenId',   header: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType' },
         location
       ],
       storedAs: [{ tab: 'Production', field: 'kitchen', attr: 'name' }] },
-    { tab: 'Stores', key: 'stores', noun: 'store', types: ['Giant'],
+    { tab: 'Stores', key: 'stores', noun: 'store', types: ['Giant'], active: false, verified: true,
       attrs: [
         { key: 'storeType', header: 'Store Type', kind: 'type' },
         { key: 'storeId',   header: 'Store ID',   kind: 'orgId', uniqueWith: null },   // records carry the number alone, as do QR codes printed before System IDs
         location
       ],
       storedAs: [{ tab: 'Deliveries', field: 'storeId', attr: 'storeId' }] },
-    { tab: 'Dishes', key: 'dishes', noun: 'dish', types: null, attrs: [],
+    { tab: 'Dishes', key: 'dishes', noun: 'dish', types: null, active: true, verified: true,
+      attrs: [{ key: 'upc', header: 'UPC', kind: 'upc' }],   // Giant's code for the dish, which its sales rows carry
       storedAs: [{ tab: 'Production', field: 'dish', attr: 'name' }, { tab: 'Deliveries', field: 'dish', attr: 'name' }] },
-    { tab: 'Supervisors', key: 'supervisors', noun: 'supervisor', types: null, attrs: [],
+    { tab: 'Supervisors', key: 'supervisors', noun: 'supervisor', types: null, active: false, verified: false, attrs: [],
       storedAs: [{ tab: 'Production', field: 'supervisor', attr: 'name' }] },
-    { tab: 'Drivers', key: 'drivers', noun: 'driver', types: null, attrs: [],
+    { tab: 'Drivers', key: 'drivers', noun: 'driver', types: null, active: false, verified: false, attrs: [],
       storedAs: [{ tab: 'Deliveries', field: 'driver', attr: 'name' }] }
   ];
 }
@@ -96,14 +104,16 @@ function referenceSchemaFor(tab) {
     { header: 'System ID', key: 'id',   type: 'text', width: 290, aliases: ['UUID', 'ID'] },   // the earlier names of the key column
     { header: 'Name',      key: 'name', type: 'text', width: 260 }
   ];
-  const attrs = list.attrs.map(attr => ({ header: attr.header, key: attr.key, type: 'text', width: attr.kind === 'text' ? 300 : 120 }));
-  const tail = [
-    { header: 'Active',     key: 'active',    type: 'bool',    width: 80 },
+  const attrs = list.attrs.map(attr => ({ header: attr.header, key: attr.key, type: 'text', width: attr.kind === 'text' ? 300 : attr.kind === 'upc' ? 150 : 120 }));
+  const tail = [];
+  if (list.verified) tail.push({ header: 'Verified', key: 'verified', type: 'bool', width: 80 });   // false until a person confirms an entry an import created
+  if (list.active)   tail.push({ header: 'Active',   key: 'active',   type: 'bool', width: 80 });
+  tail.push(
     { header: 'Deleted At', key: 'deletedAt', type: 'instant' },   // empty unless the entry is deleted; the row itself stays
     { header: 'Sort',       key: 'sortOrder', type: 'number',  width: 70 },
     { header: 'Created At', key: 'createdAt', type: 'instant' },
     { header: 'Updated At', key: 'updatedAt', type: 'instant' }
-  ];
+  );
   return head.concat(attrs, tail);
 }
 
@@ -192,9 +202,11 @@ function ensureReferenceTabs(ss) {
 /**
  * Bring a tab written under an earlier schema up to date: the key column renamed from ID to
  * UUID, columns the schema has gained added and ones it has dropped removed, a row keyed by
- * a slug given a UUID with the slug kept as its organisation id, and the reserved CI store
- * marked deleted rather than inactive. A tab already in shape is left alone, so this costs
- * one read on every init and writes only the first time.
+ * a slug given a UUID with the slug kept as its organisation id, the reserved CI store marked
+ * deleted, every row from before the Verified flag marked verified, and a code the seed
+ * learned after a row was written (a dish's UPC) filled in where the row has none. A tab
+ * already in shape is left alone, so this costs one read on every init and writes only the
+ * first time.
  */
 function migrateReferenceTab(sheet, tab) {
   const list = referenceListFor(tab);
@@ -204,15 +216,22 @@ function migrateReferenceTab(sheet, tab) {
     const old = ['UUID', 'ID'].map(name => headers.indexOf(name)).find(at => at >= 0);
     if (old !== undefined) sheet.getRange(1, old + 1).setValue('System ID');
   }
-  ['Updated By'].forEach(dropped => {   // columns an earlier schema wrote that this one does not
+  ['Updated By'].concat(list.active ? [] : ['Active']).forEach(dropped => {   // columns an earlier schema wrote that this one does not
     headers = sheetHeaders(sheet);
     const at = headers.indexOf(dropped);
     if (at >= 0) sheet.deleteColumn(at + 1);
   });
+  const hadVerified = sheetHeaders(sheet).indexOf('Verified') >= 0;
   sheetColumnsWith(sheet, schema, referenceTabLayout(tab));
+  const seedById = {};
+  (referenceSeed()[list.key] || []).forEach(entry => { seedById[String(entry.id).toLowerCase()] = entry; });
   readReferenceRows(sheet, tab).forEach(row => {
     const slug = String(row.id).trim();
     const patch = {};
+    const seeded = seedById[slug.toLowerCase()];
+    list.attrs.forEach(attr => {
+      if (attr.kind === 'upc' && !row[attr.key] && seeded && seeded[attr.key]) patch[attr.key] = seeded[attr.key];
+    });
     const reserved = list.tab === 'Stores' && (slug.toLowerCase() === REFERENCE_RESERVED_STORE_UUID || String(row.storeId || slug) === '0000');
     if (!REFERENCE_UUID_PATTERN.test(slug)) {
       patch.id = reserved ? REFERENCE_RESERVED_STORE_UUID : Utilities.getUuid();
@@ -222,26 +241,35 @@ function migrateReferenceTab(sheet, tab) {
         if (attr.kind === 'type') patch[attr.key] = /^\d+$/.test(slug) && list.types.indexOf('Giant') >= 0 ? 'Giant' : list.types[0];   // a bare number was a Giant store number
       });
     }
-    if (reserved && !row.deletedAt) {
-      patch.deletedAt = formatInstant(new Date());   // the smoke row is never offered anywhere: deleted, not merely inactive
-      patch.active = true;
-    }
+    if (reserved && !row.deletedAt) patch.deletedAt = formatInstant(new Date());   // the smoke row is never offered anywhere
+    if (list.verified && !hadVerified) patch.verified = true;   // every row from before the flag was entered or confirmed by a person
     if (Object.keys(patch).length) updateRow(sheet, schema, row._row, patch);
   });
+  // Reserved rows the seed gained after this tab was made: the system depends on them being there.
+  const present = readReferenceRows(sheet, tab).map(row => String(row.id).toLowerCase());
+  const missing = (referenceSeed()[list.key] || []).filter(entry => entry.reserved && present.indexOf(String(entry.id).toLowerCase()) < 0);
+  if (missing.length) {
+    const now = formatInstant(new Date());
+    appendReferenceRows(sheet, tab, buildRows(schema, missing.map((entry, i) => seedReferenceRow(list, entry, present.length + i + 1, now)), {}));
+  }
 }
 
-/** The seed rows for one list: sortOrder from position, createdAt now, nothing updated yet. */
+/** One seed entry as a sheet row: the given sortOrder, createdAt now, nothing updated yet. */
+function seedReferenceRow(list, entry, sortOrder, now) {
+  const row = { id: entry.id, name: entry.name, deletedAt: entry.deletedAt || '', sortOrder: sortOrder, createdAt: now, updatedAt: '' };
+  if (list.active) row.active = entry.active !== false;
+  if (list.verified) row.verified = true;
+  list.attrs.forEach(attr => { row[attr.key] = entry[attr.key] || ''; });
+  return row;
+}
+
+/** The seed rows for one list, sortOrder from position. */
 function seedReferenceTab(sheet, tab) {
   const list = referenceListFor(tab);
   const entries = referenceSeed()[list.key] || [];
   if (!entries.length) return;
   const now = formatInstant(new Date());
-  const rows = entries.map((entry, i) => {
-    const row = { id: entry.id, name: entry.name, active: entry.active !== false, deletedAt: entry.deletedAt || '', sortOrder: i + 1, createdAt: now, updatedAt: '' };
-    list.attrs.forEach(attr => { row[attr.key] = entry[attr.key] || ''; });
-    return row;
-  });
-  appendReferenceRows(sheet, tab, buildRows(referenceSchemaFor(tab), rows, {}));
+  appendReferenceRows(sheet, tab, buildRows(referenceSchemaFor(tab), entries.map((entry, i) => seedReferenceRow(list, entry, i + 1, now)), {}));
 }
 
 // ─── Reading ─────────────────────────────────────────────────────────────────
@@ -253,11 +281,12 @@ function readReferenceRows(sheet, tab) {
     .filter(record => String(record.id).trim() !== '');
 }
 
-/** A row as the API emits it: id, name, the list's attributes, active, deletedAt (empty unless deleted), sortOrder. The audit columns stay in the sheet. */
+/** A row as the API emits it: id, name, the list's attributes, its flags (verified, active) where the list has them, deletedAt (empty unless deleted), sortOrder. The audit columns stay in the sheet. */
 function publicReferenceEntry(record, list) {
   const entry = { id: String(record.id).trim(), name: String(record.name) };
   list.attrs.forEach(attr => { entry[attr.key] = String(record[attr.key] === undefined || record[attr.key] === null ? '' : record[attr.key]); });
-  entry.active = record.active === true;
+  if (list.verified) entry.verified = record.verified === true;
+  if (list.active) entry.active = record.active === true;
   entry.deletedAt = String(record.deletedAt || '');
   entry.sortOrder = Number(record.sortOrder) || 0;
   return entry;
@@ -272,7 +301,7 @@ function sortedReferenceEntries(records, list) {
 /** The seed as the API would emit it, for an environment whose Reference file does not exist yet. */
 function seedReferenceEntries(list) {
   return (referenceSeed()[list.key] || []).map((entry, i) => publicReferenceEntry(
-    Object.assign({}, entry, { active: entry.active !== false, sortOrder: i + 1 }), list));
+    Object.assign({}, entry, { active: entry.active !== false, verified: true, sortOrder: i + 1 }), list));
 }
 
 /** The allowed values of every typed attribute, keyed by list, so a client need not hardcode them. */
@@ -400,6 +429,12 @@ function checkReferenceAttr(list, attr, value) {
     if (!REFERENCE_ORG_ID_PATTERN.test(text)) throw referenceRejection(attr.header + ' ' + JSON.stringify(text) + ' may only contain letters, digits and single hyphens.', 'validation');
     return text;
   }
+  if (attr.kind === 'upc') {
+    const text = normaliseReferenceName(value);
+    if (!text) throw referenceRejection(attr.header + ' is required.', 'validation');
+    if (!/^\d{14}$/.test(text)) throw referenceRejection(attr.header + ' must be the 14 digits of the code; got ' + JSON.stringify(text) + '.', 'validation');
+    return text;
+  }
   return checkReferenceText(value, attr.header, REFERENCE_LIMITS.text, !!attr.required);
 }
 
@@ -431,9 +466,9 @@ function referenceNameTakenRejection(list, name, owner) {
     : 'A ' + list.noun + ' named "' + name + '" already exists.', 'duplicate');
 }
 
-/** Whether another row already carries this org id, within the same type when the attribute is unique per type. */
+/** Whether another row already carries this org id or UPC, within the same type when the attribute is unique per type. */
 function referenceOrgIdTaken(rows, attr, candidate, exceptId) {
-  const wanted = String(candidate[attr.key]).toLowerCase();
+  const wanted = String(candidate[attr.key] || '').toLowerCase();
   return rows.some(row =>
     String(row.id) !== exceptId &&
     String(row[attr.key] || '').toLowerCase() === wanted &&
@@ -458,7 +493,7 @@ function planReferenceOps(list, ops, rows, now) {
     Object.assign(row, fields);
     mutations.push({ type: 'patch', row: row, patch: fields });
   };
-  const orgIds = list.attrs.filter(attr => attr.kind === 'orgId');
+  const orgIds = list.attrs.filter(attr => attr.kind === 'orgId' || attr.kind === 'upc');   // the attributes that must be unique
 
   ops.forEach((op, index) => {
     const where = 'op ' + (index + 1);
@@ -472,7 +507,9 @@ function planReferenceOps(list, ops, rows, now) {
         const owner = referenceNameOwner(sim, name, null);
         if (owner) throw referenceNameTakenRejection(list, name, owner);
         const sortOrder = sim.reduce((max, row) => Math.max(max, Number(row.sortOrder) || 0), 0) + 1;
-        const row = { _row: null, id: Utilities.getUuid(), name: name, active: true, deletedAt: '', sortOrder: sortOrder, createdAt: now, updatedAt: now };
+        const row = { _row: null, id: Utilities.getUuid(), name: name, deletedAt: '', sortOrder: sortOrder, createdAt: now, updatedAt: now };
+        if (list.active) row.active = true;
+        if (list.verified) row.verified = true;   // added by a person
         list.attrs.forEach(attr => { row[attr.key] = checkReferenceAttr(list, attr, entry[attr.key]); });
         orgIds.forEach(attr => {
           if (referenceOrgIdTaken(sim, attr, row, null)) {
@@ -513,8 +550,14 @@ function planReferenceOps(list, ops, rows, now) {
           if (fields[attr.key] !== undefined) changes.push({ attr: attr.key, id: String(row.id), from: String(row[attr.key] || ''), to: next[attr.key] });
         });
         if (entry.active !== undefined) {
+          if (!list.active) throw referenceRejection(list.key + ' have no active switch; delete or restore instead.', 'validation');
           const active = parseReferenceBool(entry.active, 'active');
           if (active !== (row.active === true)) fields.active = active;
+        }
+        if (entry.verified !== undefined) {
+          if (!list.verified) throw referenceRejection(list.key + ' have no verified flag.', 'validation');
+          const verified = parseReferenceBool(entry.verified, 'verified');
+          if (verified !== (row.verified === true)) fields.verified = verified;
         }
         if (!Object.keys(fields).length) break;   // nothing changed; not an error
         patch(row, Object.assign(fields, stamp));
@@ -523,6 +566,7 @@ function planReferenceOps(list, ops, rows, now) {
       }
 
       case 'setActive': {
+        if (!list.active) throw referenceRejection(list.key + ' have no active switch; delete or restore instead.', 'validation');
         const row = findReferenceRow(sim, op.id);
         if (!row) throw referenceRejection('No ' + list.noun + ' with id ' + JSON.stringify(op.id) + '.', 'not_found');
         const active = parseReferenceBool(op.active, 'active');
@@ -572,8 +616,8 @@ function planReferenceOps(list, ops, rows, now) {
 
   // Nothing may empty a list. A form with no dishes cannot be submitted, and every printed
   // store QR code opens a delivery form that needs its store on the list.
-  if (sim.length && !sim.some(row => row.active === true && !row.deletedAt)) {
-    throw referenceRejection('Refusing: that would leave no active ' + list.key + '. At least one must stay active and not deleted.', 'validation');
+  if (sim.length && !sim.some(row => (!list.active || row.active === true) && !row.deletedAt)) {
+    throw referenceRejection('Refusing: that would leave no ' + list.key + (list.active ? ' active and not deleted. At least one must stay.' : ' that is not deleted. At least one must stay.'), 'validation');
   }
 
   return { mutations: mutations, changes: changes, touched: touched };

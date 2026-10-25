@@ -7,14 +7,14 @@
 
 /**
  * Store list for the dashboard's filters and for naming a violation's store. Comes from the
- * Reference sheet, which the dashboard's Config tab edits. Inactive stores are included: a
+ * Reference sheet, which the dashboard's Config tab edits. Deleted stores are included: a
  * closed store still has rows and violations that need its name.
  *
  * `id` here is the store number, because that is what the delivery rows and every dashboard
  * lookup carry; the sheet's UUID rides along as `key`, which the Violations tab keys on.
  */
 function storeList() {
-  return referencePayload().stores.map(s => ({ id: s.storeId, key: s.id, name: s.name, location: s.location, active: s.active }));
+  return referencePayload().stores.map(s => ({ id: s.storeId, key: s.id, name: s.name, location: s.location, verified: s.verified, deletedAt: s.deletedAt }));
 }
 
 /**

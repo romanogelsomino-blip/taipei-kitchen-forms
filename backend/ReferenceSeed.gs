@@ -7,7 +7,7 @@
 //
 // A function returning a literal, not a top-level const: file load order is not guaranteed.
 // The UUIDs are fixed so every environment seeds the same keys. sortOrder is the array
-// position; `active` defaults to true and `deletedAt` to empty.
+// position; a dish's `active` defaults to true, `verified` to true, and `deletedAt` to empty.
 
 function referenceSeed() {
   return {
@@ -18,7 +18,7 @@ function referenceSeed() {
     ],
 
     stores: [
-      { id: '00000000-0000-4000-8000-000000000000', storeType: 'Giant', storeId: '0000', name: '(reserved) CI smoke test', location: '', deletedAt: '2026-10-14T00:00:00-04:00' },   // the dev deploy writes smoke rows here (REFERENCE_RESERVED_STORE_UUID); deleted so no tab or form ever offers it
+      { id: '00000000-0000-4000-8000-000000000000', storeType: 'Giant', storeId: '0000', name: '(reserved) CI smoke test', location: '', deletedAt: '2026-10-14T00:00:00-04:00', reserved: true },   // the dev deploy writes smoke rows here (REFERENCE_RESERVED_STORE_UUID); deleted so no tab or form ever offers it
       { id: '3053ab5e-a4ac-4450-9dfe-7cff7eefc73c', storeType: 'Giant', storeId: '6006', name: 'Store 6006', location: 'Kline Village, Harrisburg, PA' },
       { id: 'f37cb8e5-0671-47fb-8eea-dc2debf6d3e0', storeType: 'Giant', storeId: '6061', name: 'Store 6061', location: 'Shippensburg, PA' },
       { id: 'd55afaf3-8a4b-4205-98c9-eb6faef04a5e', storeType: 'Giant', storeId: '6112', name: 'Store 6112', location: '255 S Spring Garden St, Carlisle, PA' },
@@ -30,19 +30,20 @@ function referenceSeed() {
     ],
 
     dishes: [
-      { id: 'c727a826-a4db-4a49-87d2-5c6615f44585', name: 'General Tso Chicken Bento' },
-      { id: '0aec557c-dad3-4cff-ba6c-fc6b1cb72c02', name: 'Sesame Chicken Bento' },
-      { id: '903ec8bc-2403-40a5-a8ae-3703c356d2eb', name: 'Bento Chicken Lo Mein' },
-      { id: '31615832-5a84-493c-8c6d-bccd5eb012a2', name: 'Bento Shrimp Lo Mein' },
-      { id: 'cb2956b6-2473-4ed4-ad01-23c7d547b885', name: 'Bento Smoked Pork Lo Mein' },
-      { id: '47cf003e-8adf-4ebd-96b6-c4e7725e25c0', name: 'Bento Sweet & Sour Chicken' },
-      { id: 'ceae862e-fcca-4675-82f1-063cc1461909', name: 'Bourbon Chicken Bento' },
-      { id: 'b6b3fc4e-3a98-42e0-a611-a419e24b4982', name: 'Broccoli Chicken Bento' },
-      { id: '5867486a-86fc-492a-aca9-1bf2ad9c293e', name: 'Hot Spicy Chicken Bento' },
-      { id: '5032e4e0-4a75-42e0-bd10-d07fec0147b1', name: 'Bento Steamed Dumplings' },
-      { id: '12cdd609-0548-413e-8503-7c6730ef8712', name: 'Chicken Egg Roll' },
-      { id: '3376d14c-b3b2-450d-b63e-074fa34ac2e4', name: 'Pork Egg Roll' },
-      { id: 'f48bebe2-0e28-42f7-a1cc-1163022b2ee0', name: 'Shrimp Egg Roll' }
+      { id: 'c727a826-a4db-4a49-87d2-5c6615f44585', upc: '00024575600000', name: 'General Tso Chicken Bento' },
+      { id: '0aec557c-dad3-4cff-ba6c-fc6b1cb72c02', upc: '00024576100000', name: 'Sesame Chicken Bento' },
+      { id: '903ec8bc-2403-40a5-a8ae-3703c356d2eb', upc: '00022738800000', name: 'Bento Chicken Lo Mein' },
+      { id: '31615832-5a84-493c-8c6d-bccd5eb012a2', upc: '00022735200000', name: 'Bento Shrimp Lo Mein' },
+      { id: 'cb2956b6-2473-4ed4-ad01-23c7d547b885', upc: '00022738900000', name: 'Bento Smoked Pork Lo Mein' },
+      { id: '47cf003e-8adf-4ebd-96b6-c4e7725e25c0', upc: '00022739100000', name: 'Bento Sweet & Sour Chicken' },
+      { id: 'ceae862e-fcca-4675-82f1-063cc1461909', upc: '00024576200000', name: 'Bourbon Chicken Bento' },
+      { id: 'b6b3fc4e-3a98-42e0-a611-a419e24b4982', upc: '00024575700000', name: 'Broccoli Chicken Bento' },
+      { id: '5867486a-86fc-492a-aca9-1bf2ad9c293e', upc: '00024576500000', name: 'Hot Spicy Chicken Bento' },
+      { id: '5032e4e0-4a75-42e0-bd10-d07fec0147b1', upc: '00022739600000', name: 'Bento Steamed Dumplings' },
+      { id: '12cdd609-0548-413e-8503-7c6730ef8712', upc: '00024576900000', name: 'Chicken Egg Roll' },
+      { id: '3376d14c-b3b2-450d-b63e-074fa34ac2e4', upc: '00024577100000', name: 'Pork Egg Roll' },
+      { id: 'f48bebe2-0e28-42f7-a1cc-1163022b2ee0', upc: '00024577200000', name: 'Shrimp Egg Roll' },
+      { id: '00000000-0000-4000-8000-000000000001', upc: '00000000000000', name: 'NON-TAIPEI DISH', active: false, deletedAt: '2026-10-24T00:00:00-04:00', reserved: true }   // where a sales row whose UPC no dish has is filed; never cooked, never offered
     ],
 
     supervisors: [

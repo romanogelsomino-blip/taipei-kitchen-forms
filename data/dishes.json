@@ -3,6 +3,8 @@
     {
       "id": "c727a826-a4db-4a49-87d2-5c6615f44585",
       "name": "General Tso Chicken Bento",
+      "upc": "00024575600000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 1
@@ -10,6 +12,8 @@
     {
       "id": "0aec557c-dad3-4cff-ba6c-fc6b1cb72c02",
       "name": "Sesame Chicken Bento",
+      "upc": "00024576100000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 2
@@ -17,6 +21,8 @@
     {
       "id": "903ec8bc-2403-40a5-a8ae-3703c356d2eb",
       "name": "Bento Chicken Lo Mein",
+      "upc": "00022738800000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 3
@@ -24,6 +30,8 @@
     {
       "id": "31615832-5a84-493c-8c6d-bccd5eb012a2",
       "name": "Bento Shrimp Lo Mein",
+      "upc": "00022735200000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 4
@@ -31,6 +39,8 @@
     {
       "id": "cb2956b6-2473-4ed4-ad01-23c7d547b885",
       "name": "Bento Smoked Pork Lo Mein",
+      "upc": "00022738900000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 5
@@ -38,6 +48,8 @@
     {
       "id": "47cf003e-8adf-4ebd-96b6-c4e7725e25c0",
       "name": "Bento Sweet & Sour Chicken",
+      "upc": "00022739100000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 6
@@ -45,6 +57,8 @@
     {
       "id": "ceae862e-fcca-4675-82f1-063cc1461909",
       "name": "Bourbon Chicken Bento",
+      "upc": "00024576200000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 7
@@ -52,6 +66,8 @@
     {
       "id": "b6b3fc4e-3a98-42e0-a611-a419e24b4982",
       "name": "Broccoli Chicken Bento",
+      "upc": "00024575700000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 8
@@ -59,6 +75,8 @@
     {
       "id": "5867486a-86fc-492a-aca9-1bf2ad9c293e",
       "name": "Hot Spicy Chicken Bento",
+      "upc": "00024576500000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 9
@@ -66,6 +84,8 @@
     {
       "id": "5032e4e0-4a75-42e0-bd10-d07fec0147b1",
       "name": "Bento Steamed Dumplings",
+      "upc": "00022739600000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 10
@@ -73,6 +93,8 @@
     {
       "id": "12cdd609-0548-413e-8503-7c6730ef8712",
       "name": "Chicken Egg Roll",
+      "upc": "00024576900000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 11
@@ -80,6 +102,8 @@
     {
       "id": "3376d14c-b3b2-450d-b63e-074fa34ac2e4",
       "name": "Pork Egg Roll",
+      "upc": "00024577100000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 12
@@ -87,9 +111,20 @@
     {
       "id": "f48bebe2-0e28-42f7-a1cc-1163022b2ee0",
       "name": "Shrimp Egg Roll",
+      "upc": "00024577200000",
+      "verified": true,
       "active": true,
       "deletedAt": "",
       "sortOrder": 13
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "NON-TAIPEI DISH",
+      "upc": "00000000000000",
+      "verified": true,
+      "active": false,
+      "deletedAt": "2026-10-24T00:00:00-04:00",
+      "sortOrder": 14
     }
   ],
   "version": "seed",

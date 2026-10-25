@@ -98,7 +98,11 @@ Config tab shows whether the forms' copy is current.
 Every entry is keyed by a UUID the backend assigns and never changes. An entry is deleted to
 retire it (hidden from the forms and the Config tab, restorable from its deleted list), and a
 dish can also be switched off to pause it; the row stays in the sheet either way, so past
-records keep their names. Kitchens and stores also carry a Type, the organisation they
+records keep their names. A dish carries a UPC, the 14-digit code Giant's sales data uses
+for it, which is how sales rows find their dish; a reserved dish, `NON-TAIPEI DISH` with UPC
+`00000000000000`, deleted and inactive, is where sales of items no dish claims are filed. Kitchens, stores and dishes also carry a Verified flag: an entry a
+person adds is verified, one an import creates from the data it meets is not until someone
+confirms it on the Config tab, and the forms offer only verified entries. Kitchens and stores also carry a Type, the organisation they
 belong to (Taipei or Giant), and that organisation's own identifier: the Kitchen ID or Store
 ID. A store's Store ID is its store number. QR codes carry the UUID: a kitchen has one for the
 production form and one for the packaging form (`?kitchen=<System ID>`), a store one for the

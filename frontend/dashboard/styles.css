@@ -1989,6 +1989,7 @@ select option {
 }
 .config-card.editing { background: var(--surface); border-color: var(--red); box-shadow: 0 0 0 2px var(--red-lt); }
 .config-card.inactive { opacity: 0.6; }
+.config-card.unverified { border-style: dashed; border-color: var(--orange); }
 .config-card.inactive.editing { opacity: 1; }
 .config-card.invalid { border-color: var(--red); }
 .config-card-move { display: flex; flex-direction: column; gap: 2px; }
@@ -2016,6 +2017,12 @@ select option {
 }
 .config-rows.with-attrs.with-active .config-card-fields {
   grid-template-columns: minmax(110px, 0.7fr) minmax(150px, 1.5fr) minmax(100px, 0.7fr) minmax(110px, 0.9fr) minmax(150px, 1.6fr) 104px;
+}
+.config-rows.with-attrs.attrs-1 .config-card-fields {
+  grid-template-columns: minmax(110px, 0.7fr) minmax(200px, 2.4fr) minmax(170px, 1fr);
+}
+.config-rows.with-attrs.attrs-1.with-active .config-card-fields {
+  grid-template-columns: minmax(110px, 0.7fr) minmax(200px, 2.4fr) minmax(170px, 1fr) 104px;
 }
 .config-rows.no-attrs .config-card-fields {
   grid-template-columns: minmax(110px, 0.7fr) minmax(200px, 3fr);
@@ -2186,6 +2193,7 @@ select option {
 .config-add select.missing { border-color: var(--red); background-color: var(--red-lt); }
 .config-add .config-type { flex: 0 1 140px; min-width: 120px; }
 .config-add .config-orgId { flex: 0 1 150px; min-width: 120px; font-family: 'DM Mono', monospace; }
+.config-add .config-upc { flex: 0 1 200px; min-width: 160px; font-family: 'DM Mono', monospace; }
 .config-add .config-text { flex: 1.4; }
 .config-add-help { flex-basis: 100%; font-size: 0.78rem; color: var(--soft); line-height: 1.45; }
 .config-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
@@ -2216,6 +2224,8 @@ select option {
   .config-card-move { flex-direction: row; }
   .config-rows.with-attrs .config-card-fields,
   .config-rows.with-attrs.with-active .config-card-fields,
+  .config-rows.with-attrs.attrs-1 .config-card-fields,
+  .config-rows.with-attrs.attrs-1.with-active .config-card-fields,
   .config-rows.no-attrs .config-card-fields,
   .config-rows.no-attrs.with-active .config-card-fields { grid-template-columns: 1fr 1fr; gap: 8px 14px; }
   .config-rows .config-card.deleted .config-card-fields > .config-field:last-child { grid-column: auto; }
@@ -2223,7 +2233,7 @@ select option {
   .config-card-actions .config-edit { width: 100%; }
   .config-lists .btn-time-range { flex: 1 0 auto; }
   .config-add { flex-direction: column; align-items: stretch; }
-  .config-add .config-type, .config-add .config-orgId, .config-add .config-text { flex: 1 1 auto; }
+  .config-add .config-type, .config-add .config-orgId, .config-add .config-upc, .config-add .config-text { flex: 1 1 auto; }
   .config-actions .btn-apply-filters,
   .config-actions .btn-clear-filters { width: 100%; margin-right: 0; }
 }

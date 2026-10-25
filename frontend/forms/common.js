@@ -88,55 +88,56 @@ async function postToBackend(payload) {
 // Kitchens, supervisors, dishes, stores and drivers come from data/<list>.json, one file per
 // list, published by the site build from the dashboard's Config tab. They are static files
 // on the same host as this page, so they cost what the page cost. An entry is
-// { id, name, active, sortOrder }, where `id` is the entry's System ID, a UUID; kitchens add
-// kitchenType, kitchenId and location, stores add storeType, storeId and location. The
-// delivery form finds its store by `id`, which its QR code carries, or by storeId, the number
-// in older codes and in every delivery row. The forms show active entries only.
+// { id, name, deletedAt, sortOrder }, where `id` is the entry's System ID, a UUID; kitchens add
+// kitchenType, kitchenId and location, stores add storeType, storeId and location; kitchens,
+// stores and dishes carry `verified`, dishes also `active`. The delivery form finds its store
+// by `id`, which its QR code carries, or by storeId, the number in older codes and in every
+// delivery row. The forms offer only entries that are verified, not switched off, not deleted.
 
 // Used when a list cannot be fetched: offline past the browser's cache, or a local server
 // started from frontend/ where data/ is not reachable. A last resort that only has to let a
 // driver log a delivery; the published files are what is current.
 const FALLBACK_DATA = {
   kitchens: [
-    { id: '1dd4b698-bc21-4b45-8a33-34112a681d66', name: 'Legacy Park', kitchenType: 'Taipei', kitchenId: 'legacy-park', location: '', active: true, sortOrder: 1 },
-    { id: '33930e11-89fa-447f-9781-e3ffe8f63c2f', name: 'Store 6112', kitchenType: 'Giant', kitchenId: '6112', location: '255 S Spring Garden St, Carlisle, PA', active: true, sortOrder: 2 },
-    { id: '29d0efc1-041d-49fb-932e-abf29baeb644', name: 'Other', kitchenType: 'Taipei', kitchenId: 'other', location: '', active: true, sortOrder: 3 }
+    { id: '1dd4b698-bc21-4b45-8a33-34112a681d66', name: 'Legacy Park', kitchenType: 'Taipei', kitchenId: 'legacy-park', location: '', verified: true, sortOrder: 1 },
+    { id: '33930e11-89fa-447f-9781-e3ffe8f63c2f', name: 'Store 6112', kitchenType: 'Giant', kitchenId: '6112', location: '255 S Spring Garden St, Carlisle, PA', verified: true, sortOrder: 2 },
+    { id: '29d0efc1-041d-49fb-932e-abf29baeb644', name: 'Other', kitchenType: 'Taipei', kitchenId: 'other', location: '', verified: true, sortOrder: 3 }
   ],
   supervisors: [
-    { id: 'b366fa0e-7576-4945-8b62-d10f1a3e4cdb', name: 'Anna', active: true, sortOrder: 1 },
-    { id: 'a588d0fb-6fb1-480c-bf66-99ecae07125c', name: 'Lucia', active: true, sortOrder: 2 },
-    { id: 'bf6ca106-a9b8-4e13-b7f5-e0c959add56b', name: 'Jiang', active: true, sortOrder: 3 },
-    { id: 'b994bc43-3b2e-4191-8668-6b89759fd4b4', name: 'Guy', active: true, sortOrder: 4 }
+    { id: 'b366fa0e-7576-4945-8b62-d10f1a3e4cdb', name: 'Anna', sortOrder: 1 },
+    { id: 'a588d0fb-6fb1-480c-bf66-99ecae07125c', name: 'Lucia', sortOrder: 2 },
+    { id: 'bf6ca106-a9b8-4e13-b7f5-e0c959add56b', name: 'Jiang', sortOrder: 3 },
+    { id: 'b994bc43-3b2e-4191-8668-6b89759fd4b4', name: 'Guy', sortOrder: 4 }
   ],
   dishes: [
-    { id: 'c727a826-a4db-4a49-87d2-5c6615f44585', name: 'General Tso Chicken Bento', active: true, sortOrder: 1 },
-    { id: '0aec557c-dad3-4cff-ba6c-fc6b1cb72c02', name: 'Sesame Chicken Bento', active: true, sortOrder: 2 },
-    { id: '903ec8bc-2403-40a5-a8ae-3703c356d2eb', name: 'Bento Chicken Lo Mein', active: true, sortOrder: 3 },
-    { id: '31615832-5a84-493c-8c6d-bccd5eb012a2', name: 'Bento Shrimp Lo Mein', active: true, sortOrder: 4 },
-    { id: 'cb2956b6-2473-4ed4-ad01-23c7d547b885', name: 'Bento Smoked Pork Lo Mein', active: true, sortOrder: 5 },
-    { id: '47cf003e-8adf-4ebd-96b6-c4e7725e25c0', name: 'Bento Sweet & Sour Chicken', active: true, sortOrder: 6 },
-    { id: 'ceae862e-fcca-4675-82f1-063cc1461909', name: 'Bourbon Chicken Bento', active: true, sortOrder: 7 },
-    { id: 'b6b3fc4e-3a98-42e0-a611-a419e24b4982', name: 'Broccoli Chicken Bento', active: true, sortOrder: 8 },
-    { id: '5867486a-86fc-492a-aca9-1bf2ad9c293e', name: 'Hot Spicy Chicken Bento', active: true, sortOrder: 9 },
-    { id: '5032e4e0-4a75-42e0-bd10-d07fec0147b1', name: 'Bento Steamed Dumplings', active: true, sortOrder: 10 },
-    { id: '12cdd609-0548-413e-8503-7c6730ef8712', name: 'Chicken Egg Roll', active: true, sortOrder: 11 },
-    { id: '3376d14c-b3b2-450d-b63e-074fa34ac2e4', name: 'Pork Egg Roll', active: true, sortOrder: 12 },
-    { id: 'f48bebe2-0e28-42f7-a1cc-1163022b2ee0', name: 'Shrimp Egg Roll', active: true, sortOrder: 13 }
+    { id: 'c727a826-a4db-4a49-87d2-5c6615f44585', name: 'General Tso Chicken Bento', upc: '00024575600000', verified: true, active: true, sortOrder: 1 },
+    { id: '0aec557c-dad3-4cff-ba6c-fc6b1cb72c02', name: 'Sesame Chicken Bento', upc: '00024576100000', verified: true, active: true, sortOrder: 2 },
+    { id: '903ec8bc-2403-40a5-a8ae-3703c356d2eb', name: 'Bento Chicken Lo Mein', upc: '00022738800000', verified: true, active: true, sortOrder: 3 },
+    { id: '31615832-5a84-493c-8c6d-bccd5eb012a2', name: 'Bento Shrimp Lo Mein', upc: '00022735200000', verified: true, active: true, sortOrder: 4 },
+    { id: 'cb2956b6-2473-4ed4-ad01-23c7d547b885', name: 'Bento Smoked Pork Lo Mein', upc: '00022738900000', verified: true, active: true, sortOrder: 5 },
+    { id: '47cf003e-8adf-4ebd-96b6-c4e7725e25c0', name: 'Bento Sweet & Sour Chicken', upc: '00022739100000', verified: true, active: true, sortOrder: 6 },
+    { id: 'ceae862e-fcca-4675-82f1-063cc1461909', name: 'Bourbon Chicken Bento', upc: '00024576200000', verified: true, active: true, sortOrder: 7 },
+    { id: 'b6b3fc4e-3a98-42e0-a611-a419e24b4982', name: 'Broccoli Chicken Bento', upc: '00024575700000', verified: true, active: true, sortOrder: 8 },
+    { id: '5867486a-86fc-492a-aca9-1bf2ad9c293e', name: 'Hot Spicy Chicken Bento', upc: '00024576500000', verified: true, active: true, sortOrder: 9 },
+    { id: '5032e4e0-4a75-42e0-bd10-d07fec0147b1', name: 'Bento Steamed Dumplings', upc: '00022739600000', verified: true, active: true, sortOrder: 10 },
+    { id: '12cdd609-0548-413e-8503-7c6730ef8712', name: 'Chicken Egg Roll', upc: '00024576900000', verified: true, active: true, sortOrder: 11 },
+    { id: '3376d14c-b3b2-450d-b63e-074fa34ac2e4', name: 'Pork Egg Roll', upc: '00024577100000', verified: true, active: true, sortOrder: 12 },
+    { id: 'f48bebe2-0e28-42f7-a1cc-1163022b2ee0', name: 'Shrimp Egg Roll', upc: '00024577200000', verified: true, active: true, sortOrder: 13 }
   ],
   stores: [
-    { id: '3053ab5e-a4ac-4450-9dfe-7cff7eefc73c', name: 'Store 6006', storeType: 'Giant', storeId: '6006', location: 'Kline Village, Harrisburg, PA', active: true, sortOrder: 1 },
-    { id: 'f37cb8e5-0671-47fb-8eea-dc2debf6d3e0', name: 'Store 6061', storeType: 'Giant', storeId: '6061', location: 'Shippensburg, PA', active: true, sortOrder: 2 },
-    { id: 'd55afaf3-8a4b-4205-98c9-eb6faef04a5e', name: 'Store 6112', storeType: 'Giant', storeId: '6112', location: '255 S Spring Garden St, Carlisle, PA', active: true, sortOrder: 3 },
-    { id: '248e6d7c-1d32-4005-9fc1-f36c8d1e63e0', name: 'Store 6253', storeType: 'Giant', storeId: '6253', location: 'New Cumberland, PA', active: true, sortOrder: 4 },
-    { id: 'd79ca4dc-d20f-4e08-abd1-f191a6ebf1fb', name: 'Store 6331', storeType: 'Giant', storeId: '6331', location: 'Mechanicsburg, PA', active: true, sortOrder: 5 },
-    { id: '68448510-c119-4be6-82c1-10ddc8899ae7', name: 'Store 6443', storeType: 'Giant', storeId: '6443', location: 'Chambersburg, PA', active: true, sortOrder: 6 },
-    { id: '42d6e005-07c1-4730-98bd-3186f3bf13f4', name: 'Store 6542', storeType: 'Giant', storeId: '6542', location: 'Carlisle, PA', active: true, sortOrder: 7 },
-    { id: '8e260391-34e1-4516-a9aa-e645aafac9a8', name: 'Store 6564', storeType: 'Giant', storeId: '6564', location: 'Harrisburg (Gayson Rd), PA', active: true, sortOrder: 8 }
+    { id: '3053ab5e-a4ac-4450-9dfe-7cff7eefc73c', name: 'Store 6006', storeType: 'Giant', storeId: '6006', location: 'Kline Village, Harrisburg, PA', verified: true, sortOrder: 2 },
+    { id: 'f37cb8e5-0671-47fb-8eea-dc2debf6d3e0', name: 'Store 6061', storeType: 'Giant', storeId: '6061', location: 'Shippensburg, PA', verified: true, sortOrder: 3 },
+    { id: 'd55afaf3-8a4b-4205-98c9-eb6faef04a5e', name: 'Store 6112', storeType: 'Giant', storeId: '6112', location: '255 S Spring Garden St, Carlisle, PA', verified: true, sortOrder: 4 },
+    { id: '248e6d7c-1d32-4005-9fc1-f36c8d1e63e0', name: 'Store 6253', storeType: 'Giant', storeId: '6253', location: 'New Cumberland, PA', verified: true, sortOrder: 5 },
+    { id: 'd79ca4dc-d20f-4e08-abd1-f191a6ebf1fb', name: 'Store 6331', storeType: 'Giant', storeId: '6331', location: 'Mechanicsburg, PA', verified: true, sortOrder: 6 },
+    { id: '68448510-c119-4be6-82c1-10ddc8899ae7', name: 'Store 6443', storeType: 'Giant', storeId: '6443', location: 'Chambersburg, PA', verified: true, sortOrder: 7 },
+    { id: '42d6e005-07c1-4730-98bd-3186f3bf13f4', name: 'Store 6542', storeType: 'Giant', storeId: '6542', location: 'Carlisle, PA', verified: true, sortOrder: 8 },
+    { id: '8e260391-34e1-4516-a9aa-e645aafac9a8', name: 'Store 6564', storeType: 'Giant', storeId: '6564', location: 'Harrisburg (Gayson Rd), PA', verified: true, sortOrder: 9 }
   ],
   drivers: [
-    { id: 'e967dcb5-77ba-41b6-a8ac-db46806230e7', name: 'Owen', active: true, sortOrder: 1 },
-    { id: '0b32d496-b2b5-4dc2-b68e-ba28a8e911b9', name: 'Sam Blumenthal', active: true, sortOrder: 2 },
-    { id: '179fe668-826d-4fa3-abcd-130194eefdf4', name: 'Andy', active: true, sortOrder: 3 }
+    { id: 'e967dcb5-77ba-41b6-a8ac-db46806230e7', name: 'Owen', sortOrder: 1 },
+    { id: '0b32d496-b2b5-4dc2-b68e-ba28a8e911b9', name: 'Sam Blumenthal', sortOrder: 2 },
+    { id: '179fe668-826d-4fa3-abcd-130194eefdf4', name: 'Andy', sortOrder: 3 }
   ]
 };
 
@@ -163,10 +164,10 @@ async function loadReferenceLists(keys) {
   return lists;
 }
 
-/** Active, undeleted entries of one list in display order: what a form may offer. */
+/** The entries of one list a form may offer, in display order: verified, not switched off, not deleted. */
 function activeEntries(lists, key) {
   return ((lists && lists[key]) || [])
-    .filter(entry => entry.active && !entry.deletedAt)
+    .filter(entry => entry.active !== false && entry.verified !== false && !entry.deletedAt)
     .slice()
     .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
 }

@@ -7,9 +7,12 @@
  *
  * Manual only. Each run adds everything again, so run it once per wipe; it is not for CI.
  *
- * Usage: node scripts/mock-data.js staging [days=90] [stores=5-8] [violations=0.03]
- *                                           [concurrency=6] [dry=true] [yes=true]
+ * Usage: node scripts/mock-data.js staging [days=90] [from=YYYY-MM-DD] [to=YYYY-MM-DD]
+ *                                           [stores=5-8] [violations=0.03] [concurrency=6]
+ *                                           [dry=true] [yes=true]
  *   days         how far back to go, ending yesterday; Sundays are skipped
+ *   from, to     an explicit range instead, inclusive; `to` alone ends earlier than yesterday,
+ *                `from` alone picks up where an interrupted run stopped
  *   stores       stores delivered to per day, a count or a range
  *   violations   the share of temperature readings above 41°F; each one raises a real
  *                violation and sends a real alert email to the environment's recipients
@@ -22,7 +25,7 @@ const { readPrefix, requireKeys } = require('./env');
 const webapp = require('./webapp');
 const smoke = require('./smoke-payload');
 
-const USAGE = 'Usage: node scripts/mock-data.js staging [days=90] [stores=5-8] [violations=0.03] [concurrency=6] [dry=true] [yes=true]';
+const USAGE = 'Usage: node scripts/mock-data.js staging [days=90] [from=YYYY-MM-DD] [to=YYYY-MM-DD] [stores=5-8] [violations=0.03] [concurrency=6] [dry=true] [yes=true]';
 const [,, environment, ...pairs] = process.argv;
 const { prefix } = readPrefix(environment || '', USAGE);
 if (environment !== 'staging') {
@@ -32,6 +35,10 @@ if (environment !== 'staging') {
 const opts = {};
 pairs.forEach(p => { const eq = p.indexOf('='); if (eq > 0) opts[p.slice(0, eq)] = p.slice(eq + 1); else opts[p] = 'true'; });
 const DAYS = Math.max(1, parseInt(opts.days, 10) || 90);
+const isoDate = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '') ? s : null;
+const TO = isoDate(opts.to) || null;     // default: yesterday
+const FROM = isoDate(opts.from) || null; // default: DAYS before the end
+if ((opts.to && !TO) || (opts.from && !FROM)) { console.error('from= and to= take YYYY-MM-DD'); process.exit(1); }
 const [STORES_MIN, STORES_MAX] = String(opts.stores || '5-8').split('-').map(n => parseInt(n, 10)).reduce((acc, n, i, arr) => arr.length === 1 ? [n, n] : [arr[0], arr[1]], []);
 const VIOLATION_RATE = opts.violations === undefined ? 0.03 : Math.max(0, Math.min(1, parseFloat(opts.violations) || 0));
 const CONCURRENCY = Math.max(1, parseInt(opts.concurrency, 10) || 6);
@@ -168,8 +175,13 @@ function buildDay(iso, lists) {
 }
 
 function previousDay(iso) {
+  return previousDays(iso, 1);
+}
+
+/** The date `n` days before `iso`; a negative `n` goes forward. */
+function previousDays(iso, n) {
   const d = new Date(iso + 'T12:00:00Z');
-  d.setUTCDate(d.getUTCDate() - 1);
+  d.setUTCDate(d.getUTCDate() - n);
   return d.toISOString().slice(0, 10);
 }
 
@@ -216,12 +228,15 @@ function confirm(question) {
   const lists = smoke.liveLists(reference);
   Object.entries(lists).forEach(([name, list]) => { if (!list.length) throw new Error(`the reference list ${name} has no active entries`); });
 
+  const end = TO || dateNY(1);
+  const start = FROM || previousDays(end, DAYS - 1);
+  if (start > end) throw new Error(`from (${start}) is after to (${end})`);
   const days = [];
-  for (let back = DAYS; back >= 1; back--) {
-    const iso = dateNY(back);
+  for (let iso = start; iso <= end; iso = previousDays(iso, -1)) {
     if (weekdayNY(iso) === 'Sun') continue;   // no route on Sundays
     days.push(buildDay(iso, lists));
   }
+  if (!days.length) throw new Error('no days to build: the range holds only Sundays');
 
   // The mock rows must be shaped exactly as the forms' payloads are; the smoke builders track those.
   sameKeys(days[0].production[0], smoke.productionPayload().rows[0], 'production');

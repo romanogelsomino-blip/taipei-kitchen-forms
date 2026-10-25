@@ -335,7 +335,7 @@ jobs:
             || { echo "::error::the simulated violation did not raise and alert: $(jq -c '[.error, .raised, .notes]' <<<"$SIM")"; exit 1; }
           VIOLATION_ID=$(jq -r '.raised[0].violationId' <<<"$SIM")
           MONTH=$(TZ=America/New_York date +%Y-%m)
-          SUPERVISORS=$(jq '[.supervisors[] | select(.active and .deletedAt == "")]' reference.json)
+          SUPERVISORS=$(jq '[.supervisors[] | select(.deletedAt == "")]' reference.json)
           RESOLVER=$(jq -r --argjson i "$(( RANDOM % $(jq length <<<"$SUPERVISORS") ))" '.[$i].name' <<<"$SUPERVISORS")
           jq -n --arg id "$VIOLATION_ID" --arg month "$MONTH" --arg who "$RESOLVER" --arg run "${{ github.run_id }}" \
             '{type:"resolveViolation", violationId:$id, month:$month, resolvedBy:$who,
