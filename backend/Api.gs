@@ -26,6 +26,7 @@ function doPost(e) {
     if (payload.type === 'bugReport')        return handleBugReport(payload, ctx);
     if (payload.type === 'config')           return handleConfigWrite(payload, ctx);        // the reference lists; see Reference.gs
     if (payload.type === 'resolveViolation') return handleViolationResolve(payload, ctx);   // see Violations.gs
+    if (payload.type === 'sales')            return handleSalesImport(payload, ctx);       // see Sales.gs
 
     ctx.logEntry.formType = payload.formType || 'unknown';
     ctx.logEntry.rowCount = payload.rows ? payload.rows.length : 0;

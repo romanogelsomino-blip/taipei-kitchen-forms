@@ -509,7 +509,7 @@ function planReferenceOps(list, ops, rows, now) {
         const sortOrder = sim.reduce((max, row) => Math.max(max, Number(row.sortOrder) || 0), 0) + 1;
         const row = { _row: null, id: Utilities.getUuid(), name: name, deletedAt: '', sortOrder: sortOrder, createdAt: now, updatedAt: now };
         if (list.active) row.active = true;
-        if (list.verified) row.verified = true;   // added by a person
+        if (list.verified) row.verified = entry.verified === undefined ? true : parseReferenceBool(entry.verified, 'verified');   // a person's add is verified; an import's says so
         list.attrs.forEach(attr => { row[attr.key] = checkReferenceAttr(list, attr, entry[attr.key]); });
         orgIds.forEach(attr => {
           if (referenceOrgIdTaken(sim, attr, row, null)) {

@@ -1,4 +1,4 @@
-// Schemas.gs — the five tabs of a monthly file: headers, keys, and how rows are built and read.
+// Schemas.gs — the six tabs of a monthly file: headers, keys, and how rows are built and read.
 //
 // Header text is the read contract; column position is not. A column entry is
 // { header, key, type, width?, value? }: `key` is the payload field on write and the output key
@@ -11,7 +11,7 @@
 // serve both.
 
 function tabNames() {
-  return ['Production', 'Packaging', 'Deliveries', 'Violations', 'Executions'];
+  return ['Production', 'Packaging', 'Deliveries', 'Sales', 'Violations', 'Executions'];
 }
 
 function schemaFor(tab) {
@@ -19,6 +19,7 @@ function schemaFor(tab) {
     case 'Production': return productionSchema();
     case 'Packaging':  return packagingSchema();
     case 'Deliveries': return deliveriesSchema();
+    case 'Sales':      return salesSchema();
     case 'Violations': return violationsSchema();
     case 'Executions': return executionsSchema();
     default: throw new Error('Unknown tab: ' + tab);
@@ -123,6 +124,30 @@ function deliveriesSchema() {
 }
 
 /**
+ * One row per store, UPC and day of what the retailer's registers rang up, reduced to that
+ * grain before it arrives. Keyed by the retailer's store number and UPC; the store's and
+ * dish's names and System IDs are resolved from the Reference sheet on import. Units are net
+ * of returns, as the retailer's totals are; Returned Units says how many of them were. A row
+ * with the same Date, Store ID and UPC is replaced on re-import, never duplicated.
+ */
+function salesSchema() {
+  return [
+    { header: 'Date',            key: 'date',          type: 'date' },
+    { header: 'Store',           key: 'store',         type: 'text',    width: 120 },
+    { header: 'Dish',            key: 'dish',          type: 'text',    width: 220 },
+    { header: 'Units',           key: 'units',         type: 'number' },
+    { header: 'Transactions',    key: 'transactions',  type: 'number',  width: 110 },
+    { header: 'Net Sales',       key: 'netSales',      type: 'number',  width: 100 },
+    { header: 'Gross Sales',     key: 'grossSales',    type: 'number',  width: 100 },
+    { header: 'Returned Units',  key: 'returnedUnits', type: 'number',  width: 120 },
+    { header: 'UPC',             key: 'upc',           type: 'text',    width: 150 },
+    { header: 'Store System ID', key: 'storeSystemId', type: 'text',    width: 290 },
+    { header: 'Store ID',        key: 'storeId',       type: 'text',    width: 80 },
+    { header: 'Dish System ID',  key: 'dishSystemId',  type: 'text',    width: 290 }
+  ];
+}
+
+/**
  * One row per violation; open until Resolved At is filled. A violation belongs to a location,
  * a store (from a delivery) or a kitchen (from packaging): the row keys on the location's
  * System ID and carries its name and type; the organisation's own id is not stored, the
@@ -173,6 +198,7 @@ function tabLayout(tab) {
     Production: { rows: 4000, filterThrough: 'Dish' },
     Packaging:  { rows: 6000, filterThrough: 'Dish' },
     Deliveries: { rows: 6000, filterThrough: 'Dish' },
+    Sales:      { rows: 6000, filterThrough: 'Dish' },
     Violations: { rows: 1000, filterThrough: null },
     Executions: { rows: 4000, filterThrough: null }
   }[tab];

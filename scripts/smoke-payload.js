@@ -5,7 +5,7 @@
  * frontend/forms/packaging.js and frontend/forms/delivery.js: a key added or dropped there is
  * added or dropped here.
  *
- * CLI: node scripts/smoke-payload.js <production|packaging|delivery|photos> [key=value ...]
+ * CLI: node scripts/smoke-payload.js <production|packaging|delivery|sales|photos> [key=value ...]
  *   reference=<file>  a saved ?action=reference reply (or, from code, the parsed reply): kitchen,
  *                     supervisor, driver, store and dishes are then real entries picked at
  *                     random, as a form would send them; store= and driver= pin those two
@@ -184,6 +184,30 @@ function deliveryPayload(over = {}) {
   return { formType: 'delivery', rows, photos: photosBlock(s) };
 }
 
+/**
+ * The body a sales import POSTs: rows already reduced to one per store, UPC and day. The
+ * smoke's row is for the reserved store 0000 — Sales has no notes column to mark a test row,
+ * so the store is the marker — and a real dish's UPC when a reference file is given.
+ */
+function salesPayload(over = {}) {
+  const s = settings(over);
+  const units = randInt(5, 30);
+  const price = pick([8.99, 9.99, 10.99]);
+  return {
+    type: 'sales',
+    rows: [{
+      date: s.date,
+      storeId: over.store || '0000',
+      upc: (over.reference && s.cast.dishes[0].upc) || '00000000000000',   // a real dish's code, else the reserved dish's
+      units: units,
+      transactions: randInt(Math.max(1, units - 5), units),
+      netSales: Math.round(units * price * 100) / 100,
+      grossSales: Math.round(units * price * 100) / 100,
+      returnedUnits: 0
+    }]
+  };
+}
+
 /** The body delivery.js POSTs in step 2: the photos block with image data. */
 function photosPayload(over = {}) {
   const s = settings(over);
@@ -198,9 +222,9 @@ function photosPayload(over = {}) {
 
 if (require.main === module) {
   const [kind, ...pairs] = process.argv.slice(2);
-  const builders = { production: productionPayload, packaging: packagingPayload, delivery: deliveryPayload, photos: photosPayload };
+  const builders = { production: productionPayload, packaging: packagingPayload, delivery: deliveryPayload, sales: salesPayload, photos: photosPayload };
   if (!builders[kind]) {
-    console.error('Usage: node scripts/smoke-payload.js <production|packaging|delivery|photos> [reference=] [tag=] [store=] [date=] [id=] [note=] [dishes=]');
+    console.error('Usage: node scripts/smoke-payload.js <production|packaging|delivery|sales|photos> [reference=] [tag=] [store=] [date=] [id=] [note=] [dishes=]');
     process.exit(1);
   }
   const over = {};
@@ -208,4 +232,4 @@ if (require.main === module) {
   process.stdout.write(JSON.stringify(builders[kind](over)) + '\n');
 }
 
-module.exports = { productionPayload, packagingPayload, deliveryPayload, photosPayload, newSubmissionId, todayNY, liveLists, pick, sample, randInt, hhmm, DISCARD_REASONS, REMOVAL_REASONS, CASE_FILL, TINY_JPEG };
+module.exports = { productionPayload, packagingPayload, deliveryPayload, salesPayload, photosPayload, newSubmissionId, todayNY, liveLists, pick, sample, randInt, hhmm, DISCARD_REASONS, REMOVAL_REASONS, CASE_FILL, TINY_JPEG };

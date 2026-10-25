@@ -244,7 +244,8 @@ jobs:
 
       # Reads can succeed while writes fail, so only real writes prove the deployment can
       # reach its stores: one production row, one packaging row, then one delivery row. The
-      # three kinds share the dispatch but not the schema or tab. Staging only: production has no
+      # three kinds share the dispatch but not the schema or tab; then one sales row, imported
+      # twice to prove it replaces rather than duplicates. Staging only: production has no
       # write-then-clean endpoint, so a synthetic row there would pollute the HACCP record.
       # Rows are dated today in New York so they file into the current month, and each tab
       # must grow by exactly one row: that is what proves the write reached the monthly store
@@ -309,6 +310,22 @@ jobs:
           [ "$(webapp_field "$BACK" .matched)" = 1 ] \
             || { echo "::error::the smoke row is not readable back by its submission id ($(webapp_field "$BACK" .matched) matched)."; exit 1; }
           echo "read back 1 row for $DELIVERY_ID"
+
+          # One sales row for the reserved store and a real dish: the Sales tab grows by one,
+          # and the same row sent again is replaced where it stands, so the tab does not grow.
+          node scripts/smoke-payload.js sales reference=reference.json > sales.json
+          smoke_write Sales sales.json
+          BEFORE_SALES=$(tab_rows Sales) \
+            || { echo "::error::storageStatus never answered with JSON before the sales re-import."; exit 1; }
+          AGAIN=$(webapp_post sales.json) \
+            || { echo "::error::the sales re-import's reply was not JSON."; exit 1; }
+          [ "$(webapp_field "$AGAIN" .status)" = ok ] && [ "$(webapp_field "$AGAIN" .updated)" = 1 ] && [ "$(webapp_field "$AGAIN" .added)" = 0 ] \
+            || { echo "::error::re-importing the same sales row should replace it (updated 1, added 0); got $(jq -c . <<<"$AGAIN")"; exit 1; }
+          AFTER_SALES=$(tab_rows Sales) \
+            || { echo "::error::storageStatus never answered with JSON after the sales re-import."; exit 1; }
+          [ "$AFTER_SALES" -eq "$BEFORE_SALES" ] \
+            || { echo "::error::the Sales tab went $BEFORE_SALES -> $AFTER_SALES on a re-import; the row was duplicated."; exit 1; }
+          echo "sales row for store $(jq -r '.rows[0].storeId' sales.json), UPC $(jq -r '.rows[0].upc' sales.json): written once, replaced in place on re-import"
 
           # An update is idempotent, so webapp_post's single attempt is enough; publish:false
           # keeps a routine dev push from firing a second Pages publish behind itself. The

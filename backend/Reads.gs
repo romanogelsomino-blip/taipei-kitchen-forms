@@ -78,6 +78,7 @@ function action_dashboard(e) {
     const packaging = recordsInWindow(win, 'Packaging').records.map(byStoreNumber);
     const deliveryRead = recordsInWindow(win, 'Deliveries');
     const deliveries = deliveryRead.records.map(byStoreNumber);
+    const sales = recordsInWindow(win, 'Sales').records.map(byStoreNumber);
     const waste = deliveries
       .filter(row => (parseInt(row.removed, 10) || 0) > 0)
       .map(row => Object.assign({}, row, { qtyRemoved: row.removed }));
@@ -88,6 +89,7 @@ function action_dashboard(e) {
       production: production,
       packaging: packaging,
       deliveries: deliveries,
+      sales: sales,
       waste: waste,
       violations: violations,
       stores: storeList(),

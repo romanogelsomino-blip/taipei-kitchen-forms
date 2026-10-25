@@ -6,11 +6,11 @@
 - **Releases are made on GitHub, not from a terminal.** A production release is a pull
   request from `dev` to `prod`, merged with a merge commit, then published as a GitHub
   Release. Never propose pushing `prod` or a tag directly.
-- **Production, then packaging, then delivery.** Food is cooked, loaded into coolers, then
-  delivered, so wherever these appear together — navigation, lists, data files,
-  documentation, code — they come in that order.
+- **Production, then packaging, then delivery, then sales.** Food is cooked, loaded into
+  coolers, delivered, then sold, so wherever these appear together — navigation, lists,
+  data files, documentation, code — they come in that order.
 - **Records live in monthly spreadsheets.** One file per month inside a folder per year,
-  five tabs, headers generated from `backend/Schemas.gs`. A record is filed under its own
+  six tabs, headers generated from `backend/Schemas.gs`. A record is filed under its own
   date read in New York, so one submission can span two files.
 - **Header text is the read contract; column order is not.** Appends, reads and updates all
   locate columns by matching header text, so a tab can be reordered by hand without breaking
@@ -44,6 +44,10 @@
   for a person's entry, false for one an import created until a person confirms it; the forms
   offer only verified entries. The git copies of `data/*.json` are seeds for local
   runs, not a source.
+- **Sales rows are keyed by the retailer's identifiers and replaced in place.** A Sales row
+  is one store, UPC and day; the backend resolves names and System IDs from the Reference
+  sheet, creates an unverified store for a number it lacks, files an unknown UPC under the
+  reserved dish, and overwrites a row with the same Date, Store ID and UPC on re-import.
 - **The lists are a picker source, not a constraint.** Nothing validates a submitted
   kitchen, dish, driver or supervisor against them, and nothing may: the pickers allow free
   text, and a delivery is never refused over a dropdown.

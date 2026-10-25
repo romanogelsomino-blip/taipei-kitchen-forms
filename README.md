@@ -118,6 +118,21 @@ The copies of `data/*.json` in git are seeds for local runs only; `node scripts/
 
 ---
 
+## Sales data
+
+The Sales tab holds what the retailer's registers rang up, one row per store, UPC and day:
+units (net of returns, as the retailer's own totals are), transactions, net and gross sales,
+units returned. Rows reach the backend already reduced to that grain, as
+`{ type: 'sales', rows: [...] }` keyed by the retailer's store number and UPC; the backend
+resolves the store's and dish's names and System IDs from the Reference sheet. A UPC no dish
+has is filed under the reserved `NON-TAIPEI DISH`. A store number the sheet does not have
+gets a store created for it, unverified until someone confirms it on the Config tab. A row
+with the same Date, Store ID and UPC is replaced on re-import, never duplicated; a day the
+retailer drops from a later export stays. Nothing produces these rows yet: the import is
+the next piece.
+
+---
+
 ## Food Safety Rules Built In
 
 The HACCP cooling rule is printed on the production form: hot food must cool from 135°F to
@@ -142,8 +157,8 @@ The HACCP cooling rule is printed on the production form: hot food must cool fro
 ## Data store
 
 Records live in one spreadsheet per month, in a folder per year, under
-`SPREADSHEET_FOLDER_ID`: `<YYYY>/<YYYY-MM> Operations`. Each file has five tabs in this
-order: Production, Packaging, Deliveries, Violations, Executions.
+`SPREADSHEET_FOLDER_ID`: `<YYYY>/<YYYY-MM> Operations`. Each file has six tabs in this
+order: Production, Packaging, Deliveries, Sales, Violations, Executions.
 
 - Headers come from the schemas in `backend/Schemas.gs` and are the read contract. Column
   order is not: readers match on header text, so a tab may be reordered by hand.
