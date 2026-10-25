@@ -14,6 +14,7 @@ let DATA = {
   production: [],
   packaging: [],
   deliveries: [],
+  sales: [],
   waste: [],
   stores: [],
   reference: null,   // the five reference lists plus their version, for the Config panel
@@ -225,6 +226,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     renderProduction();
     renderPackaging();
     renderDeliveries();
+    renderSales();
     renderFoodSafety();
   }
 });
@@ -363,6 +365,14 @@ async function loadDemoData() {
       { submittedAt: `${yesterday}T06:30:12.000Z`, date: yesterday, kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Beef Chow Fun', qtyProduced: 36, qtyDiscarded: 0, discardReason: '' },
       { submittedAt: `${yesterday}T07:05:28.000Z`, date: yesterday, kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Pork Dumpling', qtyProduced: 72, qtyDiscarded: 1, discardReason: 'Out of date' }
     ],
+    sales: [
+      { date: today, store: '6006', storeName: 'Store 6006', dish: 'General Tso Chicken Bento', units: 18, transactions: 17, netSales: 179.82, grossSales: 179.82, returnedUnits: 0, upc: '00024575600000', dishSystemId: 'c727a826-a4db-4a49-87d2-5c6615f44585', storeId: '6006' },
+      { date: today, store: '6006', storeName: 'Store 6006', dish: 'Shrimp Egg Roll', units: 22, transactions: 20, netSales: 176.00, grossSales: 176.00, returnedUnits: 1, upc: '00024577200000', dishSystemId: 'f48bebe2-0e28-42f7-a1cc-1163022b2ee0', storeId: '6006' },
+      { date: today, store: '6061', storeName: 'Store 6061', dish: 'Sesame Chicken Bento', units: 25, transactions: 23, netSales: 249.75, grossSales: 249.75, returnedUnits: 0, upc: '00024576100000', dishSystemId: '0aec557c-dad3-4cff-ba6c-fc6b1cb72c02', storeId: '6061' },
+      { date: today, store: '6061', storeName: 'Store 6061', dish: 'NON-TAIPEI DISH', units: 140, transactions: 118, netSales: 1764.60, grossSales: 1764.60, returnedUnits: 0, upc: '00023830700000', dishSystemId: '00000000-0000-4000-8000-000000000001', storeId: '6061' },
+      { date: yesterday, store: '6006', storeName: 'Store 6006', dish: 'General Tso Chicken Bento', units: 21, transactions: 19, netSales: 209.79, grossSales: 209.79, returnedUnits: 0, upc: '00024575600000', dishSystemId: 'c727a826-a4db-4a49-87d2-5c6615f44585', storeId: '6006' },
+      { date: yesterday, store: '6253', storeName: 'Store 6253', dish: 'Bento Chicken Lo Mein', units: 14, transactions: 14, netSales: 125.86, grossSales: 125.86, returnedUnits: 0, upc: '00022738800000', dishSystemId: '903ec8bc-2403-40a5-a8ae-3703c356d2eb', storeId: '6253' }
+    ],
     waste: [
       { date: today, store: '6006', dish: 'Spring Roll (Veg)', removed: 2, qtyRemoved: 2, reason: 'Out of date' },
       { date: today, store: '6253', dish: 'Chicken Lo Mein', removed: 1, qtyRemoved: 1, reason: 'Damaged' },
@@ -435,6 +445,7 @@ async function fetchData(opts) {
     DATA.production = data.production || [];
     DATA.packaging = data.packaging || [];
     DATA.deliveries = data.deliveries || [];
+    DATA.sales = data.sales || [];
     DATA.waste = data.waste || [];
     DATA.violations = data.violations || [];
     DATA.stores = data.stores || [];
@@ -450,6 +461,7 @@ async function fetchData(opts) {
     renderProduction();
     renderPackaging();
     renderDeliveries();
+    renderSales();
     renderFoodSafety();
     configOnDataRefresh();   // the Config panel decides for itself what a poll may touch
   } catch (e) {
@@ -1857,6 +1869,164 @@ function renderFoodSafety() {
   checkForViolations();   // the banner
   loadFoodSafety();
   renderViolations();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Sales panel
+// ═══════════════════════════════════════════════════════════════════════════
+// Sales rows are one store, dish and day each, from the retailer's export. The panel sums
+// our dishes by day, store and dish for the chosen range, and sets them against what the
+// deliveries put on the shelf over the same days. The retailer's other Asian-deli lines,
+// filed under the reserved NON-TAIPEI DISH, appear only as the denominator of one number:
+// our share of what the store rang up in that category.
+
+const SALES_CATCHALL_ID = '00000000-0000-4000-8000-000000000001';   // the reserved NON-TAIPEI DISH; see backend/ReferenceSeed.gs
+const SALES_STATE = {
+  quickRange: 7,
+  rows: [],          // our dishes' sales rows in range
+  otherNet: {},      // store number -> net sales of everything else in the category, in range
+  delivered: {},     // store number -> units added to shelves in range
+  chart: null
+};
+
+function renderSales() {
+  setSalesQuickRange(SALES_STATE.quickRange);
+}
+
+function setSalesQuickRange(range) {
+  SALES_STATE.quickRange = range;
+  document.querySelectorAll('#panel-sales .btn-time-range').forEach(btn => btn.classList.toggle('active', btn.dataset.range == range));
+
+  const today = getTodayDate();
+  let start = null;
+  if (range === 'today') start = today;
+  else if (range === 'all') ensureWindow(earliestWindowFrom());
+  else { start = addDaysISO(today, -range); ensureWindow(start); }
+  const inRange = r => !start || normalizeDate(r.date) >= start;
+
+  const sales = (DATA.sales || []).filter(inRange);
+  SALES_STATE.rows = sales.filter(r => r.dishSystemId !== SALES_CATCHALL_ID);
+  const otherNet = {};
+  sales.filter(r => r.dishSystemId === SALES_CATCHALL_ID).forEach(r => { otherNet[String(r.store)] = (otherNet[String(r.store)] || 0) + salesNumber(r.netSales); });
+  SALES_STATE.otherNet = otherNet;
+  const delivered = {};
+  DATA.deliveries.filter(inRange).forEach(d => { delivered[String(d.store)] = (delivered[String(d.store)] || 0) + (parseInt(d.added, 10) || 0); });
+  SALES_STATE.delivered = delivered;
+
+  updateSalesMetrics();
+  updateSalesChart();
+  displaySalesByStore();
+  displaySalesByDish();
+}
+
+const salesNumber = n => (Number(n) || 0);
+const salesMoney = n => '$' + salesNumber(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const salesPercent = (part, whole) => whole > 0 ? Math.round(part / whole * 100) + '%' : '—';
+
+function updateSalesMetrics() {
+  const rows = SALES_STATE.rows;
+  const units = rows.reduce((s, r) => s + salesNumber(r.units), 0);
+  const net = rows.reduce((s, r) => s + salesNumber(r.netSales), 0);
+  const returned = rows.reduce((s, r) => s + salesNumber(r.returnedUnits), 0);
+  const delivered = Object.values(SALES_STATE.delivered).reduce((s, n) => s + n, 0);
+  const otherNet = Object.values(SALES_STATE.otherNet).reduce((s, n) => s + n, 0);
+
+  const grid = document.getElementById('sales-metrics');
+  grid.textContent = '';
+  [
+    ['Units Sold', units.toLocaleString(), returned ? returned.toLocaleString() + ' returned' : 'No returns'],
+    ['Net Sales', salesMoney(net), units ? salesMoney(net / units) + ' per unit' : '—'],
+    ['Sell-through', salesPercent(units, delivered), units.toLocaleString() + ' sold of ' + delivered.toLocaleString() + ' delivered'],
+    ['Share of Asian Deli', salesPercent(net, net + otherNet), 'of ' + salesMoney(net + otherNet) + ' rung up in the category']
+  ].forEach(([label, value, sub]) => {
+    const card = makeEl('div', 'metric-card');
+    card.appendChild(makeEl('div', 'metric-label', label));
+    card.appendChild(makeEl('div', 'metric-value', value));
+    card.appendChild(makeEl('div', 'metric-sub', sub));
+    grid.appendChild(card);
+  });
+}
+
+function updateSalesChart() {
+  const byDate = {};
+  SALES_STATE.rows.forEach(r => { const d = normalizeDate(r.date); byDate[d] = (byDate[d] || 0) + salesNumber(r.units); });
+  const dates = Object.keys(byDate).sort();
+  if (SALES_STATE.chart) SALES_STATE.chart.destroy();
+  const ctx = document.getElementById('chart-sales-units').getContext('2d');
+  SALES_STATE.chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: dates.map(d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+      datasets: [{ label: 'Units sold', data: dates.map(d => byDate[d]), borderColor: '#27AE60', backgroundColor: 'rgba(39, 174, 96, 0.1)', tension: 0.3, fill: true }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+/** A table built from rows of cells, headers first; cells are text. */
+function salesTable(headers, rows) {
+  const table = makeEl('table', 'data-table');
+  const thead = makeEl('thead');
+  const head = makeEl('tr');
+  headers.forEach(h => head.appendChild(makeEl('th', '', h)));
+  thead.appendChild(head);
+  table.appendChild(thead);
+  const tbody = makeEl('tbody');
+  rows.forEach(cells => {
+    const tr = makeEl('tr');
+    cells.forEach(text => tr.appendChild(makeEl('td', '', text)));
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  return table;
+}
+
+function salesEmpty(container, what) {
+  container.textContent = '';
+  container.appendChild(makeEl('p', 'hint', what));
+}
+
+function displaySalesByStore() {
+  const container = document.getElementById('sales-by-store');
+  const byStore = {};
+  SALES_STATE.rows.forEach(r => {
+    const key = String(r.store);
+    const s = byStore[key] || (byStore[key] = { name: r.storeName || storeNameFor(r.store), units: 0, transactions: 0, net: 0 });
+    s.units += salesNumber(r.units);
+    s.transactions += salesNumber(r.transactions);
+    s.net += salesNumber(r.netSales);
+  });
+  const stores = Object.entries(byStore).sort((a, b) => b[1].net - a[1].net);
+  if (!stores.length) return salesEmpty(container, 'No sales rows in this range.');
+  container.textContent = '';
+  container.appendChild(salesTable(
+    ['Store', 'Units', 'Transactions', 'Net Sales', 'Delivered', 'Sell-through', 'Share of Asian Deli'],
+    stores.map(([number, s]) => {
+      const delivered = SALES_STATE.delivered[number] || 0;
+      const other = SALES_STATE.otherNet[number] || 0;
+      return [s.name, s.units.toLocaleString(), s.transactions.toLocaleString(), salesMoney(s.net), delivered.toLocaleString(), salesPercent(s.units, delivered), salesPercent(s.net, s.net + other)];
+    })
+  ));
+}
+
+function displaySalesByDish() {
+  const container = document.getElementById('sales-by-dish');
+  const byDish = {};
+  SALES_STATE.rows.forEach(r => {
+    const key = String(r.dishSystemId || r.dish);
+    const d = byDish[key] || (byDish[key] = { name: r.dish, units: 0, transactions: 0, net: 0, returned: 0 });
+    d.units += salesNumber(r.units);
+    d.transactions += salesNumber(r.transactions);
+    d.net += salesNumber(r.netSales);
+    d.returned += salesNumber(r.returnedUnits);
+  });
+  const dishes = Object.values(byDish).sort((a, b) => b.units - a.units);
+  if (!dishes.length) return salesEmpty(container, 'No sales rows in this range.');
+  container.textContent = '';
+  container.appendChild(salesTable(
+    ['Dish', 'Units', 'Transactions', 'Net Sales', 'Avg Net per Unit', 'Returned'],
+    dishes.map(d => [d.name, d.units.toLocaleString(), d.transactions.toLocaleString(), salesMoney(d.net), d.units ? salesMoney(d.net / d.units) : '—', d.returned.toLocaleString()])
+  ));
 }
 
 // ─── Violations ──────────────────────────────────────────────────────────────

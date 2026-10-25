@@ -516,17 +516,37 @@
 
     <!-- Waste Analysis Panel -->
     <section id="panel-sales" class="panel">
-      <div class="panel-header">
-        <h1 class="panel-title">Sales</h1>
-        <p class="panel-subtitle">What actually sold at each store</p>
+      <h1 class="panel-title">Sales</h1>
+      <p class="panel-subtitle">What the registers rang up, by store, dish and day, against what was delivered</p>
+
+      <div style="margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--mid);font-weight:600;">QUICK:</span>
+        <button class="btn-time-range" data-range="today" onclick="setSalesQuickRange('today')">Today</button>
+        <button class="btn-time-range active" data-range="7" onclick="setSalesQuickRange(7)">7 Days</button>
+        <button class="btn-time-range" data-range="30" onclick="setSalesQuickRange(30)">30 Days</button>
+        <button class="btn-time-range" data-range="all" onclick="setSalesQuickRange('all')">All</button>
       </div>
+
+      <div class="metrics-grid" id="sales-metrics">
+        <div class="loading">Loading metrics...</div>
+      </div>
+
+      <div class="section-card" style="margin-bottom:20px;">
+        <h2 class="section-title" style="margin-bottom:12px;">Units Sold per Day</h2>
+        <div style="height:200px;position:relative;">
+          <canvas id="chart-sales-units"></canvas>
+        </div>
+      </div>
+
+      <div class="section-card" style="margin-bottom:20px;">
+        <h2 class="section-title">By Store</h2>
+        <p class="hint" style="margin:-8px 0 12px;">Delivered is what the deliveries put on the shelf in the same range. Share is our dishes' part of everything the store rang up in its Asian deli.</p>
+        <div id="sales-by-store"><div class="loading">Loading...</div></div>
+      </div>
+
       <div class="section-card">
-        <h2 class="section-title">Under development</h2>
-        <p style="font-size:0.95rem;color:var(--mid);line-height:1.6;">
-          Sales figures are not captured yet. The system records what was produced, what was
-          delivered and what came off the shelf. What a customer paid for is not part of the
-          record today. This panel is where it will go once that data has a source.
-        </p>
+        <h2 class="section-title">By Dish</h2>
+        <div id="sales-by-dish"><div class="loading">Loading...</div></div>
       </div>
     </section>
 
