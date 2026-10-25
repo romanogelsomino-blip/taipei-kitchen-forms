@@ -3422,7 +3422,7 @@ function configRenderList() {
       edit.onclick = () => configToggleEdit(def.key, ref);
       actions.appendChild(edit);
       if (editing && unverified) {
-        const verify = configEl('button', 'btn-apply-filters config-edit', 'Mark verified');
+        const verify = configEl('button', 'btn-apply-filters config-edit', 'Verify');
         verify.type = 'button';
         verify.onclick = () => configEdit(def.key, index, 'verified', true);
         actions.appendChild(verify);
@@ -3479,7 +3479,7 @@ function configRowWarning(def, entry, was, problem) {
     return configEl('div', 'config-warn', 'Removed from the forms on their next load. Past records keep it.');
   }
   if (def.verified && entry.verified === false && !entry.deletedAt) {
-    return configEl('div', 'config-warn', 'Unverified: an import created this ' + def.noun + ' from the data it met. Check the name and details, then Edit and mark it verified; the forms do not offer it until then.');
+    return configEl('div', 'config-warn unverified', 'Unverified: an import created this ' + def.noun + ' from the data it met. Check the name and details, then Edit and press Verify; the forms do not offer it until then.');
   }
   return null;
 }

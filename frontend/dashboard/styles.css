@@ -2008,7 +2008,9 @@ select option {
 }
 .config-card.editing { background: var(--surface); border-color: var(--red); box-shadow: 0 0 0 2px var(--red-lt); }
 .config-card.inactive { opacity: 0.6; }
-.config-card.unverified { border-style: dashed; border-color: var(--orange); }
+/* An entry an import created: tinted until a person verifies it, with its note hanging off the card. */
+.config-card.unverified { background: var(--red-lt); border-color: var(--red); border-radius: 8px 8px 0 0; }
+.config-card.unverified.editing { background: var(--red-lt); }
 .config-card.inactive.editing { opacity: 1; }
 .config-card.invalid { border-color: var(--red); }
 .config-card-move { display: flex; flex-direction: column; gap: 2px; }
@@ -2172,6 +2174,15 @@ select option {
   margin: -2px 0 6px;
 }
 .config-warn.safe { border-left-color: var(--green); }
+.config-warn.unverified {
+  margin: -1px 0 6px;
+  padding: 6px 12px 7px;
+  border: 1px solid var(--red);
+  border-top: 1px dashed var(--red);
+  border-radius: 0 0 8px 8px;
+  background: var(--red-lt);
+  color: var(--red-dk);
+}
 
 /* The add row: the one place an entry's type and organisation id are entered. */
 .config-add {
