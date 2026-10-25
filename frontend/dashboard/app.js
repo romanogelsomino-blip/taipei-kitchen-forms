@@ -3018,7 +3018,7 @@ const CONFIG_LISTS = [
     verified: true,
     blurb: 'Where coolers are bound for and deliveries go. The packaging and delivery forms carry the store name, and its QR code carries its System ID. The Store ID is the identifier the organisation named by Store Type uses for it: for a Giant store, its store number.' },
   { key: 'dishes',      label: 'Dishes',      noun: 'dish',       byName: true,
-    attrs: [{ key: 'upc', label: 'UPC', kind: 'upc', editable: true }],   // Giant's 14-digit code for the dish, which its sales rows carry
+    attrs: [{ key: 'upc', label: 'UPC', kind: 'upc' }],   // Giant's 14-digit code for the dish, which its sales rows carry; set when the dish is added, not edited here
     activeToggle: true,   // the one list with a pause switch as well as delete: a dish is tried for a while, then kept or not
     verified: true,
     blurb: 'What is cooked, loaded and delivered. All three forms show these as cards, in this order. Switch a dish off to pause it without losing its place; delete it to retire it.' },
