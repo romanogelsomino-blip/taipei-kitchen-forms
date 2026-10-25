@@ -11,6 +11,7 @@
 <!-- Chart.js via CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- Driver.js for Dashboard Tour -->
 </head>
 <body>
@@ -518,6 +519,20 @@
     <section id="panel-sales" class="panel">
       <h1 class="panel-title">Sales</h1>
       <p class="panel-subtitle">What the registers rang up, by store, dish and day, against what was delivered</p>
+
+      <div class="section-card sales-import" style="margin-bottom:20px;">
+        <h2 class="section-title">Import a sales report</h2>
+        <p class="home-launcher-blurb">Giant's DAX export, as .xlsx or .csv. The file is read in this browser, nothing is uploaded; it is reduced to one row per store, dish and day, shown here, and written only when you confirm. A week already imported is replaced, not doubled.</p>
+        <div class="sales-import-pick">
+          <label class="btn-clear-filters sales-import-choose">Choose file<input type="file" id="sales-import-file" accept=".xlsx,.xls,.csv" onchange="salesImportPick(this)" hidden></label>
+          <span id="sales-import-name" class="hint"></span>
+        </div>
+        <div id="sales-import-preview" class="sales-import-preview" hidden></div>
+        <div class="sales-import-actions">
+          <button class="btn-apply-filters" id="sales-import-go" onclick="salesImportRun()" disabled>Import</button>
+          <span id="sales-import-status" class="hint"></span>
+        </div>
+      </div>
 
       <div style="margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span style="font-family:'DM Mono',monospace;font-size:0.75rem;color:var(--mid);font-weight:600;">QUICK:</span>

@@ -2029,6 +2029,202 @@ function displaySalesByDish() {
   ));
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Sales import
+// ═══════════════════════════════════════════════════════════════════════════
+// The retailer's export is read in this browser, never uploaded. Its transaction lines are
+// reduced to one row per store, UPC and day, previewed, and sent to the backend a month at a
+// time as { type: 'sales', rows }. The backend resolves stores and dishes and replaces rows
+// in place, so the same week can be imported twice. The parser knows the DAX export's
+// columns by their names, not their positions, and reads the date out of the Transaction
+// Id, which the export carries it in.
+
+const SALES_IMPORT_MAX_LINES = 50000;   // a week is about 5,000; past this, ask for a shorter export rather than freeze the tab
+const SALES_IMPORT = { file: null, months: null, busy: false };
+
+/** Column indexes by what the importer needs, matched on header text with the retailer's numeric prefixes ("06 Store") dropped. */
+function salesImportColumns(headerRow) {
+  const normal = cell => String(cell === undefined || cell === null ? '' : cell).replace(/^\d+\s+/, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const headers = headerRow.map(normal);
+  const wanted = { store: 'store', upc: 'upc', transactionId: 'transaction id', gross: 'product gross sales', net: 'product net sales', units: 'scanned units', city: 'city' };
+  const at = {};
+  const missing = [];
+  Object.keys(wanted).forEach(key => {
+    at[key] = headers.indexOf(wanted[key]);
+    if (at[key] < 0 && key !== 'city') missing.push(wanted[key]);
+  });
+  if (missing.length) throw new Error('The sheet has no column for: ' + missing.join(', ') + '. Expected the DAX export\'s columns.');
+  return at;
+}
+
+/** The first sheet whose first row is the export's header row, with its rows as arrays. */
+function salesImportSheet(workbook) {
+  for (const name of workbook.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true, defval: '' });
+    const first = rows.findIndex(row => row.some(cell => String(cell).trim() !== ''));
+    if (first < 0) continue;
+    try {
+      const columns = salesImportColumns(rows[first]);
+      return { name: name, columns: columns, lines: rows.slice(first + 1) };
+    } catch (e) {
+      // not this sheet; the DAX file's first sheet is its report description
+    }
+  }
+  throw new Error('No sheet in the file has the export\'s columns (Store, UPC, Transaction Id, Product Net Sales, Scanned Units).');
+}
+
+/** Transaction lines reduced to one row per store, UPC and day. */
+function salesImportReduce(lines, at) {
+  const cell = (line, key) => (at[key] < 0 ? '' : line[at[key]]);
+  const rows = {};
+  let kept = 0;
+  let skipped = 0;
+  const bad = [];
+  lines.forEach((line, i) => {
+    const storeText = String(cell(line, 'store') || '').trim();
+    const upcText = String(cell(line, 'upc') || '').trim();
+    const idText = String(cell(line, 'transactionId') || '').replace(/\D/g, '');
+    if (!storeText && !upcText && !idText) { skipped += 1; return; }   // a blank line, as the export ends with
+    const store = (storeText.match(/(\d+)\s*$/) || [])[1];
+    let upc = (upcText.match(/^\d+/) || [])[0] || '';
+    if (upc && upc.length < 14) upc = upc.padStart(14, '0');   // a UPC saved through a spreadsheet that dropped its leading zeros
+    const date = /^\d{8}/.test(idText) ? idText.slice(0, 4) + '-' + idText.slice(4, 6) + '-' + idText.slice(6, 8) : '';
+    const dateOk = date && !isNaN(new Date(date + 'T12:00:00Z').getTime()) && new Date(date + 'T12:00:00Z').toISOString().slice(0, 10) === date;
+    if (!store || upc.length !== 14 || !dateOk) {
+      if (bad.length < 5) bad.push('line ' + (i + 2) + ': ' + [storeText || '(no store)', upcText || '(no UPC)', idText || '(no transaction id)'].join(' / '));
+      skipped += 1;
+      return;
+    }
+    const units = Math.round(Number(cell(line, 'units')) || 0);
+    const net = Number(cell(line, 'net')) || 0;
+    const gross = Number(cell(line, 'gross')) || 0;
+    const key = date + '|' + store + '|' + upc;
+    const row = rows[key] || (rows[key] = { date: date, storeId: store, upc: upc, city: String(cell(line, 'city') || '').trim(), units: 0, netSales: 0, grossSales: 0, returnedUnits: 0, baskets: new Set() });
+    row.units += units;
+    row.netSales += net;
+    row.grossSales += gross;
+    if (units < 0) row.returnedUnits += -units;
+    row.baskets.add(idText);
+    kept += 1;
+  });
+  const out = Object.values(rows).map(row => ({
+    date: row.date, storeId: row.storeId, upc: row.upc, city: row.city,
+    units: row.units, transactions: row.baskets.size,
+    netSales: Math.round(row.netSales * 100) / 100, grossSales: Math.round(row.grossSales * 100) / 100,
+    returnedUnits: row.returnedUnits
+  })).sort((a, b) => (a.date + a.storeId + a.upc).localeCompare(b.date + b.storeId + b.upc));
+  return { rows: out, kept: kept, skipped: skipped, bad: bad };
+}
+
+function salesImportSay(text, bad) {
+  const status = document.getElementById('sales-import-status');
+  status.textContent = text;
+  status.className = 'hint' + (bad ? ' bad' : '');
+}
+
+function salesImportReset() {
+  SALES_IMPORT.file = null;
+  SALES_IMPORT.months = null;
+  document.getElementById('sales-import-preview').hidden = true;
+  document.getElementById('sales-import-preview').textContent = '';
+  document.getElementById('sales-import-go').disabled = true;
+}
+
+async function salesImportPick(input) {
+  const file = input.files && input.files[0];
+  salesImportReset();
+  document.getElementById('sales-import-name').textContent = file ? file.name : '';
+  salesImportSay('');
+  if (!file) return;
+  if (typeof XLSX === 'undefined') return salesImportSay('The spreadsheet library could not be loaded. Check the connection and reload.', true);
+
+  salesImportSay('Reading ' + file.name + '…');
+  try {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: 'array', dense: true });
+    const sheet = salesImportSheet(workbook);
+    if (sheet.lines.length > SALES_IMPORT_MAX_LINES) {
+      throw new Error('The sheet has ' + sheet.lines.length.toLocaleString() + ' lines; the importer takes up to ' + SALES_IMPORT_MAX_LINES.toLocaleString() + '. Export a shorter range.');
+    }
+    const reduced = salesImportReduce(sheet.lines, sheet.columns);
+    if (!reduced.rows.length) throw new Error('No usable lines: every line lacked a store, a 14-digit UPC or a dated Transaction Id.' + (reduced.bad.length ? ' First: ' + reduced.bad[0] : ''));
+
+    const months = {};
+    reduced.rows.forEach(row => { const m = row.date.slice(0, 7); (months[m] = months[m] || []).push(row); });
+    SALES_IMPORT.file = file.name;
+    SALES_IMPORT.months = months;
+    salesImportPreview(reduced, months);
+    document.getElementById('sales-import-go').disabled = !CONFIG.webAppUrl;
+    salesImportSay(CONFIG.webAppUrl ? '' : 'Demo mode: there is no backend to import into.', !CONFIG.webAppUrl);
+  } catch (e) {
+    console.error('[Sales import]', e);
+    salesImportSay(e.message || String(e), true);
+  }
+}
+
+/** What the import will do, from the reduced rows and the reference lists: the user confirms against this. */
+function salesImportPreview(reduced, months) {
+  const reference = DATA.reference || {};
+  const knownStores = new Set((reference.stores || []).map(s => String(s.storeId)));
+  const knownUpcs = new Set((reference.dishes || []).map(d => String(d.upc)).filter(Boolean));
+  const dates = reduced.rows.map(r => r.date).sort();
+  const stores = Array.from(new Set(reduced.rows.map(r => r.storeId))).sort();
+  const newStores = stores.filter(s => !knownStores.has(s));
+  const other = reduced.rows.filter(r => !knownUpcs.has(r.upc));
+  const otherUpcs = new Set(other.map(r => r.upc));
+  const returns = reduced.rows.filter(r => r.returnedUnits > 0).length;
+
+  const box = document.getElementById('sales-import-preview');
+  box.textContent = '';
+  const line = (label, value, warn) => {
+    const row = makeEl('div', 'sales-import-line' + (warn ? ' warn' : ''));
+    row.appendChild(makeEl('span', 'sales-import-label', label));
+    row.appendChild(makeEl('span', 'sales-import-value', value));
+    box.appendChild(row);
+  };
+  line('Days', dates[0] + ' to ' + dates[dates.length - 1] + ' (' + new Set(dates).size + ' days)');
+  line('Lines read', reduced.kept.toLocaleString() + (reduced.skipped ? ', ' + reduced.skipped.toLocaleString() + ' skipped' : ''), reduced.bad.length > 0);
+  if (reduced.bad.length) line('Skipped because', reduced.bad.join('; ') + (reduced.skipped > reduced.bad.length ? '; …' : ''), true);
+  line('Rows to write', reduced.rows.length.toLocaleString() + ' — ' + Object.keys(months).sort().map(m => m + ': ' + months[m].length.toLocaleString()).join(', '));
+  line('Stores', stores.length + (newStores.length ? ' — ' + newStores.length + ' not on the list, to be added unverified: ' + newStores.join(', ') : ', all on the list'), newStores.length > 0);
+  line('Our dishes', (reduced.rows.length - other.length).toLocaleString() + ' rows; ' + other.length.toLocaleString() + ' rows of ' + otherUpcs.size + ' other items go to NON-TAIPEI DISH');
+  if (returns) line('Returns', returns.toLocaleString() + ' rows carry returned units');
+  box.hidden = false;
+}
+
+/** Send the months in order, one request each; a failure stops there with the earlier months written. */
+async function salesImportRun() {
+  if (SALES_IMPORT.busy || !SALES_IMPORT.months) return;
+  if (!CONFIG.webAppUrl) return salesImportSay('Demo mode: there is no backend to import into.', true);
+  const months = Object.keys(SALES_IMPORT.months).sort();
+  const button = document.getElementById('sales-import-go');
+  SALES_IMPORT.busy = true;
+  button.disabled = true;
+  const done = [];
+  try {
+    for (const month of months) {
+      const rows = SALES_IMPORT.months[month];
+      salesImportSay('Writing ' + month + ' (' + rows.length.toLocaleString() + ' rows)…' + (done.length ? ' Done: ' + done.join('; ') : ''));
+      const sent = await dashboardPost({ type: 'sales', rows: rows });
+      if (!sent.ok) throw new Error(month + ': ' + sent.error);
+      const r = sent.data;
+      done.push(month + ' ' + r.added.toLocaleString() + ' added, ' + r.updated.toLocaleString() + ' replaced' +
+        (r.storesCreated && r.storesCreated.length ? ', stores added: ' + r.storesCreated.join(', ') : ''));
+    }
+    salesImportSay('Imported ' + SALES_IMPORT.file + '. ' + done.join('; ') + '. Verify any added store on the Config tab.');
+    document.getElementById('sales-import-file').value = '';
+    salesImportReset();
+    document.getElementById('sales-import-name').textContent = '';
+    fetchData();   // the Sales panel below, and the reference lists if a store was added
+  } catch (e) {
+    console.error('[Sales import]', e);
+    salesImportSay('Stopped: ' + (e.message || String(e)) + (done.length ? ' Already written: ' + done.join('; ') + '. Import again to finish; written months are replaced, not doubled.' : ''), true);
+    button.disabled = false;
+  } finally {
+    SALES_IMPORT.busy = false;
+  }
+}
+
 // ─── Violations ──────────────────────────────────────────────────────────────
 // One card per violation, built with DOM calls and textContent: store names, notes and
 // corrective actions are typed by people. A violation is resolved on its own card by naming

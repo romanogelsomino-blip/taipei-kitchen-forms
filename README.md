@@ -128,8 +128,9 @@ resolves the store's and dish's names and System IDs from the Reference sheet. A
 has is filed under the reserved `NON-TAIPEI DISH`. A store number the sheet does not have
 gets a store created for it, unverified until someone confirms it on the Config tab. A row
 with the same Date, Store ID and UPC is replaced on re-import, never duplicated; a day the
-retailer drops from a later export stays. Nothing produces these rows yet: the import is
-the next piece.
+retailer drops from a later export stays. The rows come from the dashboard's Sales tab:
+choose the export file, the browser reads it, reduces it and shows what it will write, and
+on confirm sends it a month at a time.
 
 ---
 

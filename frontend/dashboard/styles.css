@@ -673,6 +673,25 @@ select option {
   font-size: 0.85rem;
 }
 
+/* Sales import: pick a file, read the preview, confirm */
+.sales-import-pick { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sales-import-choose { display: inline-block; cursor: pointer; }
+.sales-import-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 0;
+  padding: 12px 14px;
+  background: var(--row-alt);
+  border-radius: 6px;
+}
+.sales-import-line { display: flex; gap: 12px; font-size: 0.88rem; color: var(--dark); }
+.sales-import-line.warn .sales-import-value { color: var(--red-dk); }
+.sales-import-label { flex: 0 0 120px; font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--soft); padding-top: 3px; }
+.sales-import-value { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sales-import-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hint.bad { color: var(--red-dk); }
+
 /* Packaging panel: one row per cooler, its dish lines a tap away */
 .packaging-table tr.packaging-cooler { cursor: pointer; }
 .packaging-table tr.packaging-cooler.is-warm td { background: var(--red-lt); }
