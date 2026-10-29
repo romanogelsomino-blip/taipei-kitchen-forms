@@ -2281,12 +2281,12 @@ function violationWhen(instant) {
   return isNaN(date) ? String(instant || '') : date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
-/** Active supervisors by name, for the "resolved by" picker. */
+/** Active supervisors, { id, name }, for the "resolved by" picker. */
 function violationResolvers() {
   const list = (DATA.reference && DATA.reference.supervisors) || [];
   return list.filter(referenceOffered)
     .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0))
-    .map(s => s.name);
+    .map(s => ({ id: s.id, name: s.name }));
 }
 
 function renderViolations() {
@@ -2343,7 +2343,7 @@ function violationCard(v, resolvers) {
     return card;
   }
 
-  const draft = VIOLATION_DRAFTS[v.violationId] || (VIOLATION_DRAFTS[v.violationId] = { resolvedBy: '', correctiveAction: '' });
+  const draft = VIOLATION_DRAFTS[v.violationId] || (VIOLATION_DRAFTS[v.violationId] = { resolvedById: '', correctiveAction: '' });
   const form = violationNode('div', 'violation-resolve');
 
   const who = violationNode('label', 'violation-resolve-field');
@@ -2353,15 +2353,15 @@ function violationCard(v, resolvers) {
   blank.value = '';
   blank.textContent = resolvers.length ? '— Select a supervisor —' : 'No supervisors on the list';
   select.appendChild(blank);
-  resolvers.forEach(name => {
+  resolvers.forEach(person => {
     const option = document.createElement('option');
-    option.value = name;
-    option.textContent = name;
+    option.value = person.id;   // the supervisor's System ID; the name goes with it on save
+    option.textContent = person.name;
     select.appendChild(option);
   });
-  select.value = draft.resolvedBy;
+  select.value = draft.resolvedById;
   select.disabled = !resolvers.length;
-  select.onchange = () => { draft.resolvedBy = select.value; select.classList.remove('missing'); };
+  select.onchange = () => { draft.resolvedById = select.value; select.classList.remove('missing'); };
   who.appendChild(select);
   form.appendChild(who);
 
@@ -2388,7 +2388,8 @@ function violationCard(v, resolvers) {
 }
 
 async function resolveViolation(v, ui) {
-  const resolvedBy = ui.select.value;
+  const resolvedBySystemId = ui.select.value;
+  const resolvedBy = resolvedBySystemId ? ui.select.options[ui.select.selectedIndex].textContent : '';
   const correctiveAction = ui.input.value.replace(/\s+/g, ' ').trim();
   const refuse = (message, control) => {
     ui.status.textContent = message;
@@ -2404,10 +2405,10 @@ async function resolveViolation(v, ui) {
   ui.status.className = 'violation-resolve-status';
   ui.status.textContent = 'Saving…';
   try {
-    const sent = await dashboardPost({ type: 'resolveViolation', violationId: v.violationId, month: v.month, resolvedBy, correctiveAction });
+    const sent = await dashboardPost({ type: 'resolveViolation', violationId: v.violationId, month: v.month, resolvedBy, resolvedBySystemId, correctiveAction });
     if (!sent.ok) throw new Error(sent.error);
     const data = sent.data;
-    Object.assign(v, { status: 'resolved', resolvedAt: data.resolvedAt, resolvedBy: data.resolvedBy, correctiveAction: data.correctiveAction });
+    Object.assign(v, { status: 'resolved', resolvedAt: data.resolvedAt, resolvedBy: data.resolvedBy, resolvedBySystemId: data.resolvedBySystemId || resolvedBySystemId, correctiveAction: data.correctiveAction });
     delete VIOLATION_DRAFTS[v.violationId];
     renderViolations();
     checkForViolations();
@@ -2996,9 +2997,9 @@ function exportShrinkToCSV() {
 // republish data/<list>.json for the forms. A row is never removed from the sheet: an entry
 // is deleted (Deleted At set; folded away here, restorable) and a dish may also be switched
 // off, and ids never change once saved. Store numbers are on printed QR codes. Kitchens,
-// stores and dishes are stored in the records with their System ID and read back under
-// their current name, so renaming them is safe; cooks, drivers and supervisors are stored
-// by name alone, so a rename there splits history and the panel says so before it happens.
+// Every entry is stored in the records with its System ID and read back under its current
+// name, so renaming is safe; a cook or driver typed under "+ Add new" on a form carries no
+// id and keeps the name as typed.
 //
 // Every server-supplied string is set with textContent or .value, never innerHTML: these
 // names are edited on a web page and reach every form.
@@ -3028,13 +3029,13 @@ const CONFIG_LISTS = [
     blurb: 'What is cooked, loaded and delivered. All three forms show these as cards, in this order. Switch a dish off to pause it without losing its place; delete it to retire it.' },
   // `records` names where a form's free-text "+ Add new" lands, so the unlisted-names card
   // can offer what was typed. Only the two people pickers accept typed names.
-  { key: 'cooks',       label: 'Cooks',       noun: 'cook',       byName: true, attrs: [],
+  { key: 'cooks',       label: 'Cooks',       noun: 'cook',       byName: false, attrs: [],
     records: [{ source: 'production', field: 'cook' }],
     blurb: 'Who cooks a batch. The production form offers these and also accepts a typed name.' },
-  { key: 'drivers',     label: 'Drivers',     noun: 'driver',     byName: true, attrs: [],
+  { key: 'drivers',     label: 'Drivers',     noun: 'driver',     byName: false, attrs: [],
     records: [{ source: 'deliveries', field: 'driver' }],
     blurb: 'Who loads the coolers and delivers. The packaging and delivery forms offer these and also accept a typed name.' },
-  { key: 'supervisors', label: 'Supervisors', noun: 'supervisor', byName: true, attrs: [],
+  { key: 'supervisors', label: 'Supervisors', noun: 'supervisor', byName: false, attrs: [],
     blurb: 'Who may resolve a violation. The dashboard offers these on a violation\'s card; no form reads them.' }
 ];
 const CONFIG_TYPES_FALLBACK = { kitchens: ['Taipei', 'Giant'], stores: ['Giant'] };   // what the backend serves as `types`; for a payload without it

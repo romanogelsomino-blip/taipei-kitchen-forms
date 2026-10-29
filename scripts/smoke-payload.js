@@ -79,8 +79,8 @@ function cast(over) {
   if (!store) throw new Error(`store ${over.store} is not on the reference list`);
   return {
     kitchen: pick(lists.kitchens),
-    cook: pick(lists.cooks).name,
-    driver: over.driver || pick(lists.drivers).name,
+    cook: pick(lists.cooks),
+    driver: over.driver ? (lists.drivers.find(d => d.name === over.driver) || { id: '', name: over.driver }) : pick(lists.drivers),   // a pinned name off the list goes as typed, with no id
     store: store,
     dishes: sample(lists.dishes, count),
     receivedBy: pick(STORE_STAFF)
@@ -110,8 +110,8 @@ function productionPayload(over = {}) {
     const produced = randInt(30, 120);
     const discarded = Math.random() < 0.3 ? randInt(1, Math.min(3, produced - 1)) : 0;
     return {
-      submissionId: s.id, date: s.date, kitchen: s.cast.kitchen.name, cook: s.cast.cook,
-      kitchenSystemId: s.cast.kitchen.id || '', kitchenId: s.cast.kitchen.kitchenId || '',
+      submissionId: s.id, date: s.date, kitchen: s.cast.kitchen.name, cook: s.cast.cook.name,
+      kitchenSystemId: s.cast.kitchen.id || '', kitchenId: s.cast.kitchen.kitchenId || '', cookSystemId: s.cast.cook.id || '',
       dish: dish.name, dishSystemId: dish.id || '',
       qtyProduced: String(produced), qtyDiscarded: String(discarded), discardReason: discarded ? pick(DISCARD_REASONS) : '',
       cookTemp: String(randInt(165, 195)), cookStart: hhmm(cookStart), cookEnd: hhmm(cookStart + cookTime), cookTime: String(cookTime),
@@ -133,7 +133,7 @@ function packagingPayload(over = {}) {
     return {
       submissionId: s.id, date: s.date, time,
       kitchen: s.cast.kitchen.name, kitchenSystemId: s.cast.kitchen.id || '', kitchenId: s.cast.kitchen.kitchenId || '',
-      driver: s.cast.driver, store: s.cast.store.name, storeId: s.cast.store.storeId, storeSystemId: s.cast.store.id || '',
+      driver: s.cast.driver.name, driverSystemId: s.cast.driver.id || '', store: s.cast.store.name, storeId: s.cast.store.storeId, storeSystemId: s.cast.store.id || '',
       dish: dish.name, dishSystemId: dish.id || '',
       loaded: String(loaded), discarded: String(discarded), discardReason: discarded ? pick(DISCARD_REASONS) : '',
       productTemp, notes: s.note,
@@ -144,7 +144,7 @@ function packagingPayload(over = {}) {
 }
 
 function photosBlock(s) {
-  return { submissionId: s.id, storeId: s.cast.store.storeId, storeName: s.cast.store.name, date: s.date, driver: s.cast.driver };
+  return { submissionId: s.id, storeId: s.cast.store.storeId, storeName: s.cast.store.name, date: s.date, driver: s.cast.driver.name };
 }
 
 /** The body delivery.js POSTs in step 1: one row per dish plus the photos block without image data. A morning stop. */
@@ -159,7 +159,7 @@ function deliveryPayload(over = {}) {
     const before = randInt(0, 6);
     const removed = before ? randInt(0, Math.min(2, before)) : 0;
     return {
-      submissionId: s.id, date: s.date, driver: s.cast.driver, store: s.cast.store.name, storeId: s.cast.store.storeId,
+      submissionId: s.id, date: s.date, driver: s.cast.driver.name, driverSystemId: s.cast.driver.id || '', store: s.cast.store.name, storeId: s.cast.store.storeId,
       storeSystemId: s.cast.store.id || '', arrive,
       arrivalTemp, coolerTemp, casePrefillPercent,
       dish: dish.name, dishSystemId: dish.id || '',

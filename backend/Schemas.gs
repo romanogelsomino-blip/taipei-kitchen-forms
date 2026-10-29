@@ -51,6 +51,7 @@ function productionSchema() {
     { header: 'Notes',               key: 'notes',           type: 'text',    width: 260 },
     { header: 'Kitchen System ID',   key: 'kitchenSystemId', type: 'text',    width: 290 },
     { header: 'Kitchen ID',          key: 'kitchenId',       type: 'text',    width: 120 },
+    { header: 'Cook System ID',      key: 'cookSystemId',    type: 'text',    width: 290 },   // empty when the cook was typed under "+ Add new"
     { header: 'Dish System ID',      key: 'dishSystemId',    type: 'text',    width: 290 },
     { header: 'Submission ID',       key: 'submissionId',    type: 'text',    width: 290, value: submissionIdOf },
     { header: 'Submitted At',        key: 'clientTimestamp', type: 'instant' },
@@ -79,6 +80,7 @@ function packagingSchema() {
     { header: 'Notes',             key: 'notes',           type: 'text',    width: 260 },
     { header: 'Kitchen System ID', key: 'kitchenSystemId', type: 'text',    width: 290 },
     { header: 'Kitchen ID',        key: 'kitchenId',       type: 'text',    width: 120 },
+    { header: 'Driver System ID',  key: 'driverSystemId',  type: 'text',    width: 290 },   // empty when the driver was typed under "+ Add new"
     { header: 'Store System ID',   key: 'storeSystemId',   type: 'text',    width: 290 },
     { header: 'Store ID',          key: 'storeId',         type: 'text',    width: 80 },
     { header: 'Dish System ID',    key: 'dishSystemId',    type: 'text',    width: 290 },
@@ -116,6 +118,7 @@ function deliveriesSchema() {
     { header: 'After Photo',               key: 'afterPhotoLink',     type: 'text',    width: 220 },  // filled by the photo upload
     { header: 'Store System ID',           key: 'storeSystemId',      type: 'text',    width: 290 },
     { header: 'Store ID',                  key: 'storeId',            type: 'text',    width: 80 },
+    { header: 'Driver System ID',          key: 'driverSystemId',     type: 'text',    width: 290 },   // empty when the driver was typed under "+ Add new"
     { header: 'Dish System ID',            key: 'dishSystemId',       type: 'text',    width: 290 },
     { header: 'Submission ID',             key: 'submissionId',       type: 'text',    width: 290, value: submissionIdOf },
     { header: 'Submitted At',              key: 'clientTimestamp',    type: 'instant' },
@@ -169,6 +172,8 @@ function violationsSchema() {
     { header: 'Resolved At',        key: 'resolvedAt',       type: 'instant' },
     { header: 'Detected At',        key: 'timestamp',        type: 'instant' },
     { header: 'Location System ID', key: 'locationSystemId', type: 'text',    width: 290, aliases: ['Store System ID'] },
+    { header: 'Driver System ID',   key: 'driverSystemId',   type: 'text',    width: 290 },
+    { header: 'Resolved By System ID', key: 'resolvedBySystemId', type: 'text', width: 290 },
     { header: 'Submission ID',      key: 'submissionId',     type: 'text',    width: 290 },
     { header: 'Violation ID',       key: 'violationId',      type: 'text',    width: 290 }
   ];
@@ -274,8 +279,8 @@ function normaliseCell(value, type) {
 }
 
 /**
- * Rows as the API returns them: every kitchen, store and dish name on a row is resolved
- * through the System ID beside it, so an entry renamed on the Config tab shows under its
+ * Rows as the API returns them: every kitchen, store, dish, cook, driver and supervisor name
+ * on a row is resolved through the System ID beside it, so an entry renamed on the Config tab shows under its
  * current name on every row, past ones included. The stored text is never rewritten, and an
  * id no list has leaves it as it is. Rows from before System IDs existed get the earlier
  * repairs: a delivery whose Store held the store number gets the number under storeId and
@@ -285,11 +290,11 @@ function normaliseCell(value, type) {
  */
 function normaliseRecords(tab, records) {
   const resolved = {   // the name field each System ID field stands behind
-    Production: [['kitchenSystemId', 'kitchen'], ['dishSystemId', 'dish']],
-    Packaging:  [['kitchenSystemId', 'kitchen'], ['storeSystemId', 'store'], ['dishSystemId', 'dish']],
-    Deliveries: [['storeSystemId', 'store'], ['dishSystemId', 'dish']],
+    Production: [['kitchenSystemId', 'kitchen'], ['cookSystemId', 'cook'], ['dishSystemId', 'dish']],
+    Packaging:  [['kitchenSystemId', 'kitchen'], ['driverSystemId', 'driver'], ['storeSystemId', 'store'], ['dishSystemId', 'dish']],
+    Deliveries: [['storeSystemId', 'store'], ['driverSystemId', 'driver'], ['dishSystemId', 'dish']],
     Sales:      [['storeSystemId', 'store'], ['dishSystemId', 'dish']],
-    Violations: [['locationSystemId', 'location']]
+    Violations: [['locationSystemId', 'location'], ['driverSystemId', 'driver'], ['resolvedBySystemId', 'resolvedBy']]
   }[tab];
   if (!resolved) return records;
   const byId = referenceEntryById();

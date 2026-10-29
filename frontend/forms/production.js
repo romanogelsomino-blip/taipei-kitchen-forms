@@ -77,7 +77,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('f-date').value = localDateISO();
   dishEntry.buildList();
-  cookPicker.load(activeNames(lists, 'cooks'));
+  cookPicker.load(activeEntries(lists, 'cooks'));
 });
 
 // ─── Production kitchen ───────────────────────────────────
@@ -160,6 +160,7 @@ function buildPayload() {
     rows.push({
       submissionId,
       date, kitchen, cook,
+      cookSystemId:    cookPicker.systemId(),
       kitchenSystemId: chosen ? chosen.id : '',
       kitchenId:       chosen ? chosen.kitchenId : '',
       dish:          dish,

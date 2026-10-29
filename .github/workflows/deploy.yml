@@ -359,9 +359,11 @@ jobs:
           VIOLATION_ID=$(jq -r '.raised[0].violationId' <<<"$SIM")
           MONTH=$(TZ=America/New_York date +%Y-%m)
           SUPERVISORS=$(jq '[.supervisors[] | select(.deletedAt == "")]' reference.json)
-          RESOLVER=$(jq -r --argjson i "$(( RANDOM % $(jq length <<<"$SUPERVISORS") ))" '.[$i].name' <<<"$SUPERVISORS")
-          jq -n --arg id "$VIOLATION_ID" --arg month "$MONTH" --arg who "$RESOLVER" --arg run "${{ github.run_id }}" \
-            '{type:"resolveViolation", violationId:$id, month:$month, resolvedBy:$who,
+          PICKED=$(( RANDOM % $(jq length <<<"$SUPERVISORS") ))
+          RESOLVER=$(jq -r --argjson i "$PICKED" '.[$i].name' <<<"$SUPERVISORS")
+          RESOLVER_ID=$(jq -r --argjson i "$PICKED" '.[$i].id' <<<"$SUPERVISORS")
+          jq -n --arg id "$VIOLATION_ID" --arg month "$MONTH" --arg who "$RESOLVER" --arg whoId "$RESOLVER_ID" --arg run "${{ github.run_id }}" \
+            '{type:"resolveViolation", violationId:$id, month:$month, resolvedBy:$who, resolvedBySystemId:$whoId,
               correctiveAction:("CI SMOKE TEST - run " + $run + " - simulated violation, nothing to correct")}' > resolve.json
           OUT=$(webapp_post resolve.json) \
             || { echo "::error::the resolve's reply was not JSON."; exit 1; }
@@ -378,7 +380,7 @@ jobs:
             || { echo "::error::getViolations never answered with JSON."; exit 1; }
           ROW=$(jq -c --arg id "$VIOLATION_ID" '.violations[] | select(.violationId == $id)' <<<"$BACK")
           [ -n "$ROW" ] || { echo "::error::the simulated violation is not readable back for today."; exit 1; }
-          [ "$(jq -r .status <<<"$ROW")" = resolved ] && [ "$(jq -r .resolvedBy <<<"$ROW")" = "$RESOLVER" ] \
+          [ "$(jq -r .status <<<"$ROW")" = resolved ] && [ "$(jq -r .resolvedBy <<<"$ROW")" = "$RESOLVER" ] && [ "$(jq -r .resolvedBySystemId <<<"$ROW")" = "$RESOLVER_ID" ] \
             || { echo "::error::the violation read back is not resolved as written: $ROW"; exit 1; }
           echo "violation $VIOLATION_ID for $(webapp_field "$SIM" .store) raised, alerted, resolved over POST by $RESOLVER, refused a second resolve, read back resolved"
 

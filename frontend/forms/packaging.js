@@ -113,7 +113,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   populateStores();
   setNow();
   dishEntry.buildList();
-  driverPicker.load(activeNames(lists, 'drivers'));
+  driverPicker.load(activeEntries(lists, 'drivers'));
 });
 
 // Option values are the store's System ID; the payload writes its name, System ID and store
@@ -165,6 +165,7 @@ function buildPayload() {
       kitchenSystemId: kitchenData ? kitchenData.id : '',
       kitchenId:       kitchenData ? kitchenData.kitchenId : '',
       driver,
+      driverSystemId:  driverPicker.systemId(),
       store:           store ? store.name : '',
       storeId:         store ? store.storeId : '',
       storeSystemId:   store ? store.id : '',

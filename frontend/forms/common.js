@@ -170,27 +170,23 @@ function activeEntries(lists, key) {
     .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
 }
 
-/** Active names of one list in display order: what the pickers and the dish cards show. */
-function activeNames(lists, key) {
-  return activeEntries(lists, key).map(entry => entry.name);
-}
-
 // ─── People picker ───────────────────────────────────────────────────────────
-// A <select> of names, ending in a "+ Add new…" option that reveals a free-text input.
-// Drivers on the delivery form, cooks on the production form. A name typed under
-// "+ Add new" is recorded as typed; it joins the list only when added on the dashboard.
+// A <select> of list entries, ending in a "+ Add new…" option that reveals a free-text
+// input. Drivers on the packaging and delivery forms, cooks on the production form. The
+// payload carries the chosen entry's name and System ID; a name typed under "+ Add new" is
+// recorded as typed with no id, and joins the list only when added on the dashboard.
 function createPeoplePicker({ selectId, customId, addLabel }) {
   const select = () => document.getElementById(selectId);
   const custom = () => document.getElementById(customId);
-  let people = [];
+  let people = [];   // { id, name } entries; the option value is the id
 
   function populate() {
     const sel = select();
     while (sel.options.length > 1) sel.remove(1);
-    people.forEach(name => {
+    people.forEach(person => {
       const option = document.createElement('option');
-      option.value = name;
-      option.textContent = name;
+      option.value = person.id;
+      option.textContent = person.name;
       sel.appendChild(option);
     });
     const other = document.createElement('option');
@@ -199,9 +195,9 @@ function createPeoplePicker({ selectId, customId, addLabel }) {
     sel.appendChild(other);
   }
 
-  /** Fill the picker from the names the form loaded. */
-  function load(names) {
-    people = names || [];
+  /** Fill the picker from the entries the form loaded. */
+  function load(entries) {
+    people = entries || [];
     populate();
   }
 
@@ -214,7 +210,15 @@ function createPeoplePicker({ selectId, customId, addLabel }) {
 
   /** The chosen name: the typed one when "+ Add new" is selected, with its spacing normalised so one person cannot become two. */
   function value() {
-    return select().value === '__custom__' ? custom().value.replace(/\s+/g, ' ').trim() : select().value;
+    if (select().value === '__custom__') return custom().value.replace(/\s+/g, ' ').trim();
+    const chosen = people.find(person => person.id === select().value);
+    return chosen ? chosen.name : '';
+  }
+
+  /** The chosen entry's System ID; empty for a typed name. */
+  function systemId() {
+    const chosen = select().value === '__custom__' ? null : people.find(person => person.id === select().value);
+    return chosen ? chosen.id : '';
   }
 
   /** The control a validation message should point at: the typed input when "+ Add new" is chosen. */
@@ -222,7 +226,7 @@ function createPeoplePicker({ selectId, customId, addLabel }) {
     return select().value === '__custom__' ? customId : selectId;
   }
 
-  return { load, handleChange, value, activeId };
+  return { load, handleChange, value, systemId, activeId };
 }
 
 // ─── Status overlay ──────────────────────────────────────────────────────────
