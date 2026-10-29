@@ -3852,6 +3852,7 @@ async function configSave() {
   if (data.published) message += ' Publishing to the forms now; they will have it within about ten minutes.';
   else if (data.publishError) message += ' But publishing failed: ' + data.publishError + '. The forms keep the previous lists until the next successful save or deploy.';
   configSetStatus(message, data.publishError ? 'bad' : 'ok');
+  fetchData();   // the records come back resolved under the saved names, the store list follows, and every panel redraws
   setTimeout(configRenderPublished, 2 * 60 * 1000);   // the site job takes about two minutes; then check the forms' copy
 }
 
