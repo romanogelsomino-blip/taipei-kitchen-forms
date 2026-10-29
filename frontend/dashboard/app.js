@@ -359,11 +359,11 @@ async function loadDemoData() {
       { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Beef Chow Fun', loaded: 15, discarded: 0, discardReason: '', productTemp: 43, notes: 'Cooler was slow to come down' }
     ],
     production: [
-      { submittedAt: `${today}T06:15:33.000Z`, date: today, kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Spring Roll (Veg)', qtyProduced: 120, qtyDiscarded: 2, discardReason: 'Quality Issue' },
-      { submittedAt: `${today}T06:45:10.000Z`, date: today, kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Shrimp Egg Roll', qtyProduced: 96, qtyDiscarded: 0, discardReason: '' },
-      { submittedAt: `${today}T07:20:47.000Z`, date: today, kitchen: 'Store 6112', supervisor: 'Anna', dish: 'Chicken Lo Mein', qtyProduced: 48, qtyDiscarded: 1, discardReason: 'Temperature' },
-      { submittedAt: `${yesterday}T06:30:12.000Z`, date: yesterday, kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Beef Chow Fun', qtyProduced: 36, qtyDiscarded: 0, discardReason: '' },
-      { submittedAt: `${yesterday}T07:05:28.000Z`, date: yesterday, kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Pork Dumpling', qtyProduced: 72, qtyDiscarded: 1, discardReason: 'Out of date' }
+      { submittedAt: `${today}T06:15:33.000Z`, date: today, kitchen: 'Store 6112', cook: 'Lucia', dish: 'Spring Roll (Veg)', qtyProduced: 120, qtyDiscarded: 2, discardReason: 'Quality Issue' },
+      { submittedAt: `${today}T06:45:10.000Z`, date: today, kitchen: 'Store 6112', cook: 'Lucia', dish: 'Shrimp Egg Roll', qtyProduced: 96, qtyDiscarded: 0, discardReason: '' },
+      { submittedAt: `${today}T07:20:47.000Z`, date: today, kitchen: 'Store 6112', cook: 'Anna', dish: 'Chicken Lo Mein', qtyProduced: 48, qtyDiscarded: 1, discardReason: 'Temperature' },
+      { submittedAt: `${yesterday}T06:30:12.000Z`, date: yesterday, kitchen: 'Store 6112', cook: 'Jiang', dish: 'Beef Chow Fun', qtyProduced: 36, qtyDiscarded: 0, discardReason: '' },
+      { submittedAt: `${yesterday}T07:05:28.000Z`, date: yesterday, kitchen: 'Store 6112', cook: 'Jiang', dish: 'Pork Dumpling', qtyProduced: 72, qtyDiscarded: 1, discardReason: 'Out of date' }
     ],
     sales: [
       { date: today, store: '6006', storeName: 'Store 6006', dish: 'General Tso Chicken Bento', units: 18, transactions: 17, netSales: 179.82, grossSales: 179.82, returnedUnits: 0, upc: '00024575600000', dishSystemId: 'c727a826-a4db-4a49-87d2-5c6615f44585', storeId: '6006' },
@@ -1560,7 +1560,7 @@ const PRODUCTION_STATE = {
   isInitialized: false,
   advancedFilters: {
     kitchen: '',
-    supervisor: '',
+    cook: '',
     dish: '',
     search: ''
   }
@@ -1725,18 +1725,18 @@ function populateProductionFilters() {
     select.value = currentValue;
   };
 
-  // Normalize supervisor names to remove duplicates with trailing spaces
+  // Normalize cook names to remove duplicates with trailing spaces
   const normalizeName = (name) => name ? name.trim() : '';
 
   populateSelect('production-kitchen-filter', new Set(filtered.map(p => p.kitchen).filter(Boolean)));
-  populateSelect('production-supervisor-filter', new Set(filtered.map(p => normalizeName(p.supervisor)).filter(Boolean)));
+  populateSelect('production-cook-filter', new Set(filtered.map(p => normalizeName(p.cook)).filter(Boolean)));
   populateSelect('production-dish-filter', new Set(filtered.map(p => p.dish).filter(Boolean)));
 }
 
 function applyProductionAdvancedFilters() {
   PRODUCTION_STATE.advancedFilters = {
     kitchen: document.getElementById('production-kitchen-filter').value,
-    supervisor: document.getElementById('production-supervisor-filter').value,
+    cook: document.getElementById('production-cook-filter').value,
     dish: document.getElementById('production-dish-filter').value,
     search: document.getElementById('production-search').value.toLowerCase()
   };
@@ -1746,12 +1746,12 @@ function applyProductionAdvancedFilters() {
 
 function clearAllProductionFilters() {
   document.getElementById('production-kitchen-filter').value = '';
-  document.getElementById('production-supervisor-filter').value = '';
+  document.getElementById('production-cook-filter').value = '';
   document.getElementById('production-dish-filter').value = '';
   document.getElementById('production-search').value = '';
   PRODUCTION_STATE.advancedFilters = {
     kitchen: '',
-    supervisor: '',
+    cook: '',
     dish: '',
     search: ''
   };
@@ -1765,13 +1765,13 @@ function displayProductionTable() {
   // Apply advanced filters
   const filters = PRODUCTION_STATE.advancedFilters;
   if (filters.kitchen) filtered = filtered.filter(p => p.kitchen === filters.kitchen);
-  if (filters.supervisor) filtered = filtered.filter(p => p.supervisor === filters.supervisor);
+  if (filters.cook) filtered = filtered.filter(p => p.cook === filters.cook);
   if (filters.dish) filtered = filtered.filter(p => p.dish === filters.dish);
   if (filters.search) {
     filtered = filtered.filter(p => {
       return (p.date && p.date.toLowerCase().includes(filters.search)) ||
              (p.kitchen && p.kitchen.toLowerCase().includes(filters.search)) ||
-             (p.supervisor && p.supervisor.toLowerCase().includes(filters.search)) ||
+             (p.cook && p.cook.toLowerCase().includes(filters.search)) ||
              (p.dish && p.dish.toLowerCase().includes(filters.search)) ||
              (p.discardReason && p.discardReason.toLowerCase().includes(filters.search));
     });
@@ -1799,7 +1799,7 @@ function displayProductionTable() {
       <tr>
         <td>${normalizeDate(p.date)}</td>
         <td>${p.kitchen || ''}</td>
-        <td>${p.supervisor || ''}</td>
+        <td>${p.cook || ''}</td>
         <td>${p.dish || ''}</td>
         <td>${p.qtyProduced || 0}</td>
         <td>${p.qtyDiscarded || 0}</td>
@@ -1813,7 +1813,7 @@ function displayProductionTable() {
         <tr>
           <th>Date</th>
           <th>Kitchen</th>
-          <th>Supervisor</th>
+          <th>Cook</th>
           <th>Dish</th>
           <th>Produced</th>
           <th>Discarded</th>
@@ -2228,7 +2228,7 @@ async function salesImportRun() {
 // ─── Violations ──────────────────────────────────────────────────────────────
 // One card per violation, built with DOM calls and textContent: store names, notes and
 // corrective actions are typed by people. A violation is resolved on its own card by naming
-// the supervisor and the corrective action; both are required here and on the backend.
+// the cook and the corrective action; both are required here and on the backend.
 
 let violationStatusFilter = 'open';   // open | resolved | all
 let violationRange = 30;              // 'today' | 7 | 30 | 'all', by the reading's date, like the other panels' ranges
@@ -2278,9 +2278,9 @@ function violationWhen(instant) {
   return isNaN(date) ? String(instant || '') : date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
-/** Active supervisors by name, for the "resolved by" picker. */
+/** Active cooks by name, for the "resolved by" picker. */
 function violationResolvers() {
-  const list = (DATA.reference && DATA.reference.supervisors) || [];
+  const list = (DATA.reference && DATA.reference.cooks) || [];
   return list.filter(referenceOffered)
     .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0))
     .map(s => s.name);
@@ -2348,7 +2348,7 @@ function violationCard(v, resolvers) {
   const select = document.createElement('select');
   const blank = document.createElement('option');
   blank.value = '';
-  blank.textContent = resolvers.length ? '— Select a supervisor —' : 'No supervisors on the list';
+  blank.textContent = resolvers.length ? '— Select a cook —' : 'No cooks on the list';
   select.appendChild(blank);
   resolvers.forEach(name => {
     const option = document.createElement('option');
@@ -3024,9 +3024,9 @@ const CONFIG_LISTS = [
     blurb: 'What is cooked, loaded and delivered. All three forms show these as cards, in this order. Switch a dish off to pause it without losing its place; delete it to retire it.' },
   // `records` names where a form's free-text "+ Add new" lands, so the unlisted-names card
   // can offer what was typed. Only the two people pickers accept typed names.
-  { key: 'supervisors', label: 'Supervisors', noun: 'supervisor', byName: true, attrs: [],
-    records: [{ source: 'production', field: 'supervisor' }],
-    blurb: 'Who signs off a batch. The production form offers these and also accepts a typed name.' },
+  { key: 'cooks',       label: 'Cooks',       noun: 'cook',       byName: true, attrs: [],
+    records: [{ source: 'production', field: 'cook' }],
+    blurb: 'Who cooks a batch. The production form offers these and also accepts a typed name.' },
   { key: 'drivers',     label: 'Drivers',     noun: 'driver',     byName: true, attrs: [],
     records: [{ source: 'deliveries', field: 'driver' }],
     blurb: 'Who loads the coolers and delivers. The packaging and delivery forms offer these and also accept a typed name.' }
@@ -3874,7 +3874,7 @@ async function configRenderPublished() {
 
 /**
  * Names typed under "+ Add new" on a form that are not on the list yet, with one tap to add
- * them. Only the supervisor and driver pickers accept typed names, so the card shows for
+ * them. Only the cook and driver pickers accept typed names, so the card shows for
  * those two lists alone. Scoped to the window the dashboard has loaded, and says so.
  */
 function configRenderUnlisted() {

@@ -1,4 +1,4 @@
-// Reference.gs — the reference lists: kitchens, supervisors, dishes, stores, drivers.
+// Reference.gs — the reference lists: kitchens, stores, dishes, cooks, drivers.
 //
 // One spreadsheet, `Reference`, at the root of SPREADSHEET_FOLDER_ID beside the year folders,
 // one tab per list. The dashboard's Config tab edits it through doPost (type: 'config'); the
@@ -13,7 +13,7 @@
 // production row carries its kitchen's name, System ID and Kitchen ID.
 //
 // The lists are a picker source, not a constraint. Nothing validates a submitted kitchen,
-// dish, driver or supervisor against them, and nothing may: the pickers allow free text and
+// dish, driver or cook against them, and nothing may: the pickers allow free text and
 // a delivery must never be refused over a dropdown.
 //
 // A row is never removed from the sheet. An entry is deactivated to pause it (hidden from
@@ -25,9 +25,9 @@
 
 const REFERENCE_FILE_NAME = 'Reference';
 const REFERENCE_MEMO = {};                          // per-execution: opened, ensured, payload
-const REFERENCE_CACHE_KEY = 'reference:payload:v4';
+const REFERENCE_CACHE_KEY = 'reference:payload:v5';
 const REFERENCE_CACHE_SEC = 600;                    // bounds staleness after a hand edit in Sheets, which nothing invalidates
-const REFERENCE_VERSION_PREFIX = 'r4-';             // payload-shape revision; bump when an entry's shape changes
+const REFERENCE_VERSION_PREFIX = 'r5-';             // payload-shape revision; bump when an entry's shape changes
 const REFERENCE_ROW_CAP = 500;                      // an unauthenticated append endpoint needs a ceiling
 const REFERENCE_WRITES_PER_MINUTE = 20;
 const REFERENCE_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -41,7 +41,7 @@ const REFERENCE_CATCHALL_DISH_UUID = '00000000-0000-4000-8000-000000000001';    
 
 /**
  * The five lists, in the order the sheet's tabs, the payload and the Config tab show them:
- * Kitchens, Stores, Dishes, Supervisors, Drivers.
+ * Kitchens, Stores, Dishes, Cooks, Drivers.
  *
  * `attrs` are the columns beyond name: kind 'type' is one of `types`, 'orgId' is the
  * organisation's own identifier (unique on its own, or per type when `uniqueWith` names the
@@ -75,8 +75,8 @@ function referenceLists() {
     { tab: 'Dishes', key: 'dishes', noun: 'dish', types: null, active: true, verified: true,
       attrs: [{ key: 'upc', header: 'UPC', kind: 'upc' }],   // Giant's code for the dish, which its sales rows carry
       storedAs: [{ tab: 'Production', field: 'dish', attr: 'name' }, { tab: 'Deliveries', field: 'dish', attr: 'name' }] },
-    { tab: 'Supervisors', key: 'supervisors', noun: 'supervisor', types: null, active: false, verified: false, attrs: [],
-      storedAs: [{ tab: 'Production', field: 'supervisor', attr: 'name' }] },
+    { tab: 'Cooks', key: 'cooks', noun: 'cook', types: null, active: false, verified: false, attrs: [],
+      storedAs: [{ tab: 'Production', field: 'cook', attr: 'name' }] },
     { tab: 'Drivers', key: 'drivers', noun: 'driver', types: null, active: false, verified: false, attrs: [],
       storedAs: [{ tab: 'Deliveries', field: 'driver', attr: 'name' }] }
   ];

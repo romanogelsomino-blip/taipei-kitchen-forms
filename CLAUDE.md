@@ -27,7 +27,7 @@
 - **The monthly files are the only store for records.** The single-spreadsheet system they
   replaced is retired: nothing reads or writes it. Do not reintroduce a second write target
   for submissions.
-- **Reference lists live in the `Reference` sheet.** Kitchens, stores, dishes, supervisors
+- **Reference lists live in the `Reference` sheet.** Kitchens, stores, dishes, cooks
   and drivers, in that order wherever the five appear (the one place production-first does
   not apply), are one tab each in a spreadsheet at the root of `SPREADSHEET_FOLDER_ID`,
   edited from the dashboard's Config tab and published to `data/<list>.json` by the site
@@ -49,5 +49,5 @@
   sheet, creates an unverified store for a number it lacks, files an unknown UPC under the
   reserved dish, and overwrites a row with the same Date, Store ID and UPC on re-import.
 - **The lists are a picker source, not a constraint.** Nothing validates a submitted
-  kitchen, dish, driver or supervisor against them, and nothing may: the pickers allow free
+  kitchen, dish, driver or cook against them, and nothing may: the pickers allow free
   text, and a delivery is never refused over a dropdown.

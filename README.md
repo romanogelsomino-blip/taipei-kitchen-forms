@@ -38,7 +38,7 @@ All forms are simple web pages, hosted on GitHub Pages, opened by phone via QR c
 1. An employee scans the QR code at their location: the kitchen for a batch or a cooler being
    loaded, the store for a delivery.
 2. The form opens on their phone.
-3. They fill it out with dropdowns for drivers, supervisors, stores, and standard options.
+3. They fill it out with dropdowns for drivers, cooks, stores, and standard options.
 4. Photos are compressed client-side before upload.
 5. If offline, submissions queue in localStorage and retry when connection returns.
 6. The rows land in the month's operations spreadsheet (see [Data store](#data-store)).
@@ -89,7 +89,7 @@ Push to `dev` to check `/staging/`, then merge to `prod`.
 
 ## Reference data
 
-The kitchen, store, dish, supervisor and driver lists live in a `Reference` spreadsheet at
+The kitchen, store, dish, cook and driver lists live in a `Reference` spreadsheet at
 the root of the operations folder, one tab per list, and are edited from the dashboard's
 Config tab. A save writes the sheet and asks GitHub to republish the site, which writes each
 list to `data/<list>.json` for the forms; a phone has it within about ten minutes. The

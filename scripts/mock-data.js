@@ -49,7 +49,7 @@ const { WEB_APP_URL } = requireKeys(prefix, ['WEB_APP_URL']);
 const NY = 'America/New_York';
 const TEMP_LIMIT_F = 41;
 const STORE_STAFF = ['Amanda', 'Michael', 'Sarah', 'James', 'Lisa', 'Emily', 'Chris', 'Dana', 'Priya', 'Marcus'];
-const PRODUCTION_NOTES = ['', '', '', '', '', '', '', 'Oven 2 slow to preheat', 'Short on chicken, smaller batch', 'New supervisor shadowing'];
+const PRODUCTION_NOTES = ['', '', '', '', '', '', '', 'Oven 2 slow to preheat', 'Short on chicken, smaller batch', 'New cook shadowing'];
 const PACKAGING_NOTES = ['', '', '', '', '', '', 'Cooler took a while to come down', 'Short on one dish, see counts'];
 const DELIVERY_NOTES = ['', '', '', '', '', '', 'Case was being restocked on arrival', 'Manager asked for more Spring Rolls next week', 'Cooler door seal looks worn', 'Store short-staffed, waited for sign-off'];
 
@@ -90,7 +90,7 @@ function sameKeys(a, b, what) {
 /** Everything one day's three forms would send, in the order they are filled. */
 function buildDay(iso, lists) {
   const kitchen = pick(lists.kitchens);
-  const supervisor = pick(lists.supervisors).name;
+  const cook = pick(lists.cooks).name;
   const driver = pick(lists.drivers).name;
   const storeCount = Math.min(lists.stores.length, randInt(STORES_MIN, STORES_MAX));
   const stores = smoke.sample(lists.stores, storeCount);
@@ -107,7 +107,7 @@ function buildDay(iso, lists) {
     produced[dish.id] = randInt(30, 120);
     const discarded = Math.random() < 0.12 ? randInt(1, 3) : 0;
     return {
-      submissionId: productionId, date: cooked, kitchen: kitchen.name, supervisor,
+      submissionId: productionId, date: cooked, kitchen: kitchen.name, cook,
       kitchenSystemId: kitchen.id, kitchenId: kitchen.kitchenId,
       dish: dish.name, dishSystemId: dish.id,
       qtyProduced: String(produced[dish.id]), qtyDiscarded: String(discarded),
@@ -248,7 +248,7 @@ function confirm(question) {
   const warm = days.reduce((n, d) => n + d.warm.packaging + d.warm.delivery, 0);
   console.log(`\nPlan for ${environment}:`);
   console.log(`  ${days.length} days, ${days[0].iso} to ${days[days.length - 1].iso}`);
-  console.log(`  ${lists.kitchens.length} kitchens, ${lists.stores.length} stores, ${lists.dishes.length} dishes, ${lists.drivers.length} drivers, ${lists.supervisors.length} supervisors`);
+  console.log(`  ${lists.kitchens.length} kitchens, ${lists.stores.length} stores, ${lists.dishes.length} dishes, ${lists.cooks.length} cooks, ${lists.drivers.length} drivers`);
   console.log(`  ${submissions} submissions, ${rows} rows: production, then packaging, then deliveries, each day in order`);
   console.log(`  ${warm} warm readings -> ${warm} violations and ${warm} alert emails to this environment's ALERT_RECIPIENTS`);
   const minutes = Math.max(1, Math.round(submissions * 8 / CONCURRENCY / 60));

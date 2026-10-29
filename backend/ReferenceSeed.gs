@@ -1,5 +1,5 @@
 // ReferenceSeed.gs — the reference lists as they stood when the Reference sheet was
-// introduced, transcribed from data/stores.json, data/drivers.json and data/supervisors.json.
+// introduced, transcribed from data/stores.json, data/drivers.json and data/cooks.json.
 //
 // Read in exactly one situation: a reference tab that has just been created. It is the
 // bootstrap for a brand-new environment, not a source of truth, and it never overwrites a
@@ -46,7 +46,7 @@ function referenceSeed() {
       { id: '00000000-0000-4000-8000-000000000001', upc: '00000000000000', name: 'NON-TAIPEI DISH', active: false, deletedAt: '2026-10-24T00:00:00-04:00', reserved: true }   // where a sales row whose UPC no dish has is filed; never cooked, never offered
     ],
 
-    supervisors: [
+    cooks: [
       { id: 'b366fa0e-7576-4945-8b62-d10f1a3e4cdb', name: 'Anna' },
       { id: 'a588d0fb-6fb1-480c-bf66-99ecae07125c', name: 'Lucia' },
       { id: 'bf6ca106-a9b8-4e13-b7f5-e0c959add56b', name: 'Jiang' },

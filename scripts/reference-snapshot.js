@@ -13,7 +13,7 @@ const path = require('path');
 const { readPrefix, requireKeys } = require('./env');
 const webapp = require('./webapp');
 
-const LISTS = ['kitchens', 'stores', 'dishes', 'supervisors', 'drivers'];   // the order of the sheet's tabs and the Config tab
+const LISTS = ['kitchens', 'stores', 'dishes', 'cooks', 'drivers'];   // the order of the sheet's tabs and the Config tab
 
 /** Now as the store's instant format: ISO 8601 in New York with its numeric offset. */
 function nowNY() {

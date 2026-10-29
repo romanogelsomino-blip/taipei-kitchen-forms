@@ -39,7 +39,7 @@ function productionSchema() {
   return [
     { header: 'Date',                key: 'date',            type: 'date' },
     { header: 'Production Kitchen',  key: 'kitchen',         type: 'text',    width: 170 },
-    { header: 'Supervisor',          key: 'supervisor',      type: 'text',    width: 140 },
+    { header: 'Cook',                key: 'cook',            type: 'text',    width: 140 },
     { header: 'Dish',                key: 'dish',            type: 'text',    width: 220 },
     { header: 'Qty Produced',        key: 'qtyProduced',     type: 'number',  width: 110 },
     { header: 'Qty Discarded',       key: 'qtyDiscarded',    type: 'number',  width: 110 },

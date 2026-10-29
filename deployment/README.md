@@ -54,7 +54,7 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
    name. The month file itself is created by the first record written in the month, never by
    the workflow.
 8. On `dev` only, submits a real production row, a real packaging row and a real delivery
-   row, all dated today, naming a random kitchen, store, driver, supervisor and dish from the
+   row, all dated today, naming a random kitchen, store, driver, cook and dish from the
    environment's reference lists and carrying the note `CI SMOKE TEST - run <run id> - safe to
    delete`; requires the current month file's Production, Packaging and Deliveries tabs to
    each grow by one row, and reads the delivery row back by its submission id. Then it
@@ -66,7 +66,7 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
    version to change, which proves the write path and its cache invalidation. Last, it
    raises one simulated violation for a random real store, driver and dish, noted
    `CI SMOKE TEST - run <run id> - safe to resolve` (one alert email per run, to staging's
-   `ALERT_RECIPIENTS`), resolves it over POST as a random real supervisor, requires a second
+   `ALERT_RECIPIENTS`), resolves it over POST as a random real cook, requires a second
    resolve to be refused, and reads it back resolved.
 
 Every call to the web app after the redeploy retries while Google's error page comes back

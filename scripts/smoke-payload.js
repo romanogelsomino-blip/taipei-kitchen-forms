@@ -7,7 +7,7 @@
  *
  * CLI: node scripts/smoke-payload.js <production|packaging|delivery|sales|photos> [key=value ...]
  *   reference=<file>  a saved ?action=reference reply (or, from code, the parsed reply): kitchen,
- *                     supervisor, driver, store and dishes are then real entries picked at
+ *                     cook, driver, store and dishes are then real entries picked at
  *                     random, as a form would send them; store= and driver= pin those two
  *   tag=ZZ-CI-SMOKE   without a reference file, every name is the tag
  *   store=0000  date=YYYY-MM-DD  id=<submission id>  note=<text>  dishes=<count>
@@ -62,7 +62,7 @@ function liveLists(reference) {
     kitchens:    live('kitchens'),
     stores:      live('stores').filter(s => s.id !== RESERVED_STORE_ID),
     dishes:      live('dishes'),
-    supervisors: live('supervisors'),
+    cooks:       live('cooks'),
     drivers:     live('drivers')
   };
 }
@@ -80,7 +80,7 @@ function cast(over) {
     const store = over.store || '0000';
     return {
       kitchen: { name: tag, id: '', kitchenId: tag },
-      supervisor: tag,
+      cook: tag,
       driver: tag,
       store: { name: `Store ${store}`, id: store === '0000' ? RESERVED_STORE_ID : '', storeId: store },
       dishes: Array.from({ length: count }, (_, i) => ({ name: count === 1 ? tag : `${tag}-${i + 1}`, id: '' })),
@@ -92,7 +92,7 @@ function cast(over) {
   if (!store) throw new Error(`store ${over.store} is not on the reference list`);
   return {
     kitchen: pick(lists.kitchens),
-    supervisor: pick(lists.supervisors).name,
+    cook: pick(lists.cooks).name,
     driver: over.driver || pick(lists.drivers).name,
     store: store,
     dishes: sample(lists.dishes, count),
@@ -123,7 +123,7 @@ function productionPayload(over = {}) {
     const produced = randInt(30, 120);
     const discarded = Math.random() < 0.3 ? randInt(1, Math.min(3, produced - 1)) : 0;
     return {
-      submissionId: s.id, date: s.date, kitchen: s.cast.kitchen.name, supervisor: s.cast.supervisor,
+      submissionId: s.id, date: s.date, kitchen: s.cast.kitchen.name, cook: s.cast.cook,
       kitchenSystemId: s.cast.kitchen.id || '', kitchenId: s.cast.kitchen.kitchenId || '',
       dish: dish.name, dishSystemId: dish.id || '',
       qtyProduced: String(produced), qtyDiscarded: String(discarded), discardReason: discarded ? pick(DISCARD_REASONS) : '',

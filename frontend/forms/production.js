@@ -4,10 +4,10 @@ let DISHES       = [];   // active dish names, set once the reference lists load
 let DISH_ENTRIES = [];   // the same dishes with their System IDs
 let KITCHENS     = [];   // active kitchen entries, likewise
 
-const supervisorPicker = createPeoplePicker({
-  selectId: 'f-supervisor',
-  customId: 'f-supervisor-custom',
-  addLabel: '+ Add new supervisor'
+const cookPicker = createPeoplePicker({
+  selectId: 'f-cook',
+  customId: 'f-cook-custom',
+  addLabel: '+ Add new cook'
 });
 
 /** The reason as the sheet records it: the typed text when "Other (specify)" is chosen, else the option. */
@@ -68,7 +68,7 @@ function handleDiscardReasonChange(focusCustom) {
 // Page load
 // ═══════════════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
-  const lists = await loadReferenceLists(['kitchens', 'supervisors', 'dishes']);
+  const lists = await loadReferenceLists(['kitchens', 'cooks', 'dishes']);
   DISH_ENTRIES = activeEntries(lists, 'dishes');
   DISHES       = DISH_ENTRIES.map(dish => dish.name);
   KITCHENS     = activeEntries(lists, 'kitchens');
@@ -77,7 +77,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('f-date').value = localDateISO();
   dishEntry.buildList();
-  supervisorPicker.load(activeNames(lists, 'supervisors'));
+  cookPicker.load(activeNames(lists, 'cooks'));
 });
 
 // ─── Production kitchen ───────────────────────────────────
@@ -144,7 +144,7 @@ function buildPayload() {
   const date       = document.getElementById('f-date').value;
   const chosen     = selectedKitchen();
   const kitchen    = chosen ? chosen.name : '';
-  const supervisor = supervisorPicker.value();
+  const cook       = cookPicker.value();
 
   // Shared batch values
   const cookTemp   = document.getElementById('b-cook-temp').value;
@@ -159,7 +159,7 @@ function buildPayload() {
     const data = dishEntry.get(dish);
     rows.push({
       submissionId,
-      date, kitchen, supervisor,
+      date, kitchen, cook,
       kitchenSystemId: chosen ? chosen.id : '',
       kitchenId:       chosen ? chosen.kitchenId : '',
       dish:          dish,
@@ -186,7 +186,7 @@ function formIsComplete() {
   const missing = missingFields([
     { id: 'f-date',                    label: 'Date' },
     { id: 'f-kitchen',                 label: 'Production Kitchen' },
-    { id: supervisorPicker.activeId(), label: 'Head Chef / Supervisor', value: supervisorPicker.value() },
+    { id: cookPicker.activeId(),       label: 'Cook',               value: cookPicker.value() },
     { id: 'b-cook-temp',               label: 'Cook Temp °F' },
     { id: 'b-cook-start',              label: 'Cook Start' },
     { id: 'b-cook-end',                label: 'Cook End' }
@@ -215,8 +215,8 @@ function showSummary() {
   const cookEnd   = document.getElementById('b-cook-end').value;
   const minutes   = parseInt(document.getElementById('b-cook-time').dataset.minutes, 10);
   document.getElementById('sum-kitchen').textContent    = chosen ? chosen.name : '—';
-  document.getElementById('sum-supervisor').textContent = supervisorPicker.value();
-  document.getElementById('sum-cook').textContent =
+  document.getElementById('sum-cook').textContent       = cookPicker.value();
+  document.getElementById('sum-cook-times').textContent =
     cookTemp + '°F · ' + cookStart + ' – ' + cookEnd + (isNaN(minutes) ? '' : ' (' + formatCookTime(minutes) + ')');
 
   // Built with textContent, never innerHTML: dish names are edited on the dashboard and must
