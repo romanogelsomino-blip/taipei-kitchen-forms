@@ -62,8 +62,9 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
    one, imports the same row again and requires the tab not to grow. Reads can succeed while
    writes fail, and a write is the only thing that proves the deployment can reach its
    stores. Production gets no synthetic row. Then it
-   renames the reserved store `0000` through the config endpoint and requires the reference
-   version to change, which proves the write path and its cache invalidation. Last, it
+   sends the config endpoint an update for a random real store carrying the store's current
+   name, and requires it to be accepted with nothing applied and the reference version
+   unchanged, which proves the write path without touching the lists. Last, it
    raises one simulated violation for a random real store, driver and dish, noted
    `CI SMOKE TEST - run <run id> - safe to resolve` (one alert email per run, to staging's
    `ALERT_RECIPIENTS`), resolves it over POST as a random real supervisor, requires a second

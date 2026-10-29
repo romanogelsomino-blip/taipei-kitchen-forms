@@ -5,19 +5,17 @@
  * frontend/forms/packaging.js and frontend/forms/delivery.js: a key added or dropped there is
  * added or dropped here.
  *
- * CLI: node scripts/smoke-payload.js <production|packaging|delivery|sales|photos> [key=value ...]
- *   reference=<file>  a saved ?action=reference reply (or, from code, the parsed reply): kitchen,
- *                     cook, driver, store and dishes are then real entries picked at
+ * CLI: node scripts/smoke-payload.js <production|packaging|delivery|sales|photos> reference=<file> [key=value ...]
+ *   reference=<file>  a saved ?action=reference reply (or, from code, the parsed reply), required:
+ *                     the kitchen, cook, driver, store and dishes are real entries picked at
  *                     random, as a form would send them; store= and driver= pin those two
- *   tag=ZZ-CI-SMOKE   without a reference file, every name is the tag
- *   store=0000  date=YYYY-MM-DD  id=<submission id>  note=<text>  dishes=<count>
+ *   store=<number>  driver=<name>  date=YYYY-MM-DD  id=<submission id>  note=<text>  dishes=<count>
  * Prints the JSON body to POST.
  */
 const crypto = require('crypto');
 const fs = require('fs');
 
 const TINY_JPEG = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/2wBDAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwA/B+IA/9k=';
-const RESERVED_STORE_ID = '00000000-0000-4000-8000-000000000000';   // store 0000; see ReferenceSeed.gs
 const STORE_STAFF = ['Amanda', 'Michael', 'Sarah', 'James', 'Lisa', 'Emily', 'Chris', 'Dana'];
 
 function newSubmissionId() {
@@ -55,12 +53,12 @@ function sample(list, count) {
   return list.filter(entry => out.includes(entry));
 }
 
-/** The entries of a saved reference reply the forms would offer, less the reserved store: verified, not switched off, not deleted. */
+/** The entries of a saved reference reply the forms would offer: verified, not switched off, not deleted. */
 function liveLists(reference) {
   const live = list => (reference[list] || []).filter(e => e.active !== false && e.verified !== false && !e.deletedAt);
   return {
     kitchens:    live('kitchens'),
-    stores:      live('stores').filter(s => s.id !== RESERVED_STORE_ID),
+    stores:      live('stores'),
     dishes:      live('dishes'),
     cooks:       live('cooks'),
     drivers:     live('drivers')
@@ -68,25 +66,14 @@ function liveLists(reference) {
 }
 
 /**
- * Who and what a payload names. With a reference reply, real entries picked at random, the
- * ids a form would send alongside; without one, the tag for every name and no ids, except
- * that the store number is always sent.
+ * Who and what a payload names: real entries picked at random from a reference reply, with
+ * the ids a form would send alongside. There is no other source; a smoke row never names an
+ * entry that is not on the environment's lists.
  */
 function cast(over) {
-  const tag = over.tag || 'ZZ-CI-SMOKE';
   const count = Math.max(1, parseInt(over.dishes, 10) || 1);
   const reference = typeof over.reference === 'string' ? JSON.parse(fs.readFileSync(over.reference, 'utf8')) : (over.reference || null);
-  if (!reference) {
-    const store = over.store || '0000';
-    return {
-      kitchen: { name: tag, id: '', kitchenId: tag },
-      cook: tag,
-      driver: tag,
-      store: { name: `Store ${store}`, id: store === '0000' ? RESERVED_STORE_ID : '', storeId: store },
-      dishes: Array.from({ length: count }, (_, i) => ({ name: count === 1 ? tag : `${tag}-${i + 1}`, id: '' })),
-      receivedBy: tag
-    };
-  }
+  if (!reference) throw new Error('reference= is required: a smoke row names real entries from a saved ?action=reference reply');
   const lists = liveLists(reference);
   const store = over.store ? lists.stores.find(s => s.storeId === over.store) : pick(lists.stores);
   if (!store) throw new Error(`store ${over.store} is not on the reference list`);
@@ -223,7 +210,7 @@ if (require.main === module) {
   const [kind, ...pairs] = process.argv.slice(2);
   const builders = { production: productionPayload, packaging: packagingPayload, delivery: deliveryPayload, sales: salesPayload, photos: photosPayload };
   if (!builders[kind]) {
-    console.error('Usage: node scripts/smoke-payload.js <production|packaging|delivery|sales|photos> [reference=] [tag=] [store=] [date=] [id=] [note=] [dishes=]');
+    console.error('Usage: node scripts/smoke-payload.js <production|packaging|delivery|sales|photos> reference=<file> [store=] [driver=] [date=] [id=] [note=] [dishes=]');
     process.exit(1);
   }
   const over = {};

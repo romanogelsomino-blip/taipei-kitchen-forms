@@ -1,21 +1,11 @@
 {
   "stores": [
     {
-      "id": "00000000-0000-4000-8000-000000000000",
-      "name": "(reserved) CI smoke test",
-      "storeType": "Giant",
-      "storeId": "0000",
-      "location": "",
-      "verified": true,
-      "deletedAt": "2026-10-14T00:00:00-04:00",
-      "sortOrder": 1
-    },
-    {
       "id": "3053ab5e-a4ac-4450-9dfe-7cff7eefc73c",
-      "name": "Store 6006",
+      "name": "Kline Village",
       "storeType": "Giant",
       "storeId": "6006",
-      "location": "Kline Village, Harrisburg, PA",
+      "location": "136 Kline Village, Harrisburg, PA",
       "verified": true,
       "deletedAt": "",
       "sortOrder": 2
@@ -25,7 +15,7 @@
       "name": "Store 6061",
       "storeType": "Giant",
       "storeId": "6061",
-      "location": "Shippensburg, PA",
+      "location": "397 Baltimore Rd, Shippensburg, PA",
       "verified": true,
       "deletedAt": "",
       "sortOrder": 3
@@ -45,7 +35,7 @@
       "name": "Store 6253",
       "storeType": "Giant",
       "storeId": "6253",
-      "location": "New Cumberland, PA",
+      "location": "130 Old York Rd, New Cumberland, PA",
       "verified": true,
       "deletedAt": "",
       "sortOrder": 5
@@ -91,6 +81,6 @@
       "sortOrder": 9
     }
   ],
-  "version": "seed",
-  "generatedAt": ""
+  "version": "r5-2ab73bfb",
+  "generatedAt": "2026-10-29T14:25:44-04:00"
 }

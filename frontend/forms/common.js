@@ -99,15 +99,14 @@ async function postToBackend(payload) {
 // driver log a delivery; the published files are what is current.
 const FALLBACK_DATA = {
   kitchens: [
-    { id: '1dd4b698-bc21-4b45-8a33-34112a681d66', name: 'Legacy Park', kitchenType: 'Taipei', kitchenId: 'legacy-park', location: '', verified: true, sortOrder: 1 },
-    { id: '33930e11-89fa-447f-9781-e3ffe8f63c2f', name: 'Store 6112', kitchenType: 'Giant', kitchenId: '6112', location: '255 S Spring Garden St, Carlisle, PA', verified: true, sortOrder: 2 },
-    { id: '29d0efc1-041d-49fb-932e-abf29baeb644', name: 'Other', kitchenType: 'Taipei', kitchenId: 'other', location: '', verified: true, sortOrder: 3 }
+    { id: '1dd4b698-bc21-4b45-8a33-34112a681d66', name: 'Legacy Park', kitchenType: 'Taipei', kitchenId: 'legacy-park', location: '100 Legacy Park Dr, Mechanicsburg, PA', verified: true, sortOrder: 1 },
+    { id: '33930e11-89fa-447f-9781-e3ffe8f63c2f', name: 'Spring Garden', kitchenType: 'Giant', kitchenId: '6112', location: '255 S Spring Garden St, Carlisle, PA', verified: true, sortOrder: 2 }
   ],
   stores: [
-    { id: '3053ab5e-a4ac-4450-9dfe-7cff7eefc73c', name: 'Store 6006', storeType: 'Giant', storeId: '6006', location: 'Kline Village, Harrisburg, PA', verified: true, sortOrder: 2 },
-    { id: 'f37cb8e5-0671-47fb-8eea-dc2debf6d3e0', name: 'Store 6061', storeType: 'Giant', storeId: '6061', location: 'Shippensburg, PA', verified: true, sortOrder: 3 },
+    { id: '3053ab5e-a4ac-4450-9dfe-7cff7eefc73c', name: 'Kline Village', storeType: 'Giant', storeId: '6006', location: '136 Kline Village, Harrisburg, PA', verified: true, sortOrder: 2 },
+    { id: 'f37cb8e5-0671-47fb-8eea-dc2debf6d3e0', name: 'Store 6061', storeType: 'Giant', storeId: '6061', location: '397 Baltimore Rd, Shippensburg, PA', verified: true, sortOrder: 3 },
     { id: 'd55afaf3-8a4b-4205-98c9-eb6faef04a5e', name: 'Store 6112', storeType: 'Giant', storeId: '6112', location: '255 S Spring Garden St, Carlisle, PA', verified: true, sortOrder: 4 },
-    { id: '248e6d7c-1d32-4005-9fc1-f36c8d1e63e0', name: 'Store 6253', storeType: 'Giant', storeId: '6253', location: 'New Cumberland, PA', verified: true, sortOrder: 5 },
+    { id: '248e6d7c-1d32-4005-9fc1-f36c8d1e63e0', name: 'Store 6253', storeType: 'Giant', storeId: '6253', location: '130 Old York Rd, New Cumberland, PA', verified: true, sortOrder: 5 },
     { id: 'd79ca4dc-d20f-4e08-abd1-f191a6ebf1fb', name: 'Store 6331', storeType: 'Giant', storeId: '6331', location: 'Mechanicsburg, PA', verified: true, sortOrder: 6 },
     { id: '68448510-c119-4be6-82c1-10ddc8899ae7', name: 'Store 6443', storeType: 'Giant', storeId: '6443', location: 'Chambersburg, PA', verified: true, sortOrder: 7 },
     { id: '42d6e005-07c1-4730-98bd-3186f3bf13f4', name: 'Store 6542', storeType: 'Giant', storeId: '6542', location: 'Carlisle, PA', verified: true, sortOrder: 8 },
@@ -131,13 +130,12 @@ const FALLBACK_DATA = {
   cooks: [
     { id: 'b366fa0e-7576-4945-8b62-d10f1a3e4cdb', name: 'Anna', sortOrder: 1 },
     { id: 'a588d0fb-6fb1-480c-bf66-99ecae07125c', name: 'Lucia', sortOrder: 2 },
-    { id: 'bf6ca106-a9b8-4e13-b7f5-e0c959add56b', name: 'Jiang', sortOrder: 3 },
-    { id: 'b994bc43-3b2e-4191-8668-6b89759fd4b4', name: 'Guy', sortOrder: 4 }
+    { id: 'bf6ca106-a9b8-4e13-b7f5-e0c959add56b', name: 'Jiang', sortOrder: 3 }
   ],
   drivers: [
-    { id: 'e967dcb5-77ba-41b6-a8ac-db46806230e7', name: 'Owen', sortOrder: 1 },
     { id: '0b32d496-b2b5-4dc2-b68e-ba28a8e911b9', name: 'Sam Blumenthal', sortOrder: 2 },
-    { id: '179fe668-826d-4fa3-abcd-130194eefdf4', name: 'Andy', sortOrder: 3 }
+    { id: '179fe668-826d-4fa3-abcd-130194eefdf4', name: 'Andy', sortOrder: 3 },
+    { id: '89f56d14-d476-42fa-8017-f4405a78a106', name: 'Dave Ramirez', sortOrder: 4 }
   ]
 };
 

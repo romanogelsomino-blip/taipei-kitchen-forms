@@ -327,20 +327,26 @@ jobs:
             || { echo "::error::the Sales tab went $BEFORE_SALES -> $AFTER_SALES on a re-import; the row was duplicated."; exit 1; }
           echo "sales row for store $(jq -r '.rows[0].storeId' sales.json), UPC $(jq -r '.rows[0].upc' sales.json): written once, replaced in place on re-import"
 
-          # An update is idempotent, so webapp_post's single attempt is enough; publish:false
-          # keeps a routine dev push from firing a second Pages publish behind itself. The
-          # name carries the attempt as well as the run, so a re-run still changes something.
-          jq -n --arg run "${{ github.run_id }}-${{ github.run_attempt }}" \
+          # A config write for a random real store that carries the store's current name, so
+          # nothing about it changes: the write path is exercised end to end (lock, sheet read,
+          # plan, reply) and the lists are left exactly as they were. An update is idempotent,
+          # so webapp_post's single attempt is enough; publish:false keeps a routine dev push
+          # from firing a second Pages publish behind itself.
+          STORES=$(jq '[.stores[] | select(.deletedAt == "" and .verified != false)]' reference.json)
+          STORE=$(jq -c --argjson i "$(( RANDOM % $(jq length <<<"$STORES") ))" '.[$i]' <<<"$STORES")
+          jq -n --argjson store "$STORE" \
             '{type:"config", list:"stores", publish:false,
-              ops:[{op:"update", entry:{id:"00000000-0000-4000-8000-000000000000", name:("(reserved) CI smoke test " + $run)}}]}' > config.json
+              ops:[{op:"update", entry:{id:$store.id, name:$store.name}}]}' > config.json
           OUT=$(webapp_post config.json) \
             || { echo "::error::the config write's reply was not JSON."; exit 1; }
           jq '{status, code, message, applied, version, published, publishError}' <<<"$OUT"
           [ "$(webapp_field "$OUT" .status)" = ok ] \
             || { echo "::error::the config write was rejected: $(webapp_field "$OUT" .message)"; exit 1; }
-          [ "$(webapp_field "$OUT" .version)" != "$(webapp_field "$BEFORE" .version)" ] \
-            || { echo "::error::the config write did not change the reference version; the cache was not invalidated."; exit 1; }
-          echo "config write ok: $(webapp_field "$BEFORE" .version) -> $(webapp_field "$OUT" .version)"
+          [ "$(webapp_field "$OUT" .applied)" = 0 ] \
+            || { echo "::error::a config write carrying a store's current name should change nothing; it applied $(webapp_field "$OUT" .applied) mutation(s)."; exit 1; }
+          [ "$(webapp_field "$OUT" .version)" = "$(webapp_field "$BEFORE" .version)" ] \
+            || { echo "::error::the lists changed under a config write that changed nothing: $(webapp_field "$BEFORE" .version) -> $(webapp_field "$OUT" .version)."; exit 1; }
+          echo "config write ok for $(jq -r .name <<<"$STORE"): accepted, nothing changed, version $(webapp_field "$OUT" .version)"
 
           # One real violation for a real store, driver and dish, marked only by its note: the
           # Violations row, the alert email (one per run, to staging's ALERT_RECIPIENTS), the

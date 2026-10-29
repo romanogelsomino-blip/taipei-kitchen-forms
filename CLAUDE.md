@@ -42,7 +42,7 @@
   (hidden from the Config tab, restorable), and a dish may also be deactivated to pause it;
   history resolves its name either way. A dish carries `upc`, Giant's 14-digit code for it,
   required and unique; the reserved `NON-TAIPEI DISH` (UPC `00000000000000`, deleted and
-  inactive) takes sales of items no dish claims, and the reserved store `0000` the CI smoke. Kitchens, stores and dishes carry `verified`: true
+  inactive) takes sales of items no dish claims. Kitchens, stores and dishes carry `verified`: true
   for a person's entry, false for one an import created until a person confirms it; the forms
   offer only verified entries. The git copies of `data/*.json` are seeds for local
   runs, not a source.
@@ -58,3 +58,11 @@
 - **The lists are a picker source, not a constraint.** Nothing validates a submitted
   kitchen, dish, driver or cook against them, and nothing may: the pickers allow free
   text, and a delivery is never refused over a dropdown.
+- **Smoke and test writes name random real entries, and only those.** Every row CI or a test
+  script writes, and every config write the smoke sends, names a random entry picked from the
+  environment's own reference lists at run time. There is no reserved entry, no synthetic
+  tag, no fixed id and no entry invented for a test, in the seed, the data files, the scripts
+  or the workflows. A smoke write never renames, moves, deactivates, deletes or restores a real
+  entry, not even briefly; where it must call a write endpoint it sends a real entry's current
+  values so nothing changes. The note `CI SMOKE TEST - run <id> - safe to delete` is the only
+  marker, on tabs that have a notes column.

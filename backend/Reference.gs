@@ -35,7 +35,6 @@ const REFERENCE_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}
 const REFERENCE_ORG_ID_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;   // goes into ?store=<id> and photo filenames: no '_' (their separator), no '.', nothing to percent-encode
 const REFERENCE_CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
 const REFERENCE_LIMITS = { orgId: 40, name: 80, text: 120, reorder: 500 };   // reorder matches REFERENCE_ROW_CAP
-const REFERENCE_RESERVED_STORE_UUID = '00000000-0000-4000-8000-000000000000';   // store 0000, which the dev deploy's smoke test writes to
 const REFERENCE_CATCHALL_DISH_UUID = '00000000-0000-4000-8000-000000000001';    // NON-TAIPEI DISH, UPC 00000000000000: where sales of items no dish claims are filed
 
 // ─── The lists ───────────────────────────────────────────────────────────────
@@ -205,8 +204,8 @@ function ensureReferenceTabs(ss) {
 /**
  * Bring a tab written under an earlier schema up to date: the key column renamed from ID to
  * UUID, columns the schema has gained added and ones it has dropped removed, a row keyed by
- * a slug given a UUID with the slug kept as its organisation id, the reserved CI store marked
- * deleted, every row from before the Verified flag marked verified, and a code the seed
+ * a slug given a UUID with the slug kept as its organisation id, every row from before the
+ * Verified flag marked verified, and a code the seed
  * learned after a row was written (a dish's UPC) filled in where the row has none. A tab
  * already in shape is left alone, so this costs one read on every init and writes only the
  * first time.
@@ -235,16 +234,14 @@ function migrateReferenceTab(sheet, tab) {
     list.attrs.forEach(attr => {
       if (attr.kind === 'upc' && !row[attr.key] && seeded && seeded[attr.key]) patch[attr.key] = seeded[attr.key];
     });
-    const reserved = list.tab === 'Stores' && (slug.toLowerCase() === REFERENCE_RESERVED_STORE_UUID || String(row.storeId || slug) === '0000');
     if (!REFERENCE_UUID_PATTERN.test(slug)) {
-      patch.id = reserved ? REFERENCE_RESERVED_STORE_UUID : Utilities.getUuid();
+      patch.id = Utilities.getUuid();
       list.attrs.forEach(attr => {
         if (row[attr.key]) return;
         if (attr.kind === 'orgId') patch[attr.key] = slug;
         if (attr.kind === 'type') patch[attr.key] = /^\d+$/.test(slug) && list.types.indexOf('Giant') >= 0 ? 'Giant' : list.types[0];   // a bare number was a Giant store number
       });
     }
-    if (reserved && !row.deletedAt) patch.deletedAt = formatInstant(new Date());   // the smoke row is never offered anywhere
     if (list.verified && !hadVerified) patch.verified = true;   // every row from before the flag was entered or confirmed by a person
     if (Object.keys(patch).length) updateRow(sheet, schema, row._row, patch);
   });

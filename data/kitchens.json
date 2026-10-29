@@ -5,32 +5,22 @@
       "name": "Legacy Park",
       "kitchenType": "Taipei",
       "kitchenId": "legacy-park",
-      "location": "",
+      "location": "100 Legacy Park Dr, Mechanicsburg, PA",
       "verified": true,
       "deletedAt": "",
       "sortOrder": 1
     },
     {
       "id": "33930e11-89fa-447f-9781-e3ffe8f63c2f",
-      "name": "Store 6112",
+      "name": "Spring Garden",
       "kitchenType": "Giant",
       "kitchenId": "6112",
       "location": "255 S Spring Garden St, Carlisle, PA",
       "verified": true,
       "deletedAt": "",
       "sortOrder": 2
-    },
-    {
-      "id": "29d0efc1-041d-49fb-932e-abf29baeb644",
-      "name": "Other",
-      "kitchenType": "Taipei",
-      "kitchenId": "other",
-      "location": "",
-      "verified": true,
-      "deletedAt": "",
-      "sortOrder": 3
     }
   ],
-  "version": "seed",
-  "generatedAt": ""
+  "version": "r5-2ab73bfb",
+  "generatedAt": "2026-10-29T14:25:44-04:00"
 }
