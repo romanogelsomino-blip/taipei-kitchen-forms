@@ -190,7 +190,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('f-arrive').value = hh + ':' + mm;
 
   dishEntry.buildList();
-  driverPicker.load(activeNames(lists, 'drivers'));
+  driverPicker.load(activeEntries(lists, 'drivers'));
   reportAbandonedSubmissions();
 });
 
@@ -253,6 +253,7 @@ function buildPayload() {
   const submissionId = newSubmissionId();
   const date   = document.getElementById('f-date').value;
   const driver = driverPicker.value();
+  const driverSystemId = driverPicker.systemId();
   const arrive = document.getElementById('f-arrive').value;
   const arrivalTemp = document.getElementById('f-arrival-temp').value;
   const ctTemp    = document.getElementById('f-cooler-temp').value;
@@ -271,7 +272,7 @@ function buildPayload() {
     const data = dishEntry.get(dish);
     rows.push({
       submissionId,
-      date, driver, store, storeId: storeIdClean, storeSystemId, arrive,
+      date, driver, driverSystemId, store, storeId: storeIdClean, storeSystemId, arrive,
       dishSystemId: dishSystemIdOf(dish),
       arrivalTemp: arrivalTemp,
       coolerTemp: ctTemp,

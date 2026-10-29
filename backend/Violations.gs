@@ -75,11 +75,13 @@ function checkViolations(rows, ctx, source) {
       location: locationName,
       locationType: where.type,
       driver: first.driver || '',
+      driverSystemId: first.driverSystemId || '',
       violationType: rule.type,
       value: value,
       notes: first.notes || '',
       correctiveAction: '',
       resolvedBy: '',
+      resolvedBySystemId: '',
       resolvedAt: '',
       timestamp: ctx && ctx.serverTimestamp ? ctx.serverTimestamp : formatInstant(new Date()),
       locationSystemId: first[where.systemId] || '',
@@ -163,6 +165,7 @@ function simulateViolation(note) {
     store: store.name,
     storeSystemId: store.id,
     driver: driver.name,
+    driverSystemId: driver.id,
     receivedBy: 'Store staff',
     arrive: Utilities.formatDate(new Date(), NY_TZ, 'HH:mm'),
     dish: dish.name,
@@ -229,8 +232,9 @@ function violationRejection(message) {
 
 /**
  * Resolve a violation, from a POST of { type: 'resolveViolation', violationId, month,
- * resolvedBy, correctiveAction }. Fills Resolved At and records who did it and the corrective
- * action taken, both required. There is no reopening; a resolved violation stays resolved.
+ * resolvedBy, resolvedBySystemId, correctiveAction }. Fills Resolved At and records who did it,
+ * by name and by the supervisor's System ID, and the corrective action taken; the name and the
+ * action are required. There is no reopening; a resolved violation stays resolved.
  * `month` names the file the row is in.
  */
 function handleViolationResolve(payload, ctx) {
@@ -242,11 +246,13 @@ function handleViolationResolve(payload, ctx) {
     if (!/^\d{4}-\d{2}$/.test(month)) throw violationRejection('month must be YYYY-MM; got ' + JSON.stringify(payload.month));
 
     const resolvedBy = String(payload.resolvedBy || '').replace(/\s+/g, ' ').trim();
+    const resolvedBySystemId = String(payload.resolvedBySystemId || '').trim();
+    if (resolvedBySystemId && !REFERENCE_UUID_PATTERN.test(resolvedBySystemId)) throw violationRejection('resolvedBySystemId is not a System ID');
     const correctiveAction = String(payload.correctiveAction || '').replace(/\s+/g, ' ').trim();
     if (!resolvedBy) throw violationRejection('resolvedBy is required to resolve a violation');
     if (!correctiveAction) throw violationRejection('correctiveAction is required to resolve a violation');
     if (correctiveAction.length > VIOLATION_ACTION_MAX) throw violationRejection('correctiveAction is longer than ' + VIOLATION_ACTION_MAX + ' characters');
-    const patch = { resolvedAt: ctx.serverTimestamp, resolvedBy: resolvedBy, correctiveAction: correctiveAction };
+    const patch = { resolvedAt: ctx.serverTimestamp, resolvedBy: resolvedBy, resolvedBySystemId: resolvedBySystemId, correctiveAction: correctiveAction };
 
     const result = withScriptLock(() => {
       const found = findMonthlyRow(month, 'Violations', 'violationId', violationId);
@@ -263,7 +269,7 @@ function handleViolationResolve(payload, ctx) {
     ctx.logEntry.status = 'SUCCESS';
     return jsonResponse({
       status: 'ok', violationId: violationId, violationStatus: 'resolved', month: month,
-      resolvedAt: patch.resolvedAt, resolvedBy: patch.resolvedBy, correctiveAction: patch.correctiveAction
+      resolvedAt: patch.resolvedAt, resolvedBy: patch.resolvedBy, resolvedBySystemId: patch.resolvedBySystemId, correctiveAction: patch.correctiveAction
     });
   } catch (err) {
     if (!err.rejection) throw err;

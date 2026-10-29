@@ -50,9 +50,10 @@
   runs, not a source.
 - **Names on a row are read through its System ID.** A monthly row carries the System ID of
   its kitchen, store and dish beside their names, and every read shows the row under the name
-  the id has now in the Reference sheet; the stored text is never rewritten. Nothing may look a
-  kitchen, store or dish up by name or number when the row carries its System ID. Cooks,
-  drivers and supervisors are stored by name alone, so renaming one splits history.
+  the id has now in the Reference sheet; the stored text is never rewritten. Nothing may look an
+  entry up by name or number when the row carries its System ID. A cook, driver or supervisor
+  is carried the same way, name and System ID, from the picker or the resolve card; a name
+  typed under "+ Add new" on a form carries no id and keeps the name as typed.
 - **Sales rows are keyed by the retailer's identifiers and replaced in place.** A Sales row
   is one store, UPC and day; the backend resolves names and System IDs from the Reference
   sheet, creates an unverified store for a number it lacks, files an unknown UPC under the

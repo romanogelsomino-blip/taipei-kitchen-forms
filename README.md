@@ -111,10 +111,11 @@ input or changed; a Giant kitchen's is entered. QR codes carry the UUID: a kitch
 production form and one for the packaging form (`?kitchen=<System ID>`), a store one for the
 delivery form (`?store=<System ID>`); store codes printed before System IDs existed carry the
 store number, which the delivery form still accepts. Every row carries the System ID of its
-kitchen, store and dish, and a read shows the row under the name that id has now, so those
-three can be renamed freely; changing a store's number re-keys its records and its printed
-codes, and the Config tab says so. Cooks, drivers and supervisors are stored in the records by
-name, so renaming one leaves past records under the old name, and the Config tab says that too. The dashboard's home page opens the
+kitchen, store, dish, cook or driver, and a violation that of the supervisor who resolved it,
+and a read shows the row under the name that id has now, so any entry can be renamed freely;
+changing a store's number re-keys its records and its printed codes, and the Config tab says
+so. A cook or driver typed under "+ Add new" on a form carries no id and keeps the name as
+typed. The dashboard's home page opens the
 production form with the kitchen's UUID, `taipei_production_form3.html?kitchen=<uuid>`.
 
 The copies of `data/*.json` in git are seeds for local runs only; `node scripts/reference-snapshot.js staging` refreshes them from the staging backend.

@@ -19,10 +19,10 @@
 // A row is never removed from the sheet. An entry is deactivated to pause it (hidden from
 // the forms, shown greyed on the Config tab, one switch to resume) or deleted to retire it
 // (hidden from the Config tab too, restorable from its deleted list); either way history
-// still resolves its name. A kitchen, store or dish is stored in the monthly rows with its
-// System ID, and a read shows the row under the name that id has now, so renaming one is
-// safe. Cooks, drivers and supervisors are stored by name alone, so a rename there splits
-// history; the Config tab warns before one, and the backend never rewrites a record.
+// still resolves its name. An entry is stored in the monthly rows with its System ID beside
+// its name, and a read shows the row under the name that id has now, so renaming one is
+// safe. A cook or driver typed under "+ Add new" on a form carries no id and keeps the name
+// as typed. The backend never rewrites a record.
 
 const REFERENCE_FILE_NAME = 'Reference';
 const REFERENCE_MEMO = {};                          // per-execution: opened, ensured, payload
@@ -77,12 +77,9 @@ function referenceLists() {
     { tab: 'Dishes', key: 'dishes', noun: 'dish', types: null, active: true, verified: true,
       attrs: [{ key: 'upc', header: 'UPC', kind: 'upc' }],   // Giant's code for the dish, which its sales rows carry
       storedAs: [] },   // rows carry the dish's System ID and read back under its current name
-    { tab: 'Cooks', key: 'cooks', noun: 'cook', types: null, active: false, verified: false, attrs: [],
-      storedAs: [{ tab: 'Production', field: 'cook', attr: 'name' }] },
-    { tab: 'Drivers', key: 'drivers', noun: 'driver', types: null, active: false, verified: false, attrs: [],
-      storedAs: [{ tab: 'Deliveries', field: 'driver', attr: 'name' }] },
-    { tab: 'Supervisors', key: 'supervisors', noun: 'supervisor', types: null, active: false, verified: false, attrs: [],   // who may resolve a violation; offered on the dashboard, read by no form
-      storedAs: [{ tab: 'Violations', field: 'resolvedBy', attr: 'name' }] }
+    { tab: 'Cooks', key: 'cooks', noun: 'cook', types: null, active: false, verified: false, attrs: [], storedAs: [] },
+    { tab: 'Drivers', key: 'drivers', noun: 'driver', types: null, active: false, verified: false, attrs: [], storedAs: [] },
+    { tab: 'Supervisors', key: 'supervisors', noun: 'supervisor', types: null, active: false, verified: false, attrs: [], storedAs: [] }   // who may resolve a violation; offered on the dashboard, read by no form
   ];
 }
 

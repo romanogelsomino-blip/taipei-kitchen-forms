@@ -90,8 +90,8 @@ function sameKeys(a, b, what) {
 /** Everything one day's three forms would send, in the order they are filled. */
 function buildDay(iso, lists) {
   const kitchen = pick(lists.kitchens);
-  const cook = pick(lists.cooks).name;
-  const driver = pick(lists.drivers).name;
+  const cook = pick(lists.cooks);
+  const driver = pick(lists.drivers);
   const storeCount = Math.min(lists.stores.length, randInt(STORES_MIN, STORES_MAX));
   const stores = smoke.sample(lists.stores, storeCount);
   const cooked = dateNY(0) === iso ? iso : previousDay(iso);   // cooked the evening before, except that today's batch has no yesterday yet
@@ -107,8 +107,8 @@ function buildDay(iso, lists) {
     produced[dish.id] = randInt(30, 120);
     const discarded = Math.random() < 0.12 ? randInt(1, 3) : 0;
     return {
-      submissionId: productionId, date: cooked, kitchen: kitchen.name, cook,
-      kitchenSystemId: kitchen.id, kitchenId: kitchen.kitchenId,
+      submissionId: productionId, date: cooked, kitchen: kitchen.name, cook: cook.name,
+      kitchenSystemId: kitchen.id, kitchenId: kitchen.kitchenId, cookSystemId: cook.id,
       dish: dish.name, dishSystemId: dish.id,
       qtyProduced: String(produced[dish.id]), qtyDiscarded: String(discarded),
       discardReason: discarded ? pick(DISCARD_REASONS) : '',
@@ -131,7 +131,7 @@ function buildDay(iso, lists) {
       return {
         submissionId: id, date: iso, time,
         kitchen: kitchen.name, kitchenSystemId: kitchen.id, kitchenId: kitchen.kitchenId,
-        driver, store: store.name, storeId: store.storeId, storeSystemId: store.id,
+        driver: driver.name, driverSystemId: driver.id, store: store.name, storeId: store.storeId, storeSystemId: store.id,
         dish: dish.name, dishSystemId: dish.id,
         loaded: String(share), discarded: String(discarded), discardReason: discarded ? pick(DISCARD_REASONS) : '',
         productTemp: String(productTemp), notes,
@@ -158,7 +158,7 @@ function buildDay(iso, lists) {
       const before = Math.random() < 0.6 ? randInt(0, 6) : 0;
       const removed = before && Math.random() < 0.35 ? randInt(1, Math.min(2, before)) : 0;
       return {
-        submissionId: id, date: iso, driver, store: cooler.store.name, storeId: cooler.store.storeId,
+        submissionId: id, date: iso, driver: driver.name, driverSystemId: driver.id, store: cooler.store.name, storeId: cooler.store.storeId,
         storeSystemId: cooler.store.id, arrive,
         arrivalTemp: String(arrivalTemp), coolerTemp: String(coolerTemp), casePrefillPercent: casePrefill,
         dish: loaded.dish, dishSystemId: loaded.dishSystemId,
@@ -239,9 +239,9 @@ function confirm(question) {
   if (!days.length) throw new Error('no days to build: the range holds only Sundays');
 
   // The mock rows must be shaped exactly as the forms' payloads are; the smoke builders track those.
-  sameKeys(days[0].production[0], smoke.productionPayload().rows[0], 'production');
-  sameKeys(days[0].coolers[0].rows[0], smoke.packagingPayload().rows[0], 'packaging');
-  sameKeys(days[0].deliveries[0].rows[0], smoke.deliveryPayload().rows[0], 'delivery');
+  sameKeys(days[0].production[0], smoke.productionPayload({ reference }).rows[0], 'production');
+  sameKeys(days[0].coolers[0].rows[0], smoke.packagingPayload({ reference }).rows[0], 'packaging');
+  sameKeys(days[0].deliveries[0].rows[0], smoke.deliveryPayload({ reference }).rows[0], 'delivery');
 
   const submissions = days.reduce((n, d) => n + 1 + d.coolers.length + d.deliveries.length, 0);
   const rows = days.reduce((n, d) => n + d.production.length + d.coolers.reduce((m, c) => m + c.rows.length, 0) + d.deliveries.reduce((m, x) => m + x.rows.length, 0), 0);
@@ -261,7 +261,7 @@ function confirm(question) {
   for (const day of days) {
     const failures = await postDay(day);
     failed += failures.length;
-    console.log(`  ${day.iso}  ${day.kitchen.name} -> ${day.coolers.length} coolers by ${day.driver}` +
+    console.log(`  ${day.iso}  ${day.kitchen.name} -> ${day.coolers.length} coolers by ${day.driver.name}` +
       (day.warm.packaging + day.warm.delivery ? `  (${day.warm.packaging + day.warm.delivery} warm)` : '') +
       (failures.length ? `  FAILED: ${failures.join(', ')}` : ''));
   }
