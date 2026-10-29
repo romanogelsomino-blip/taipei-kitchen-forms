@@ -99,7 +99,7 @@ async function postToBackend(payload) {
 // driver log a delivery; the published files are what is current.
 const FALLBACK_DATA = {
   kitchens: [
-    { id: '1dd4b698-bc21-4b45-8a33-34112a681d66', name: 'Legacy Park', kitchenType: 'Taipei', kitchenId: 'legacy-park', location: '100 Legacy Park Dr, Mechanicsburg, PA', verified: true, sortOrder: 1 },
+    { id: '1dd4b698-bc21-4b45-8a33-34112a681d66', name: 'Legacy Park', kitchenType: 'Taipei', kitchenId: 'TK-001', location: '100 Legacy Park Dr, Mechanicsburg, PA', verified: true, sortOrder: 1 },
     { id: '33930e11-89fa-447f-9781-e3ffe8f63c2f', name: 'Spring Garden', kitchenType: 'Giant', kitchenId: '6112', location: '255 S Spring Garden St, Carlisle, PA', verified: true, sortOrder: 2 }
   ],
   stores: [

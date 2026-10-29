@@ -11,8 +11,8 @@
 function referenceSeed() {
   return {
     kitchens: [
-      { id: '1dd4b698-bc21-4b45-8a33-34112a681d66', kitchenType: 'Taipei', kitchenId: 'legacy-park', name: 'Legacy Park',   location: '100 Legacy Park Dr, Mechanicsburg, PA' },
-      { id: '33930e11-89fa-447f-9781-e3ffe8f63c2f', kitchenType: 'Giant',  kitchenId: '6112',        name: 'Spring Garden', location: '255 S Spring Garden St, Carlisle, PA' }
+      { id: '1dd4b698-bc21-4b45-8a33-34112a681d66', kitchenType: 'Taipei', kitchenId: 'TK-001', name: 'Legacy Park',   location: '100 Legacy Park Dr, Mechanicsburg, PA' },
+      { id: '33930e11-89fa-447f-9781-e3ffe8f63c2f', kitchenType: 'Giant',  kitchenId: '6112',   name: 'Spring Garden', location: '255 S Spring Garden St, Carlisle, PA' }
     ],
 
     stores: [

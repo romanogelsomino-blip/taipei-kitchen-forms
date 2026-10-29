@@ -45,7 +45,9 @@ const REFERENCE_CATCHALL_DISH_UUID = '00000000-0000-4000-8000-000000000001';    
  *
  * `attrs` are the columns beyond name: kind 'type' is one of `types`, 'orgId' is the
  * organisation's own identifier (unique on its own, or per type when `uniqueWith` names the
- * type column), 'upc' is the 14-digit code the retailer's sales data carries for a dish
+ * type column; `assigned` maps a type to a pattern such as 'TK-000', and an entry of that
+ * type gets the next id in the pattern, one past the highest on the list, instead of an input
+ * one, and keeps it), 'upc' is the 14-digit code the retailer's sales data carries for a dish
  * (required, unique), 'text' is free text, required when `required` is set. `storedAs` names the
  * monthly tab and field that carry one of an entry's attributes by value, with nothing to
  * resolve it through on a read, which is what a change to it leaves behind in the records.
@@ -61,7 +63,7 @@ function referenceLists() {
     { tab: 'Kitchens', key: 'kitchens', noun: 'kitchen', types: ['Taipei', 'Giant'], active: false, verified: true,
       attrs: [
         { key: 'kitchenType', header: 'Kitchen Type', kind: 'type' },
-        { key: 'kitchenId',   header: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType' },
+        { key: 'kitchenId',   header: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType', assigned: { Taipei: 'TK-000' } },   // ours: assigned on addition; Giant's is input
         location
       ],
       storedAs: [] },   // rows carry the kitchen's System ID and read back under its current name
@@ -479,6 +481,24 @@ function referenceNameTakenRejection(list, name, owner) {
     : 'A ' + list.noun + ' named "' + name + '" already exists.', 'duplicate');
 }
 
+/** How an org id is assigned for an entry's type, or null when it is input: { pattern, prefix, digits, regex }. */
+function assignedOrgIdRule(attr, entry) {
+  const pattern = attr.assigned && attr.uniqueWith ? attr.assigned[String(entry[attr.uniqueWith] || '')] : null;
+  if (!pattern) return null;
+  const prefix = pattern.replace(/0+$/, '');
+  return { pattern: pattern, prefix: prefix, digits: pattern.length - prefix.length, regex: new RegExp('^' + prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\d+)$', 'i') };
+}
+
+/** The next id under a rule: one past the highest number any row of the list carries in that pattern, deleted rows included, so a number is never reused. */
+function nextAssignedOrgId(rows, attr, rule) {
+  let highest = 0;
+  rows.forEach(row => {
+    const match = rule.regex.exec(String(row[attr.key] || '').trim());
+    if (match) highest = Math.max(highest, parseInt(match[1], 10) || 0);
+  });
+  return rule.prefix + String(highest + 1).padStart(rule.digits, '0');
+}
+
 /** Whether another row already carries this org id or UPC, within the same type when the attribute is unique per type. */
 function referenceOrgIdTaken(rows, attr, candidate, exceptId) {
   const wanted = String(candidate[attr.key] || '').toLowerCase();
@@ -523,7 +543,15 @@ function planReferenceOps(list, ops, rows, now) {
         const row = { _row: null, id: Utilities.getUuid(), name: name, deletedAt: '', sortOrder: sortOrder, createdAt: now, updatedAt: now };
         if (list.active) row.active = true;
         if (list.verified) row.verified = entry.verified === undefined ? true : parseReferenceBool(entry.verified, 'verified');   // a person's add is verified; an import's says so
-        list.attrs.forEach(attr => { row[attr.key] = checkReferenceAttr(list, attr, entry[attr.key]); });
+        list.attrs.forEach(attr => {
+          const rule = attr.kind === 'orgId' ? assignedOrgIdRule(attr, Object.assign({}, entry, row)) : null;   // the type column comes first, so row has it
+          if (rule) {
+            if (normaliseReferenceName(entry[attr.key])) throw referenceRejection(attr.header + ' is assigned to a ' + row[attr.uniqueWith] + ' ' + list.noun + ' (' + rule.pattern + '); leave it blank.', 'validation');
+            row[attr.key] = nextAssignedOrgId(sim, attr, rule);
+            return;
+          }
+          row[attr.key] = checkReferenceAttr(list, attr, entry[attr.key]);
+        });
         orgIds.forEach(attr => {
           if (referenceOrgIdTaken(sim, attr, row, null)) {
             throw referenceRejection('A ' + list.noun + ' with ' + attr.header + ' "' + row[attr.key] + '" already exists' + (attr.uniqueWith ? ' for ' + row[attr.uniqueWith] : '') + '.', 'duplicate');
@@ -555,6 +583,9 @@ function planReferenceOps(list, ops, rows, now) {
         });
         const next = Object.assign({}, row, fields);
         orgIds.forEach(attr => {
+          const assigned = assignedOrgIdRule(attr, row) || assignedOrgIdRule(attr, next);
+          if (assigned && fields[attr.key] !== undefined) throw referenceRejection(attr.header + ' ' + row[attr.key] + ' is assigned and cannot be changed.', 'validation');
+          if (assigned && attr.uniqueWith && fields[attr.uniqueWith] !== undefined) throw referenceRejection(list.attrs.find(a => a.key === attr.uniqueWith).header + ' cannot change on a ' + list.noun + ' whose ' + attr.header + ' is assigned (' + assigned.pattern + '); add a new ' + list.noun + ' instead.', 'validation');
           const moved = fields[attr.key] !== undefined || (attr.uniqueWith && fields[attr.uniqueWith] !== undefined);
           if (!moved) return;
           if (referenceOrgIdTaken(sim, attr, next, String(row.id))) {

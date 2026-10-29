@@ -353,10 +353,10 @@ async function loadDemoData() {
       { submittedAt: `${yesterday}T09:20:55.000Z`, date: yesterday, driver: 'Sam Blumenthal', store: '6564', arrivalTime: '09:15', coolerTemp: 39, dish: 'Spring Roll (Veg)', qtyAdded: 25, removed: 0, reason: '', receivedBy: 'Emily' }
     ],
     packaging: [
-      { submissionId: 'demo-cooler-1', date: today, time: '06:40', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6006', storeName: 'Store 6006', dish: 'Spring Roll (Veg)', loaded: 24, discarded: 0, discardReason: '', productTemp: 36, notes: '' },
-      { submissionId: 'demo-cooler-1', date: today, time: '06:40', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6006', storeName: 'Store 6006', dish: 'Shrimp Egg Roll', loaded: 30, discarded: 1, discardReason: 'Damaged', productTemp: 36, notes: '' },
-      { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Chicken Lo Mein', loaded: 18, discarded: 0, discardReason: '', productTemp: 43, notes: 'Cooler was slow to come down' },
-      { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'legacy-park', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Beef Chow Fun', loaded: 15, discarded: 0, discardReason: '', productTemp: 43, notes: 'Cooler was slow to come down' }
+      { submissionId: 'demo-cooler-1', date: today, time: '06:40', kitchen: 'Taipei Kitchen', kitchenId: 'TK-001', driver: 'Owen', store: '6006', storeName: 'Store 6006', dish: 'Spring Roll (Veg)', loaded: 24, discarded: 0, discardReason: '', productTemp: 36, notes: '' },
+      { submissionId: 'demo-cooler-1', date: today, time: '06:40', kitchen: 'Taipei Kitchen', kitchenId: 'TK-001', driver: 'Owen', store: '6006', storeName: 'Store 6006', dish: 'Shrimp Egg Roll', loaded: 30, discarded: 1, discardReason: 'Damaged', productTemp: 36, notes: '' },
+      { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'TK-001', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Chicken Lo Mein', loaded: 18, discarded: 0, discardReason: '', productTemp: 43, notes: 'Cooler was slow to come down' },
+      { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'TK-001', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Beef Chow Fun', loaded: 15, discarded: 0, discardReason: '', productTemp: 43, notes: 'Cooler was slow to come down' }
     ],
     production: [
       { submittedAt: `${today}T06:15:33.000Z`, date: today, kitchen: 'Store 6112', cook: 'Lucia', dish: 'Spring Roll (Veg)', qtyProduced: 120, qtyDiscarded: 2, discardReason: 'Quality Issue' },
@@ -3008,11 +3008,11 @@ const CONFIG_LISTS = [
   { key: 'kitchens',    label: 'Kitchens',    noun: 'kitchen',    byName: false,
     attrs: [
       { key: 'kitchenType', label: 'Kitchen Type', kind: 'type' },
-      { key: 'kitchenId',   label: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType' },
+      { key: 'kitchenId',   label: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType', assigned: { Taipei: 'TK-000' } },   // ours: assigned on save; Giant's is input
       { key: 'location',    label: 'Location',     kind: 'text', required: true, editable: true }
     ],
     verified: true,
-    blurb: 'Where batches are cooked and coolers are loaded. The production and packaging forms carry the kitchen name, and its QR code carries its System ID. The Kitchen ID is the identifier the organisation named by Kitchen Type uses for it.' },
+    blurb: 'Where batches are cooked and coolers are loaded. The production and packaging forms carry the kitchen name, and its QR code carries its System ID. The Kitchen ID is the identifier the organisation named by Kitchen Type uses for it: a Taipei kitchen\'s is assigned on save, TK-001 upward, and a Giant kitchen\'s is entered.' },
   { key: 'stores',      label: 'Stores',      noun: 'store',      byName: false,
     attrs: [
       { key: 'storeType', label: 'Store Type', kind: 'type' },
@@ -3080,6 +3080,11 @@ function configTypes(key) {
   return served || CONFIG_TYPES_FALLBACK[key] || [];
 }
 
+/** The pattern the backend assigns an org id under for this entry's type, such as 'TK-000', or null when the id is entered. */
+function configAssignedPattern(attr, entry) {
+  return (attr.assigned && attr.uniqueWith && attr.assigned[configNormalise(entry[attr.uniqueWith])]) || null;
+}
+
 /** Trimmed, internal whitespace collapsed: the form the backend stores and compares on. */
 function configNormalise(value) {
   return String(value === undefined || value === null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -3144,7 +3149,7 @@ function configDiffOps(key) {
   buffer.forEach(entry => {
     if (entry._new) {
       const add = { name: configNormalise(entry.name) };
-      def.attrs.forEach(attr => { add[attr.key] = configNormalise(entry[attr.key]); });
+      def.attrs.forEach(attr => { if (!configAssignedPattern(attr, entry)) add[attr.key] = configNormalise(entry[attr.key]); });   // an assigned id is the backend's to give
       ops.push({ op: 'add', entry: add });
       return;
     }
@@ -3187,6 +3192,7 @@ function configValidate(key) {
         if (!value) problems.push({ index: index, message: attr.label + ' is required.' });
         else if (configTypes(key).indexOf(value) < 0) problems.push({ index: index, message: attr.label + ' must be one of ' + configTypes(key).join(', ') + '.' });
       } else if (attr.kind === 'orgId') {
+        if (entry._new && configAssignedPattern(attr, entry)) return;   // assigned on save
         if (!value) problems.push({ index: index, message: attr.label + ' is required.' });
         else if (value.length > 40 || !CONFIG_ORG_ID_PATTERN.test(value)) problems.push({ index: index, message: attr.label + ' may only contain letters, digits and single hyphens.' });
         else if (buffer.some((other, j) => j !== index
@@ -3396,7 +3402,7 @@ function configRenderList() {
       const value = configNormalise(entry[attr.key]);
       let node;
       if (editing && attr.editable) node = configInput(entry[attr.key], attr.label, 120, v => configEdit(def.key, index, attr.key, v));
-      else if (attr.kind === 'orgId') node = configIdValue(value, 12);
+      else if (attr.kind === 'orgId') node = entry._new && configAssignedPattern(attr, entry) ? configTextValue('assigned on save', true) : configIdValue(value, 12);
       else if (attr.kind === 'upc') node = configIdValue(value, 14);
       else node = configTextValue(value || '—', !value);
       fields.appendChild(configField(attr.label, node));
@@ -3538,6 +3544,7 @@ function configRenderAdd() {
   add.appendChild(configEl('h3', 'config-add-title', 'Add ' + configCapitalise(def.noun)));
   byKind('type').forEach(attr => add.appendChild(configAddControl(def, attr)));
   byKind('orgId').forEach(attr => add.appendChild(configAddControl(def, attr)));
+  configSyncAssignedAdd(def);
   const name = configEl('input');
   name.type = 'text';
   name.id = 'config-add-name';
@@ -3555,11 +3562,24 @@ function configRenderAdd() {
   const help = def.key === 'stores'
     ? 'The Store ID is the identifier the organisation named by Store Type uses for this store (eg for a Giant store, the store number Giant assigns it).'
     : def.key === 'kitchens'
-      ? 'The Kitchen ID is the identifier the organisation named by Kitchen Type uses for this kitchen (eg for a Giant kitchen, the kitchen ID Giant assigns it).'
+      ? 'The Kitchen ID is the identifier the organisation named by Kitchen Type uses for this kitchen: for a Giant kitchen, the kitchen ID Giant assigns it; for a Taipei kitchen it is assigned on save, TK-001 upward.'
       : def.key === 'dishes'
         ? 'An id is assigned on save and never changes. The UPC is the 14-digit code Giant\'s sales data carries for the dish.'
         : 'An id is assigned on save and never changes.';
   add.appendChild(configEl('div', 'config-add-help', help));
+}
+
+/** On the add row, an org id the backend assigns for the chosen type takes no input: its field is hidden while that type is selected. */
+function configSyncAssignedAdd(def) {
+  def.attrs.filter(attr => attr.kind === 'orgId' && attr.assigned && attr.uniqueWith).forEach(attr => {
+    const type = document.getElementById('config-add-' + attr.uniqueWith);
+    const input = document.getElementById('config-add-' + attr.key);
+    if (!type || !input) return;
+    const pattern = attr.assigned[type.value];
+    input.hidden = !!pattern;
+    if (pattern) input.value = '';
+    type.onchange = () => configSyncAssignedAdd(def);
+  });
 }
 
 function configRefreshActions() {
@@ -3639,7 +3659,7 @@ function configAdd() {
     const control = document.getElementById('config-add-' + attr.key);
     entry[attr.key] = control ? configNormalise(control.value) : '';
   });
-  const missing = def.attrs.find(attr => !entry[attr.key]);   // every attribute is required on a new entry
+  const missing = def.attrs.find(attr => !entry[attr.key] && !configAssignedPattern(attr, entry));   // every attribute is required on a new entry, bar an id the backend assigns
   if (missing) {
     configAddRefuse(document.getElementById('config-add-' + missing.key), missing.label + ' is required.');
     return;
@@ -3714,7 +3734,7 @@ function configChangeSummary(key) {
       const orgId = def.attrs.find(attr => attr.kind === 'orgId');
       items.push({ cls: 'safe', text: key === 'stores'
         ? 'Add "' + name + '" as store ' + configNormalise(entry.storeId) + '. Generate its QR code from the Home tab after saving.'
-        : 'Add "' + name + '"' + (orgId ? ' (' + orgId.label + ' ' + configNormalise(entry[orgId.key]) + ')' : '') + '. Its id is assigned on save and never changes.' });
+        : 'Add "' + name + '"' + (orgId ? ' (' + orgId.label + ' ' + (configAssignedPattern(orgId, entry) ? 'assigned on save' : configNormalise(entry[orgId.key])) + ')' : '') + '. Its id is assigned on save and never changes.' });
       return;
     }
     const was = before[entry.id];

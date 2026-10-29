@@ -69,7 +69,7 @@ The pages live in `frontend/`, their scripts and stylesheet in `frontend/forms/`
 `npm run serve:demo` assembles the site the way CI publishes it, `frontend/` at the root
 with `data/` beside it, into a gitignored `_site/` and serves it at http://localhost:8080/
 with no backend. The dashboard shows sample data and the forms render but do not submit.
-Open `/dashboard/`, or a form such as `/taipei_production_form3.html?kitchen=legacy-park`.
+Open `/dashboard/`, or a form such as `/taipei_production_form3.html?kitchen=<System ID>`.
 
 To run against the staging backend instead, write the staging config once with
 `npm run env`, then use `npm run serve`. The dashboard reads live staging data, and a form
@@ -105,7 +105,9 @@ for it, which is how sales rows find their dish; a reserved dish, `NON-TAIPEI DI
 person adds is verified, one an import creates from the data it meets is not until someone
 confirms it on the Config tab, and the forms offer only verified entries. Kitchens and stores also carry a Type, the organisation they
 belong to (Taipei or Giant), and that organisation's own identifier: the Kitchen ID or Store
-ID. A store's Store ID is its store number. QR codes carry the UUID: a kitchen has one for the
+ID. A store's Store ID is its store number. A Taipei kitchen's Kitchen ID is assigned when it
+is added, `TK-` and the next three-digit number past the highest on the list, and is never
+input or changed; a Giant kitchen's is entered. QR codes carry the UUID: a kitchen has one for the
 production form and one for the packaging form (`?kitchen=<System ID>`), a store one for the
 delivery form (`?store=<System ID>`); store codes printed before System IDs existed carry the
 store number, which the delivery form still accepts. Every row carries the System ID of its

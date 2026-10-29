@@ -36,7 +36,9 @@
   card, and no form reads them. Every entry is keyed by a UUID the
   backend assigns and never changes; kitchens and stores also carry a Type (Taipei or Giant)
   and that organisation's own id, and a store's Store ID is the number its delivery rows
-  carry. QR codes carry the location's UUID: a kitchen has one for the production form and
+  carry. A Taipei kitchen's Kitchen ID is assigned when it is added, `TK-` and the next
+  three-digit number past the highest on the list, and is never input or changed; a Giant
+  kitchen's is input. QR codes carry the location's UUID: a kitchen has one for the production form and
   one for the packaging form, a store one for the delivery form, which also accepts the store
   number that codes printed earlier carry. A row is never removed from the sheet: an entry is deleted to retire it
   (hidden from the Config tab, restorable), and a dish may also be deactivated to pause it;
