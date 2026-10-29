@@ -46,6 +46,11 @@
   for a person's entry, false for one an import created until a person confirms it; the forms
   offer only verified entries. The git copies of `data/*.json` are seeds for local
   runs, not a source.
+- **Names on a row are read through its System ID.** A monthly row carries the System ID of
+  its kitchen, store and dish beside their names, and every read shows the row under the name
+  the id has now in the Reference sheet; the stored text is never rewritten. Nothing may look a
+  kitchen, store or dish up by name or number when the row carries its System ID. Cooks,
+  drivers and supervisors are stored by name alone, so renaming one splits history.
 - **Sales rows are keyed by the retailer's identifiers and replaced in place.** A Sales row
   is one store, UPC and day; the backend resolves names and System IDs from the Reference
   sheet, creates an unverified store for a number it lacks, files an unknown UPC under the

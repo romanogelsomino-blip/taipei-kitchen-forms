@@ -274,14 +274,25 @@ function normaliseCell(value, type) {
 }
 
 /**
- * Per-tab repair of rows read from a file written under an earlier schema. Deliveries: Store
- * once held the store number; put it under storeId and the store's name under store.
- * Violations were store-shaped: a row with no Location System ID has the store number under
- * Location, and a row with a System ID but no Location Type is a store. Rows that already
- * have the newer fields are left alone. Call on every read of the tab; never on a write.
+ * Rows as the API returns them: every kitchen, store and dish name on a row is resolved
+ * through the System ID beside it, so an entry renamed on the Config tab shows under its
+ * current name on every row, past ones included. The stored text is never rewritten, and an
+ * id no list has leaves it as it is. Rows from before System IDs existed get the earlier
+ * repairs: a delivery whose Store held the store number gets the number under storeId and
+ * the store's name and System ID from it; a store-shaped violation, with the store number
+ * under Location, gets its name, System ID and Location Type the same way. Call on every
+ * read of a tab; never on a write.
  */
 function normaliseRecords(tab, records) {
-  if (tab !== 'Deliveries' && tab !== 'Violations') return records;
+  const resolved = {   // the name field each System ID field stands behind
+    Production: [['kitchenSystemId', 'kitchen'], ['dishSystemId', 'dish']],
+    Packaging:  [['kitchenSystemId', 'kitchen'], ['storeSystemId', 'store'], ['dishSystemId', 'dish']],
+    Deliveries: [['storeSystemId', 'store'], ['dishSystemId', 'dish']],
+    Sales:      [['storeSystemId', 'store'], ['dishSystemId', 'dish']],
+    Violations: [['locationSystemId', 'location']]
+  }[tab];
+  if (!resolved) return records;
+  const byId = referenceEntryById();
   let stores = null;
   const byNumber = number => {
     if (!stores) stores = storeList();
@@ -290,23 +301,24 @@ function normaliseRecords(tab, records) {
   records.forEach(record => {
     if (tab === 'Deliveries') {
       const store = String(record.store || '').trim();
-      if (!store) return;
-      if (!record.storeId) record.storeId = store;
-      if (String(record.storeId) === store) {
+      if (store && !record.storeId) record.storeId = store;
+      if (store && !record.storeSystemId && String(record.storeId) === store) {
         const match = byNumber(store);
-        if (match) record.store = match.name;
-      }
-      return;
-    }
-    const location = String(record.location || '').trim();
-    if (!record.locationSystemId && location) {
-      const match = byNumber(location);
-      if (match) {
-        record.location = match.name;
-        record.locationSystemId = match.key;
+        if (match) { record.store = match.name; record.storeSystemId = match.key; }
       }
     }
-    if (!record.locationType && (record.locationSystemId || location)) record.locationType = 'Store';
+    if (tab === 'Violations') {
+      const location = String(record.location || '').trim();
+      if (!record.locationSystemId && location) {
+        const match = byNumber(location);
+        if (match) { record.location = match.name; record.locationSystemId = match.key; }
+      }
+      if (!record.locationType && (record.locationSystemId || location)) record.locationType = 'Store';
+    }
+    resolved.forEach(pair => {
+      const entry = byId[String(record[pair[0]] || '').trim().toLowerCase()];
+      if (entry) record[pair[1]] = entry.name;
+    });
   });
   return records;
 }

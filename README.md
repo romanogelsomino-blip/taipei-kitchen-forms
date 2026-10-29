@@ -99,7 +99,7 @@ resolve a violation; the dashboard offers them on the violation's card, and no f
 Every entry is keyed by a UUID the backend assigns and never changes. An entry is deleted to
 retire it (hidden from the forms and the Config tab, restorable from its deleted list), and a
 dish can also be switched off to pause it; the row stays in the sheet either way, so past
-records keep their names. A dish carries a UPC, the 14-digit code Giant's sales data uses
+records still resolve. A dish carries a UPC, the 14-digit code Giant's sales data uses
 for it, which is how sales rows find their dish; a reserved dish, `NON-TAIPEI DISH` with UPC
 `00000000000000`, deleted and inactive, is where sales of items no dish claims are filed. Kitchens, stores and dishes also carry a Verified flag: an entry a
 person adds is verified, one an import creates from the data it meets is not until someone
@@ -108,11 +108,11 @@ belong to (Taipei or Giant), and that organisation's own identifier: the Kitchen
 ID. A store's Store ID is its store number. QR codes carry the UUID: a kitchen has one for the
 production form and one for the packaging form (`?kitchen=<System ID>`), a store one for the
 delivery form (`?store=<System ID>`); store codes printed before System IDs existed carry the
-store number, which the delivery form still accepts. Every delivery and packaging
-row carries the number, so a store can be renamed freely but changing its number re-keys its
-records, and the Config tab says so.
-The other four lists are stored in the records by name, so renaming one leaves past records
-under the old name, and the Config tab says that too. The dashboard's home page opens the
+store number, which the delivery form still accepts. Every row carries the System ID of its
+kitchen, store and dish, and a read shows the row under the name that id has now, so those
+three can be renamed freely; changing a store's number re-keys its records and its printed
+codes, and the Config tab says so. Cooks, drivers and supervisors are stored in the records by
+name, so renaming one leaves past records under the old name, and the Config tab says that too. The dashboard's home page opens the
 production form with the kitchen's UUID, `taipei_production_form3.html?kitchen=<uuid>`.
 
 The copies of `data/*.json` in git are seeds for local runs only; `node scripts/reference-snapshot.js staging` refreshes them from the staging backend.

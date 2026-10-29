@@ -19,9 +19,10 @@
 // A row is never removed from the sheet. An entry is deactivated to pause it (hidden from
 // the forms, shown greyed on the Config tab, one switch to resume) or deleted to retire it
 // (hidden from the Config tab too, restorable from its deleted list); either way history
-// still resolves its name. The five name-keyed lists are stored in the monthly rows by
-// display name, so history depends on names staying put; the Config tab warns before a
-// rename and the backend never rewrites a record.
+// still resolves its name. A kitchen, store or dish is stored in the monthly rows with its
+// System ID, and a read shows the row under the name that id has now, so renaming one is
+// safe. Cooks, drivers and supervisors are stored by name alone, so a rename there splits
+// history; the Config tab warns before one, and the backend never rewrites a record.
 
 const REFERENCE_FILE_NAME = 'Reference';
 const REFERENCE_MEMO = {};                          // per-execution: opened, ensured, payload
@@ -47,8 +48,8 @@ const REFERENCE_CATCHALL_DISH_UUID = '00000000-0000-4000-8000-000000000001';    
  * organisation's own identifier (unique on its own, or per type when `uniqueWith` names the
  * type column), 'upc' is the 14-digit code the retailer's sales data carries for a dish
  * (required, unique), 'text' is free text, required when `required` is set. `storedAs` names the
- * monthly tab and field that carry one of an entry's attributes, which is what a change to
- * it leaves behind in the records.
+ * monthly tab and field that carry one of an entry's attributes by value, with nothing to
+ * resolve it through on a read, which is what a change to it leaves behind in the records.
  *
  * Two flags beyond deletion, each on the lists that have a use for it. `active` is the pause
  * switch, dishes only: off the forms without losing its place. `verified` marks an entry a
@@ -64,7 +65,7 @@ function referenceLists() {
         { key: 'kitchenId',   header: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType' },
         location
       ],
-      storedAs: [{ tab: 'Production', field: 'kitchen', attr: 'name' }] },
+      storedAs: [] },   // rows carry the kitchen's System ID and read back under its current name
     { tab: 'Stores', key: 'stores', noun: 'store', types: ['Giant'], active: false, verified: true,
       attrs: [
         { key: 'storeType', header: 'Store Type', kind: 'type' },
@@ -74,7 +75,7 @@ function referenceLists() {
       storedAs: [{ tab: 'Deliveries', field: 'storeId', attr: 'storeId' }] },
     { tab: 'Dishes', key: 'dishes', noun: 'dish', types: null, active: true, verified: true,
       attrs: [{ key: 'upc', header: 'UPC', kind: 'upc' }],   // Giant's code for the dish, which its sales rows carry
-      storedAs: [{ tab: 'Production', field: 'dish', attr: 'name' }, { tab: 'Deliveries', field: 'dish', attr: 'name' }] },
+      storedAs: [] },   // rows carry the dish's System ID and read back under its current name
     { tab: 'Cooks', key: 'cooks', noun: 'cook', types: null, active: false, verified: false, attrs: [],
       storedAs: [{ tab: 'Production', field: 'cook', attr: 'name' }] },
     { tab: 'Drivers', key: 'drivers', noun: 'driver', types: null, active: false, verified: false, attrs: [],
@@ -365,9 +366,22 @@ function buildReferencePayload() {
   return payload;
 }
 
+/** Every entry of every list by System ID, lower-cased, deleted ones included: what a read resolves a row's names through. Memoised per execution. */
+function referenceEntryById() {
+  if (REFERENCE_MEMO.byId) return REFERENCE_MEMO.byId;
+  const payload = referencePayload();
+  const byId = {};
+  referenceLists().forEach(list => {
+    (payload[list.key] || []).forEach(entry => { byId[String(entry.id).toLowerCase()] = entry; });
+  });
+  REFERENCE_MEMO.byId = byId;
+  return byId;
+}
+
 /** Drop the memo and the cached payload. After every write, and on every setScriptProperty. */
 function invalidateReferencePayload() {
   REFERENCE_MEMO.payload = null;
+  REFERENCE_MEMO.byId = null;
   CacheService.getScriptCache().remove(REFERENCE_CACHE_KEY);
 }
 

@@ -777,10 +777,23 @@ const VIOLATION_TYPES = {
   Store:   ['Store Cooler Temperature', 'Product Arrival Temperature']
 };
 
-/** A store's name from its number, for rows that carry only the number. */
-function storeNameFor(number) {
-  const store = DATA.stores.find(s => String(s.id) === String(number));
-  return store ? store.name : 'Store ' + number;
+/**
+ * The store a row belongs to: by the System ID the row carries, else by the store number a
+ * row from before System IDs carries under storeId, or under store, bare or inside a name.
+ * Null when neither is on the list.
+ */
+function storeOf(row) {
+  const key = String(row.storeSystemId || '').trim().toLowerCase();
+  const byKey = key ? DATA.stores.find(s => String(s.key).toLowerCase() === key) : null;
+  if (byKey) return byKey;
+  const number = String(row.storeId || '').trim() || (String(row.store || '').match(/\b(\d{4})\b/) || [])[1] || '';
+  return (number && DATA.stores.find(s => String(s.id) === number)) || null;
+}
+
+/** A row's store as it should read: the list's current name, else what the row says. */
+function storeNameOf(row) {
+  const store = storeOf(row);
+  return store ? store.name : String(row.storeName || row.store || '');
 }
 
 /**
@@ -797,16 +810,16 @@ function loadFoodSafety() {
   ensureWindow(weekStart);   // a wider window refetches and re-renders this panel
 
   const inWeek = date => { const d = normalizeDate(date); return d >= weekStart && d <= weekEnd; };
-  const locations = new Map();   // "<type>:<own id>" → { type, name, counts }
+  const locations = new Map();   // "<type>:<System ID, or the own id of a row without one>" → { type, name, counts }
   const location = (type, id, name) => {
     const key = type + ':' + String(id || name || '');
     if (!locations.has(key)) locations.set(key, { type: type, name: name || (type + ' ' + id), counts: {} });
     return locations.get(key);
   };
-  (DATA.packaging || []).filter(r => inWeek(r.date)).forEach(r => location('Kitchen', r.kitchenId, r.kitchen));
-  DATA.deliveries.filter(d => inWeek(d.date)).forEach(d => location('Store', d.store, d.storeName || storeNameFor(d.store)));
+  (DATA.packaging || []).filter(r => inWeek(r.date)).forEach(r => location('Kitchen', r.kitchenSystemId || r.kitchenId, r.kitchen));
+  DATA.deliveries.filter(d => inWeek(d.date)).forEach(d => { const store = storeOf(d); location('Store', store ? store.key : (d.storeId || d.store), storeNameOf(d)); });
   (DATA.violations || []).filter(v => inWeek(v.date)).forEach(v => {
-    const where = location(v.locationType || 'Store', v.locationId, v.location);
+    const where = location(v.locationType || 'Store', v.locationSystemId || v.locationId, v.location);
     where.counts[v.violationType] = (where.counts[v.violationType] || 0) + 1;
   });
 
@@ -934,7 +947,7 @@ function packagingCoolers(rows) {
     if (!coolers.has(key)) {
       coolers.set(key, {
         key, date: r.date, time: r.time || '', kitchen: r.kitchen || '', driver: r.driver || '',
-        storeName: r.storeName || storeNameFor(r.store), productTemp: r.productTemp, notes: r.notes || '',
+        storeName: storeNameOf(r), productTemp: r.productTemp, notes: r.notes || '',
         loaded: 0, discarded: 0, dishes: []
       });
     }
@@ -1225,7 +1238,7 @@ function applyDeliveryAdvancedFilters() {
       d.driver?.toLowerCase().includes(search) ||
       d.dish?.toLowerCase().includes(search) ||
       d.receivedBy?.toLowerCase().includes(search) ||
-      DATA.stores.find(s => s.id === d.store)?.name.toLowerCase().includes(search)
+      storeNameOf(d).toLowerCase().includes(search)
     );
   }
 
@@ -1277,16 +1290,16 @@ function updateDeliveryMetrics() {
   // Calculate fullness by store
   const fullnessByStore = {};
   deliveriesWithFullness.forEach(d => {
-    if (!fullnessByStore[d.store]) {
-      fullnessByStore[d.store] = { sum: 0, count: 0 };
+    const storeName = storeNameOf(d);
+    if (!fullnessByStore[storeName]) {
+      fullnessByStore[storeName] = { sum: 0, count: 0 };
     }
-    fullnessByStore[d.store].sum += fullnessMap[d.casePrefillPercent];
-    fullnessByStore[d.store].count++;
+    fullnessByStore[storeName].sum += fullnessMap[d.casePrefillPercent];
+    fullnessByStore[storeName].count++;
   });
 
   const storeBreakdown = Object.entries(fullnessByStore)
-    .map(([storeId, data]) => {
-      const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
+    .map(([storeName, data]) => {
       const avg = data.sum / data.count;
       return `${storeName}: ${avg.toFixed(0)}%`;
     })
@@ -1455,18 +1468,8 @@ function displayDeliveryTable() {
   }
 
   const rows = pageData.map(d => {
-    // Extract store ID from either format:
-    // - New format: "6542" (just ID)
-    // - Old format: "Store 6542 – Carlisle, PA" (full name with ID)
-    let storeId = d.store;
-    const idMatch = d.store?.toString().match(/\b(\d{4})\b/); // Extract 4-digit ID
-    if (idMatch) {
-      storeId = idMatch[1];
-    }
-
-    // Look up store name by ID, or use original value if no match
-    const storeData = DATA.stores.find(s => s.id === storeId);
-    const storeName = storeData ? `${storeData.name} – ${storeData.location}` : d.store;
+    const storeData = storeOf(d);
+    const storeName = storeData ? `${storeData.name} – ${storeData.location}` : String(d.store || '');
 
     const hasViolation = hasTemperatureViolation(d);
     const rowStyle = hasViolation ? 'style="background:#FADBD8;border-left:4px solid var(--red);"' : '';
@@ -1990,8 +1993,8 @@ function displaySalesByStore() {
   const container = document.getElementById('sales-by-store');
   const byStore = {};
   SALES_STATE.rows.forEach(r => {
-    const key = String(r.store);
-    const s = byStore[key] || (byStore[key] = { name: r.storeName || storeNameFor(r.store), units: 0, transactions: 0, net: 0 });
+    const key = String(r.storeSystemId || r.storeId || r.store);
+    const s = byStore[key] || (byStore[key] = { name: storeNameOf(r), units: 0, transactions: 0, net: 0 });
     s.units += salesNumber(r.units);
     s.transactions += salesNumber(r.transactions);
     s.net += salesNumber(r.netSales);
@@ -2992,16 +2995,17 @@ function exportShrinkToCSV() {
 // batch of ops (type: 'config'); the backend writes the Reference sheet and asks GitHub to
 // republish data/<list>.json for the forms. A row is never removed from the sheet: an entry
 // is deleted (Deleted At set; folded away here, restorable) and a dish may also be switched
-// off, and ids never change once saved. Store numbers are on printed QR codes, and the
-// five name-keyed lists are stored in the records by name, so a rename there splits history
-// and the panel says so before it happens.
+// off, and ids never change once saved. Store numbers are on printed QR codes. Kitchens,
+// stores and dishes are stored in the records with their System ID and read back under
+// their current name, so renaming them is safe; cooks, drivers and supervisors are stored
+// by name alone, so a rename there splits history and the panel says so before it happens.
 //
 // Every server-supplied string is set with textContent or .value, never innerHTML: these
 // names are edited on a web page and reach every form.
 
 // The order of the strip, the backend payload and the sheet's tabs alike.
 const CONFIG_LISTS = [
-  { key: 'kitchens',    label: 'Kitchens',    noun: 'kitchen',    byName: true,
+  { key: 'kitchens',    label: 'Kitchens',    noun: 'kitchen',    byName: false,
     attrs: [
       { key: 'kitchenType', label: 'Kitchen Type', kind: 'type' },
       { key: 'kitchenId',   label: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType' },
@@ -3017,7 +3021,7 @@ const CONFIG_LISTS = [
     ],
     verified: true,
     blurb: 'Where coolers are bound for and deliveries go. The packaging and delivery forms carry the store name, and its QR code carries its System ID. The Store ID is the identifier the organisation named by Store Type uses for it: for a Giant store, its store number.' },
-  { key: 'dishes',      label: 'Dishes',      noun: 'dish',       byName: true,
+  { key: 'dishes',      label: 'Dishes',      noun: 'dish',       byName: false,
     attrs: [{ key: 'upc', label: 'UPC', kind: 'upc' }],   // Giant's 14-digit code for the dish, which its sales rows carry; set when the dish is added, not edited here
     activeToggle: true,   // the one list with a pause switch as well as delete: a dish is tried for a while, then kept or not
     verified: true,
@@ -3475,7 +3479,7 @@ function configRowWarning(def, entry, was, problem) {
     if (def.byName) {
       return configEl('div', 'config-warn', 'Renaming splits this ' + def.noun + '\'s history: records already filed as "' + oldName + '" keep that name and will show separately in reports. To retire a ' + def.noun + ' instead, add the new one and deactivate the old.');
     }
-    return configEl('div', 'config-warn safe', 'Safe: delivery records carry the store number, so renaming only changes the label.');
+    return configEl('div', 'config-warn safe', 'Safe: records carry this ' + def.noun + '\'s System ID, so renaming only changes the label.');
   }
   if (def.activeToggle && !entry.active && was.active) {
     return configEl('div', 'config-warn', 'Removed from the forms on their next load. Past records keep it.');
@@ -3719,7 +3723,7 @@ function configChangeSummary(key) {
     if (oldName !== name) {
       items.push(def.byName
         ? { cls: 'caution', text: 'Rename "' + oldName + '" to "' + name + '". Records already filed under "' + oldName + '" keep that name, so reports will show the two as separate ' + def.noun + 's.' }
-        : { cls: 'safe', text: 'Rename "' + oldName + '" to "' + name + '". Safe: delivery records carry the store number, so history stays together.' });
+        : { cls: 'safe', text: 'Rename "' + oldName + '" to "' + name + '". Safe: records carry the ' + def.noun + '\'s System ID, so history stays together.' });
     }
     def.attrs.forEach(attr => {
       const from = configNormalise(was[attr.key]);
