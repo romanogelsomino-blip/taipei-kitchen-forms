@@ -43,7 +43,7 @@ if (fs.existsSync(configured)) {
   const source = fs.readFileSync(configured, 'utf8');
   const match = source.match(/window\.APP_CONFIG\s*=\s*(\{[\s\S]*?\})\s*;/);
   if (!match) {
-    console.error('  frontend/config.js is not in the expected shape; regenerate it with npm run env:staging');
+    console.error('  frontend/config.js is not in the expected shape; regenerate it with npm run env');
     process.exit(1);
   }
   const base = JSON.parse(match[1]);
@@ -54,7 +54,7 @@ if (fs.existsSync(configured)) {
   write(path.join(site, 'staging', 'config.js'), 'staging');
   console.log('  config.js written for both trees, pointing at ' + base.webAppUrl);
 } else {
-  console.log('  no frontend/config.js; both trees run on sample data (run npm run env:staging to point at a backend)');
+  console.log('  no frontend/config.js; both trees run on sample data (run npm run env to point at staging)');
 }
 
 console.log('  production tree  _site/');

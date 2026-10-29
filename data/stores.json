@@ -1,151 +1,86 @@
 {
-  "version": "1.0",
-  "lastUpdated": "2026-09-14",
-  "kitchens": [
-    {
-      "id": "legacy-park",
-      "name": "Legacy Park",
-      "active": true
-    },
-    {
-      "id": "6112",
-      "name": "Store 6112",
-      "active": true
-    },
-    {
-      "id": "other",
-      "name": "Other",
-      "active": true
-    }
-  ],
   "stores": [
     {
-      "id": "6006",
-      "name": "Store 6006",
-      "location": "Kline Village, Harrisburg, PA",
-      "active": true
-    },
-    {
-      "id": "6061",
-      "name": "Store 6061",
-      "location": "Shippensburg, PA",
-      "active": true
-    },
-    {
-      "id": "6112",
-      "name": "Store 6112",
-      "location": "255 S Spring Garden St, Carlisle, PA",
-      "active": true
-    },
-    {
-      "id": "6253",
-      "name": "Store 6253",
-      "location": "New Cumberland, PA",
-      "active": true
-    },
-    {
-      "id": "6331",
-      "name": "Store 6331",
-      "location": "Mechanicsburg, PA",
-      "active": true
-    },
-    {
-      "id": "6443",
-      "name": "Store 6443",
-      "location": "Chambersburg, PA",
-      "active": true
-    },
-    {
-      "id": "6542",
-      "name": "Store 6542",
-      "location": "Carlisle, PA",
-      "active": true
-    },
-    {
-      "id": "6564",
-      "name": "Store 6564",
-      "location": "Harrisburg (Gayson Rd), PA",
-      "active": true
-    }
-  ],
-  "dishes": [
-    {
-      "id": "gen-tso",
-      "name": "General Tso Chicken Bento",
-      "active": true,
-      "sortOrder": 1
-    },
-    {
-      "id": "sesame",
-      "name": "Sesame Chicken Bento",
-      "active": true,
+      "id": "3053ab5e-a4ac-4450-9dfe-7cff7eefc73c",
+      "name": "Kline Village",
+      "storeType": "Giant",
+      "storeId": "6006",
+      "location": "136 Kline Village, Harrisburg, PA",
+      "verified": true,
+      "deletedAt": "",
       "sortOrder": 2
     },
     {
-      "id": "lo-mein-chicken",
-      "name": "Bento Chicken Lo Mein",
-      "active": true,
+      "id": "f37cb8e5-0671-47fb-8eea-dc2debf6d3e0",
+      "name": "Store 6061",
+      "storeType": "Giant",
+      "storeId": "6061",
+      "location": "397 Baltimore Rd, Shippensburg, PA",
+      "verified": true,
+      "deletedAt": "",
       "sortOrder": 3
     },
     {
-      "id": "lo-mein-shrimp",
-      "name": "Bento Shrimp Lo Mein",
-      "active": true,
+      "id": "d55afaf3-8a4b-4205-98c9-eb6faef04a5e",
+      "name": "Store 6112",
+      "storeType": "Giant",
+      "storeId": "6112",
+      "location": "255 S Spring Garden St, Carlisle, PA",
+      "verified": true,
+      "deletedAt": "",
       "sortOrder": 4
     },
     {
-      "id": "lo-mein-pork",
-      "name": "Bento Smoked Pork Lo Mein",
-      "active": true,
+      "id": "248e6d7c-1d32-4005-9fc1-f36c8d1e63e0",
+      "name": "Store 6253",
+      "storeType": "Giant",
+      "storeId": "6253",
+      "location": "130 Old York Rd, New Cumberland, PA",
+      "verified": true,
+      "deletedAt": "",
       "sortOrder": 5
     },
     {
-      "id": "sweet-sour",
-      "name": "Bento Sweet & Sour Chicken",
-      "active": true,
+      "id": "d79ca4dc-d20f-4e08-abd1-f191a6ebf1fb",
+      "name": "Store 6331",
+      "storeType": "Giant",
+      "storeId": "6331",
+      "location": "Mechanicsburg, PA",
+      "verified": true,
+      "deletedAt": "",
       "sortOrder": 6
     },
     {
-      "id": "bourbon",
-      "name": "Bourbon Chicken Bento",
-      "active": true,
+      "id": "68448510-c119-4be6-82c1-10ddc8899ae7",
+      "name": "Store 6443",
+      "storeType": "Giant",
+      "storeId": "6443",
+      "location": "Chambersburg, PA",
+      "verified": true,
+      "deletedAt": "",
       "sortOrder": 7
     },
     {
-      "id": "broccoli",
-      "name": "Broccoli Chicken Bento",
-      "active": true,
+      "id": "42d6e005-07c1-4730-98bd-3186f3bf13f4",
+      "name": "Store 6542",
+      "storeType": "Giant",
+      "storeId": "6542",
+      "location": "Carlisle, PA",
+      "verified": true,
+      "deletedAt": "",
       "sortOrder": 8
     },
     {
-      "id": "hot-spicy",
-      "name": "Hot Spicy Chicken Bento",
-      "active": true,
+      "id": "8e260391-34e1-4516-a9aa-e645aafac9a8",
+      "name": "Store 6564",
+      "storeType": "Giant",
+      "storeId": "6564",
+      "location": "Harrisburg (Gayson Rd), PA",
+      "verified": true,
+      "deletedAt": "",
       "sortOrder": 9
-    },
-    {
-      "id": "dumplings",
-      "name": "Bento Steamed Dumplings",
-      "active": true,
-      "sortOrder": 10
-    },
-    {
-      "id": "egg-roll-chicken",
-      "name": "Chicken Egg Roll",
-      "active": true,
-      "sortOrder": 11
-    },
-    {
-      "id": "egg-roll-pork",
-      "name": "Pork Egg Roll",
-      "active": true,
-      "sortOrder": 12
-    },
-    {
-      "id": "egg-roll-shrimp",
-      "name": "Shrimp Egg Roll",
-      "active": true,
-      "sortOrder": 13
     }
-  ]
+  ],
+  "version": "r5-06212c46",
+  "generatedAt": "2026-10-29T15:29:24-04:00"
 }

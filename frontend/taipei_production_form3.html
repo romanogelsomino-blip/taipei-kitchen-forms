@@ -32,8 +32,7 @@
     <span style="font-size:1.2rem;flex-shrink:0">🌡️</span>
     <div>
       <strong>HACCP Cooling Rule:</strong> Hot foods must cool from 135°F → 70°F within <strong>2 hours</strong>, then 70°F → 41°F within <strong>4 more hours</strong>.
-      Cooling time cells turn <span style="color:var(--red);font-weight:600">red</span> if they exceed these windows.
-      Final temp must be ≤ 41°F before packaging.
+      Batches cool overnight from cook end. Final temp must be ≤ 41°F before packaging.
     </div>
   </div>
 
@@ -43,19 +42,10 @@
       <h2>Production Run Information</h2>
       <p>Fill out at the start of each production session · all times apply to the full batch</p>
     </div>
-    <div class="field-group fg-4">
+    <div class="field-group fg-3">
       <div class="field">
         <label>Date</label>
         <input type="date" id="f-date">
-      </div>
-      <div class="field">
-        <label>Shift</label>
-        <select id="f-shift">
-          <option value="">— Select —</option>
-          <option>AM (Opening)</option>
-          <option>MID (Day)</option>
-          <option>PM (Evening)</option>
-        </select>
       </div>
       <div class="field">
         <label>Production Kitchen</label>
@@ -64,19 +54,12 @@
         </select>
       </div>
       <div class="field">
-        <label>Head Chef / Supervisor</label>
-        <select id="f-supervisor" onchange="supervisorPicker.handleChange()">
-          <option value="">— Select Supervisor —</option>
+        <label>Cook</label>
+        <select id="f-cook" onchange="cookPicker.handleChange()">
+          <option value="">— Select Cook —</option>
         </select>
-        <input type="text" id="f-supervisor-custom" placeholder="Enter supervisor name" style="display:none;margin-top:8px;">
+        <input type="text" id="f-cook-custom" placeholder="Enter cook name" style="display:none;margin-top:8px;">
       </div>
-    </div>
-
-    <!-- T-041: Recall Last Submission -->
-    <div style="padding:12px 20px;background:var(--row-alt);border-top:1px solid var(--border);">
-      <button id="recall-btn" onclick="lastSubmission.recall()" style="background:var(--green);color:#fff;border:none;border-radius:6px;padding:10px 16px;font-family:'DM Mono',monospace;font-size:.78rem;cursor:pointer;display:none;transition:background .15s;">
-        ⚡ Use Last Values
-      </button>
     </div>
 
     <!-- Cook times row -->
@@ -102,39 +85,13 @@
       </div>
     </div>
 
-    <!-- Cool times row -->
-    <div style="padding:14px 20px;border-top:1px solid var(--border);">
-      <div style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--soft);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;">❄️ Batch Cooling Times — applies to all dishes</div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
-        <div class="field">
-          <label>Cool Start</label>
-          <input type="time" id="b-cool-start" onchange="calcBatchCool()">
-        </div>
-        <div class="field">
-          <label>Cool End</label>
-          <input type="time" id="b-cool-end" onchange="calcBatchCool()">
-          <label style="display:flex;align-items:center;gap:5px;margin-top:5px;cursor:pointer;">
-            <input type="checkbox" id="b-cool-next-am" onchange="toggleBatchNextAM()" style="cursor:pointer;">
-            <span style="font-family:'DM Mono',monospace;font-size:.65rem;color:var(--soft);">Next Morning</span>
-          </label>
-        </div>
-        <div class="field">
-          <label>Cool Time</label>
-          <div id="b-cool-time" style="font-family:'DM Mono',monospace;font-size:.95rem;font-weight:500;color:var(--orange);background:var(--row-alt);border:1.5px solid var(--border);border-radius:5px;padding:8px 10px;text-align:center;">—</div>
-        </div>
-        <div class="field">
-          <label>Final Batch Temp °F</label>
-          <input type="number" id="b-final-temp" min="30" max="212" placeholder="°F" oninput="flagTemp(this)">
-        </div>
-      </div>
-    </div>
   </div>
 
   <!-- ── PRODUCTION DATA ENTRY ── -->
   <div class="form-card">
     <div class="card-header">
       <h2>Dish-by-Dish Production Log</h2>
-      <p>Tap each dish to enter production data · batch cook and cooling times above apply to all · <span id="progress-text">0 of 13 completed</span></p>
+      <p>Tap each dish to enter production data · batch cook times above apply to all · <span id="progress-text">0 of 13 completed</span></p>
     </div>
 
     <!-- Dish Cards -->
@@ -148,12 +105,53 @@
     </div>
   </div>
 
+  <div class="form-card">
+    <div class="card-header"><h2>Notes</h2></div>
+    <div class="field-group" style="grid-template-columns:1fr;padding:16px 20px;">
+      <div class="field">
+        <label>Notes (optional)</label>
+        <textarea id="f-notes" placeholder="Equipment issues, a short batch, anything unusual…"></textarea>
+      </div>
+    </div>
+  </div>
+
   <div class="submit-area">
-    <button class="btn-submit" id="submit-btn" onclick="submitForm()">Submit Production Log</button>
+    <button class="btn-submit" id="submit-btn" onclick="showSummary()">Review & Submit</button>
     <button class="btn-secondary" onclick="clearAll()">Clear Form</button>
   </div>
 
 </div><!-- end .page -->
+
+<div id="summary-overlay">
+  <div class="summary-box">
+    <h2 style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;margin-bottom:16px;">📋 Review Batch</h2>
+
+    <div class="summary-section">
+      <div class="summary-label">Production Kitchen</div>
+      <div class="summary-value" id="sum-kitchen">—</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-label">Cook</div>
+      <div class="summary-value" id="sum-cook">—</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-label">Cook Times</div>
+      <div class="summary-value" id="sum-cook-times">—</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-label">Dishes to Submit</div>
+      <div id="sum-dishes" style="font-size:.82rem;color:var(--mid);margin-top:8px;max-height:200px;overflow-y:auto;"></div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:24px;">
+      <button onclick="closeSummary()" style="flex:1;background:var(--border);color:var(--dark);border:none;border-radius:6px;padding:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;">← Edit</button>
+      <button onclick="confirmSubmit()" style="flex:2;background:var(--green);color:#fff;border:none;border-radius:6px;padding:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;">✓ Confirm & Submit</button>
+    </div>
+  </div>
+</div>
 
 <!-- STATUS OVERLAY -->
 <div id="status-overlay">
@@ -176,15 +174,20 @@
     <div class="dish-modal-body">
       <div class="modal-field">
         <label>Qty Produced</label>
-        <input type="number" id="modal-produced" min="0" placeholder="0">
+        <input type="number" inputmode="numeric" id="modal-produced" min="0" placeholder="0">
       </div>
       <div class="modal-field">
         <label>Qty Discarded</label>
-        <input type="number" id="modal-discarded" min="0" placeholder="0">
+        <input type="number" inputmode="numeric" id="modal-discarded" min="0" placeholder="0">
       </div>
       <div class="modal-field">
         <label>Discard Reason</label>
-        <input type="text" id="modal-discard-reason" placeholder="Reason if any…">
+        <select id="modal-discard-reason" onchange="handleDiscardReasonChange(true)">
+          <option value="">—</option>
+          <option value="Quality Issue">Quality Issue</option>
+          <option value="__other__">Other (specify)</option>
+        </select>
+        <input type="text" id="modal-discard-reason-custom" placeholder="Specify reason" style="display:none;margin-top:8px;">
       </div>
     </div>
     <div class="dish-modal-footer">

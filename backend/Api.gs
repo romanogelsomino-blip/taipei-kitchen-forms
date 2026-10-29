@@ -23,7 +23,10 @@ function doPost(e) {
     const payload = JSON.parse(e.postData.contents);
     Logger.log(`[DEBUG] Received payload - formType: ${payload.formType}, type: ${payload.type}, has photos: ${!!payload.photos}, has rows: ${!!payload.rows}`);
 
-    if (payload.type === 'bugReport') return handleBugReport(payload, ctx);
+    if (payload.type === 'bugReport')        return handleBugReport(payload, ctx);
+    if (payload.type === 'config')           return handleConfigWrite(payload, ctx);        // the reference lists; see Reference.gs
+    if (payload.type === 'resolveViolation') return handleViolationResolve(payload, ctx);   // see Violations.gs
+    if (payload.type === 'sales')            return handleSalesImport(payload, ctx);       // see Sales.gs
 
     ctx.logEntry.formType = payload.formType || 'unknown';
     ctx.logEntry.rowCount = payload.rows ? payload.rows.length : 0;
@@ -31,6 +34,7 @@ function doPost(e) {
 
     switch (payload.formType) {
       case 'production':  return handleProductionSubmission(payload, ctx);
+      case 'packaging':   return handlePackagingSubmission(payload, ctx);
       case 'delivery':    return handleDeliverySubmission(payload, ctx);
       case 'photos_only': return handlePhotoUpload(payload, ctx);
       default:
@@ -97,16 +101,26 @@ function action_rotateAdminToken(e) {
   }
 }
 
-/** Idempotent set-up: the current month's file, so the first write of the month never has to create it. */
+/**
+ * Idempotent set-up: the current month's file, so the first write of the month never has to
+ * create it, and the Reference sheet, seeded the first time it is created.
+ */
 function action_init(e) {
   try {
     const monthKey = monthKeyOfInstant(new Date());
     const opened = openMonthly(monthKey, true);
 
+    const reference = openReference(true);
+    invalidateReferencePayload();
+    const payload = referencePayload();
+    const counts = {};
+    referenceLists().forEach(list => { counts[list.key] = payload[list.key].length; });
+
     return jsonResponse({
       status: 'ok',
       message: 'Initialization complete',
-      current_month: { key: monthKey, name: monthlyFileName(monthKey), id: opened.fileId, url: monthlyFileUrl(opened.fileId) }
+      current_month: { key: monthKey, name: monthlyFileName(monthKey), id: opened.fileId, url: monthlyFileUrl(opened.fileId) },
+      reference: { name: REFERENCE_FILE_NAME, id: reference.fileId, url: referenceFileUrl(reference.fileId), version: payload.version, counts: counts }
     });
   } catch (error) {
     return jsonResponse({ status: 'error', message: error.toString() });
@@ -115,7 +129,7 @@ function action_init(e) {
 
 function action_test(e) {
   try {
-    const result = simulateViolation();
+    const result = simulateViolation(((e && e.parameter) || {}).note);
     return ContentService
       .createTextOutput(JSON.stringify(result))
       .setMimeType(ContentService.MimeType.JSON);
@@ -168,11 +182,12 @@ function action_setScriptProperty(e) {
     if (!key) throw new Error('Missing key parameter');
 
     PropertiesService.getScriptProperties().setProperty(key, value);
+    invalidateReferencePayload();   // CI sets several properties per deploy, so every deploy drops the cached lists
 
     return ContentService
       .createTextOutput(JSON.stringify({
         status: 'ok',
-        message: `Set ${key} = ${value}`
+        message: `Set ${key}`   // never the value: one of these is a token
       }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
@@ -242,12 +257,22 @@ function authorize() {
   const check = (name, fn) => {
     try { report[name] = fn(); } catch (e) { report[name] = 'FAILED: ' + e.toString(); }
   };
+  // When the editor runs this without showing the consent dialog, the grant still lacks
+  // something: this names it and gives the consent URL directly, so revoking the old grant
+  // is a last resort rather than the first step.
+  check('authorization', () => {
+    const info = ScriptApp.getAuthorizationInfo(ScriptApp.AuthMode.FULL);
+    return info.getAuthorizationStatus() === ScriptApp.AuthorizationStatus.REQUIRED
+      ? 'REQUIRED. Open this as the deploying account and approve: ' + info.getAuthorizationUrl()
+      : 'granted for every declared scope';
+  });
   check('properties', () => Object.keys(PropertiesService.getScriptProperties().getProperties()).sort().join(', '));
   check('operations folder', () => getSpreadsheetFolder().getName());
   check('photo folder', () => getPhotoRootFolder().getName());
   check('mail quota remaining', () => MailApp.getRemainingDailyQuota());
   check('sending account', () => Session.getEffectiveUser().getEmail());
   check('verified aliases', () => (GmailApp.getAliases() || []).join(', ') || '(none)');
+  check('github api (external_request scope)', () => 'HTTP ' + UrlFetchApp.fetch('https://api.github.com', { muteHttpExceptions: true }).getResponseCode());
   Object.keys(report).forEach(key => Logger.log(key + ': ' + report[key]));
   return report;
 }
@@ -266,9 +291,10 @@ function actions() {
     mailStatus:            { fn: action_mailStatus,            admin: true },
     queryDeliveries:       { fn: action_queryDeliveries,       admin: true },
     storageStatus:         { fn: action_storageStatus,         admin: true },
+    referenceStatus:       { fn: action_referenceStatus,       admin: true },
     // Public
     getViolations:         { fn: action_getViolations,         admin: false },
-    updateViolationStatus: { fn: action_updateViolationStatus, admin: false }
+    reference:             { fn: action_reference,             admin: false }
   };
 }
 
@@ -276,14 +302,14 @@ function doGet(e) {
   const params = (e && e.parameter) || {};
   if (!params.action) return action_dashboard({ parameter: params });
 
-  const entry = actions()[params.action];
+  const table = actions();
+  const entry = table[params.action];
   if (!entry) {
-    return ContentService
-      .createTextOutput(JSON.stringify({
-        status: 'error',
-        message: 'Unknown action. Admin actions (require token): init, test, ping, mailStatus, setScriptProperty, rotateAdminToken, getExecutionLog, queryDeliveries, storageStatus, formatStorage. Public actions: getViolations, updateViolationStatus'
-      }))
-      .setMimeType(ContentService.MimeType.JSON);
+    const names = admin => Object.keys(table).filter(name => table[name].admin === admin).join(', ');
+    return jsonResponse({
+      status: 'error',
+      message: 'Unknown action. Admin actions (require token): ' + names(true) + '. Public actions: ' + names(false)
+    });
   }
   if (entry.admin && !verifyAdminToken(params.token)) {
     return ContentService

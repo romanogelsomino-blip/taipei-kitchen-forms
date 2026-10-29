@@ -3,6 +3,10 @@
 // <SPREADSHEET_FOLDER_ID>/<YYYY>/<YYYY-MM> Operations, four tabs each, headers from
 // Schemas.gs. Files are found or created through DriveTree (cached, locked, exact name).
 // Read paths never create a file; write paths create the month on first use.
+//
+// The tab helpers (initTabWith, sheetColumnsWith, styleTabWith, updateRow) take a schema and
+// a layout, so the Reference sheet in Reference.gs shares them. The monthly wrappers that
+// take a tab name are the only callers that resolve one.
 
 const MAX_MONTHS_PER_REQUEST = 6;
 const OPEN_MEMO = {}; // per-execution: monthKey → { monthKey, fileId, ss }
@@ -63,10 +67,8 @@ function initMonthlyFile(ss) {
  * A brand-new tab: sized to its layout, the header row, text format on every non-number
  * column so Sheets never coerces typed dates and times, and the tab's styling.
  */
-function initTab(sheet, tab) {
-  const schema = schemaFor(tab);
+function initTabWith(sheet, schema, layout) {
   const headers = headersOf(schema);
-  const layout = tabLayout(tab);
   if (sheet.getMaxRows() < layout.rows) sheet.insertRowsAfter(sheet.getMaxRows(), layout.rows - sheet.getMaxRows());
   if (sheet.getMaxColumns() > headers.length) sheet.deleteColumns(headers.length + 1, sheet.getMaxColumns() - headers.length);
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
@@ -74,7 +76,11 @@ function initTab(sheet, tab) {
   const body = sheet.getMaxRows() - 1;
   const formats = writeFormats(schema);
   sheet.getRange(2, 1, body, headers.length).setNumberFormats(Array.from({ length: body }, () => formats));
-  styleTab(sheet, tab);
+  styleTabWith(sheet, schema, layout);
+}
+
+function initTab(sheet, tab) {
+  initTabWith(sheet, schemaFor(tab), tabLayout(tab));
 }
 
 /** Row 1 of a tab as text, one entry per column up to the last used column. */
@@ -88,8 +94,7 @@ function sheetHeaders(sheet) {
  * sheet lacks is added after the last used column, styled like the others, so a file created
  * under an older schema keeps taking writes without losing a field.
  */
-function sheetColumns(sheet, tab) {
-  const schema = schemaFor(tab);
+function sheetColumnsWith(sheet, schema, layout) {
   const headers = sheetHeaders(sheet);
   const idx = headerIndex(headers, schema).idx;
   let added = false;
@@ -97,14 +102,18 @@ function sheetColumns(sheet, tab) {
     if (idx[col.key] >= 0) return;
     const position = headers.length + 1;
     if (position > sheet.getMaxColumns()) sheet.insertColumnsAfter(sheet.getMaxColumns(), 1);
-    sheet.getRange(1, position).setValue(col.header); // styleTab below paints it like the rest
+    sheet.getRange(1, position).setValue(col.header); // styleTabWith below paints it like the rest
     if (sheet.getMaxRows() > 1) sheet.getRange(2, position, sheet.getMaxRows() - 1, 1).setNumberFormat(col.type === 'number' ? 'General' : '@');
     headers.push(col.header);
     idx[col.key] = position - 1;
     added = true;
   });
-  if (added) styleTab(sheet, tab);
+  if (added) styleTabWith(sheet, schema, layout);
   return schema.map(col => idx[col.key] + 1);
+}
+
+function sheetColumns(sheet, tab) {
+  return sheetColumnsWith(sheet, schemaFor(tab), tabLayout(tab));
 }
 
 /**
@@ -115,8 +124,7 @@ function sheetColumns(sheet, tab) {
  * The filter spans the sheet's full height so rows appended later fall inside it without it
  * being recreated, which would discard a reader's criteria.
  */
-function styleTab(sheet, tab) {
-  const schema = schemaFor(tab);
+function styleTabWith(sheet, schema, layout) {
   const headers = sheetHeaders(sheet);
   const idx = headerIndex(headers, schema).idx;
   schema.forEach(col => { if (idx[col.key] >= 0) sheet.setColumnWidth(idx[col.key] + 1, columnWidth(col)); });
@@ -125,7 +133,7 @@ function styleTab(sheet, tab) {
   styleHeader(sheet, headers.length); // after the banding, which would otherwise repaint row 1
   boxRows(sheet);
 
-  const through = tabLayout(tab).filterThrough;
+  const through = layout.filterThrough;
   const filterColumns = through ? headers.indexOf(through) + 1 : 0;
   const existing = sheet.getFilter();
   if (!filterColumns) {
@@ -137,6 +145,10 @@ function styleTab(sheet, tab) {
     if (existing) existing.remove();
     sheet.getRange(1, 1, sheet.getMaxRows(), filterColumns).createFilter();
   }
+}
+
+function styleTab(sheet, tab) {
+  styleTabWith(sheet, schemaFor(tab), tabLayout(tab));
 }
 
 /** The header row: bold, the dark brand background, white text. Never part of the banding. */
@@ -304,7 +316,7 @@ function readMonthlyRows(monthKeys, tab) {
     files.push({ monthKey, fileId: opened.fileId });
     const sheet = opened.ss.getSheetByName(tab);
     if (!sheet || sheet.getLastRow() < 2) return;
-    readRows(sheet.getDataRange().getValues(), schema).records.forEach(record => {
+    normaliseRecords(tab, readRows(sheet.getDataRange().getValues(), schema).records).forEach(record => {
       record._month = monthKey;
       record._fileId = opened.fileId;
       records.push(record);
@@ -325,14 +337,17 @@ function findMonthlyRow(monthKey, tab, key, value) {
 }
 
 /** Set the cells named by `patch` (key → value) on one row, located by header text. */
-function updateMonthlyRow(sheet, tab, rowNumber, patch) {
-  const schema = schemaFor(tab);
+function updateRow(sheet, schema, rowNumber, patch) {
   const headerRow = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const { idx } = headerIndex(headerRow, schema);
   Object.keys(patch).forEach(key => {
     const col = idx[key];
-    if (col === undefined || col < 0) throw new Error('No "' + key + '" column on ' + tab);
+    if (col === undefined || col < 0) throw new Error('No "' + key + '" column on ' + sheet.getName());
     const column = schema.find(c => c.key === key);
     sheet.getRange(rowNumber, col + 1).setValue(cellForWrite(column, patch[key]));
   });
+}
+
+function updateMonthlyRow(sheet, tab, rowNumber, patch) {
+  updateRow(sheet, schemaFor(tab), rowNumber, patch);
 }

@@ -11,10 +11,13 @@
 
 let CONFIG = { webAppUrl: null };
 let DATA = {
-  deliveries: [],
   production: [],
+  packaging: [],
+  deliveries: [],
+  sales: [],
   waste: [],
   stores: [],
+  reference: null,   // the six reference lists plus their version, for the Config panel
   violations: [],
   window: null,
   lastUpdated: null
@@ -218,10 +221,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     watchTabVisibility();
   } else {
     // Demo mode: use mock data for local development
-    loadDemoData();
+    await loadDemoData();
     updateStatus('demo', 'Demo Mode (sample data)');
     renderProduction();
+    renderPackaging();
     renderDeliveries();
+    renderSales();
     renderFoodSafety();
   }
 });
@@ -324,20 +329,20 @@ function showConfigInstructions() {
 // Demo Data (for local development)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function loadDemoData() {
+async function loadDemoData() {
   const today = new Date().toISOString().split('T')[0];
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
+  // The store list and the Config panel's lists come from the same published data/*.json
+  // the forms read, so demo mode shows real ids rather than a second copy of them.
+  const published = await loadStaticReference();
+  const reference = { version: published.version, updatedAt: '', source: 'static' };
+  CONFIG_LISTS.forEach(def => { reference[def.key] = published.lists[def.key].entries; });
+
   DATA = {
-    stores: [
-      { id: '6006', name: 'Store 6006', location: 'Lancaster, PA' },
-      { id: '6061', name: 'Store 6061', location: 'York, PA' },
-      { id: '6253', name: 'Store 6253', location: 'Harrisburg, PA' },
-      { id: '6331', name: 'Store 6331', location: 'Camp Hill, PA' },
-      { id: '6443', name: 'Store 6443', location: 'Mechanicsburg, PA' },
-      { id: '6542', name: 'Store 6542', location: 'Carlisle, PA' },
-      { id: '6564', name: 'Store 6564', location: 'Hershey, PA' }
-    ],
+    // As the backend's storeList(): `id` is the store number the records carry, `key` the UUID.
+    stores: reference.stores.map(s => ({ id: s.storeId, key: s.id, name: s.name, location: s.location, verified: s.verified, deletedAt: s.deletedAt })),
+    reference: reference,
     deliveries: [
       { submittedAt: `${today}T08:32:15.000Z`, date: today, driver: 'Owen', store: '6006', arrivalTime: '08:30', coolerTemp: 38, dish: 'Spring Roll (Veg)', qtyAdded: 24, removed: 2, reason: 'Out of date', receivedBy: 'Amanda' },
       { submittedAt: `${today}T09:15:42.000Z`, date: today, driver: 'Owen', store: '6061', arrivalTime: '09:10', coolerTemp: 39, dish: 'Shrimp Egg Roll', qtyAdded: 30, removed: 0, reason: '', receivedBy: 'Michael' },
@@ -347,12 +352,26 @@ function loadDemoData() {
       { submittedAt: `${yesterday}T08:45:22.000Z`, date: yesterday, driver: 'Sam Blumenthal', store: '6542', arrivalTime: '08:40', coolerTemp: 38, dish: 'Pork Dumpling', qtyAdded: 28, removed: 1, reason: 'Out of date', receivedBy: 'Tom' },
       { submittedAt: `${yesterday}T09:20:55.000Z`, date: yesterday, driver: 'Sam Blumenthal', store: '6564', arrivalTime: '09:15', coolerTemp: 39, dish: 'Spring Roll (Veg)', qtyAdded: 25, removed: 0, reason: '', receivedBy: 'Emily' }
     ],
+    packaging: [
+      { submissionId: 'demo-cooler-1', date: today, time: '06:40', kitchen: 'Taipei Kitchen', kitchenId: 'TK-001', driver: 'Owen', store: '6006', storeName: 'Store 6006', dish: 'Spring Roll (Veg)', loaded: 24, discarded: 0, discardReason: '', productTemp: 36, notes: '' },
+      { submissionId: 'demo-cooler-1', date: today, time: '06:40', kitchen: 'Taipei Kitchen', kitchenId: 'TK-001', driver: 'Owen', store: '6006', storeName: 'Store 6006', dish: 'Shrimp Egg Roll', loaded: 30, discarded: 1, discardReason: 'Damaged', productTemp: 36, notes: '' },
+      { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'TK-001', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Chicken Lo Mein', loaded: 18, discarded: 0, discardReason: '', productTemp: 43, notes: 'Cooler was slow to come down' },
+      { submissionId: 'demo-cooler-2', date: today, time: '06:52', kitchen: 'Taipei Kitchen', kitchenId: 'TK-001', driver: 'Owen', store: '6061', storeName: 'Store 6061', dish: 'Beef Chow Fun', loaded: 15, discarded: 0, discardReason: '', productTemp: 43, notes: 'Cooler was slow to come down' }
+    ],
     production: [
-      { submittedAt: `${today}T06:15:33.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Spring Roll (Veg)', qtyProduced: 120, qtyDiscarded: 2, discardReason: 'Quality Issue' },
-      { submittedAt: `${today}T06:45:10.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Lucia', dish: 'Shrimp Egg Roll', qtyProduced: 96, qtyDiscarded: 0, discardReason: '' },
-      { submittedAt: `${today}T07:20:47.000Z`, date: today, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Anna', dish: 'Chicken Lo Mein', qtyProduced: 48, qtyDiscarded: 1, discardReason: 'Temperature' },
-      { submittedAt: `${yesterday}T06:30:12.000Z`, date: yesterday, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Beef Chow Fun', qtyProduced: 36, qtyDiscarded: 0, discardReason: '' },
-      { submittedAt: `${yesterday}T07:05:28.000Z`, date: yesterday, shift: 'Morning', kitchen: 'Store 6112', supervisor: 'Jiang', dish: 'Pork Dumpling', qtyProduced: 72, qtyDiscarded: 1, discardReason: 'Out of date' }
+      { submittedAt: `${today}T06:15:33.000Z`, date: today, kitchen: 'Store 6112', cook: 'Lucia', dish: 'Spring Roll (Veg)', qtyProduced: 120, qtyDiscarded: 2, discardReason: 'Quality Issue' },
+      { submittedAt: `${today}T06:45:10.000Z`, date: today, kitchen: 'Store 6112', cook: 'Lucia', dish: 'Shrimp Egg Roll', qtyProduced: 96, qtyDiscarded: 0, discardReason: '' },
+      { submittedAt: `${today}T07:20:47.000Z`, date: today, kitchen: 'Store 6112', cook: 'Anna', dish: 'Chicken Lo Mein', qtyProduced: 48, qtyDiscarded: 1, discardReason: 'Temperature' },
+      { submittedAt: `${yesterday}T06:30:12.000Z`, date: yesterday, kitchen: 'Store 6112', cook: 'Jiang', dish: 'Beef Chow Fun', qtyProduced: 36, qtyDiscarded: 0, discardReason: '' },
+      { submittedAt: `${yesterday}T07:05:28.000Z`, date: yesterday, kitchen: 'Store 6112', cook: 'Jiang', dish: 'Pork Dumpling', qtyProduced: 72, qtyDiscarded: 1, discardReason: 'Out of date' }
+    ],
+    sales: [
+      { date: today, store: '6006', storeName: 'Store 6006', dish: 'General Tso Chicken Bento', units: 18, transactions: 17, netSales: 179.82, grossSales: 179.82, returnedUnits: 0, upc: '00024575600000', dishSystemId: 'c727a826-a4db-4a49-87d2-5c6615f44585', storeId: '6006' },
+      { date: today, store: '6006', storeName: 'Store 6006', dish: 'Shrimp Egg Roll', units: 22, transactions: 20, netSales: 176.00, grossSales: 176.00, returnedUnits: 1, upc: '00024577200000', dishSystemId: 'f48bebe2-0e28-42f7-a1cc-1163022b2ee0', storeId: '6006' },
+      { date: today, store: '6061', storeName: 'Store 6061', dish: 'Sesame Chicken Bento', units: 25, transactions: 23, netSales: 249.75, grossSales: 249.75, returnedUnits: 0, upc: '00024576100000', dishSystemId: '0aec557c-dad3-4cff-ba6c-fc6b1cb72c02', storeId: '6061' },
+      { date: today, store: '6061', storeName: 'Store 6061', dish: 'NON-TAIPEI DISH', units: 140, transactions: 118, netSales: 1764.60, grossSales: 1764.60, returnedUnits: 0, upc: '00023830700000', dishSystemId: '00000000-0000-4000-8000-000000000001', storeId: '6061' },
+      { date: yesterday, store: '6006', storeName: 'Store 6006', dish: 'General Tso Chicken Bento', units: 21, transactions: 19, netSales: 209.79, grossSales: 209.79, returnedUnits: 0, upc: '00024575600000', dishSystemId: 'c727a826-a4db-4a49-87d2-5c6615f44585', storeId: '6006' },
+      { date: yesterday, store: '6253', storeName: 'Store 6253', dish: 'Bento Chicken Lo Mein', units: 14, transactions: 14, netSales: 125.86, grossSales: 125.86, returnedUnits: 0, upc: '00022738800000', dishSystemId: '903ec8bc-2403-40a5-a8ae-3703c356d2eb', storeId: '6253' }
     ],
     waste: [
       { date: today, store: '6006', dish: 'Spring Roll (Veg)', removed: 2, qtyRemoved: 2, reason: 'Out of date' },
@@ -423,64 +442,31 @@ async function fetchData(opts) {
     const data = await response.json();
     if (data.status === 'error') throw new Error(data.message || 'backend returned an error');
 
-    // Merge properties instead of replacing to preserve violations array
-    DATA.deliveries = data.deliveries || [];
     DATA.production = data.production || [];
+    DATA.packaging = data.packaging || [];
+    DATA.deliveries = data.deliveries || [];
+    DATA.sales = data.sales || [];
     DATA.waste = data.waste || [];
+    DATA.violations = data.violations || [];
     DATA.stores = data.stores || [];
+    DATA.reference = data.reference || null;
     DATA.window = data.window || null;   // absent until the backend serves windows
     DATA.lastUpdated = data.lastUpdated || null;
     LAST_FETCH_AT = Date.now();
 
     console.log('[Data] Fetched:', DATA);
-
-    // Fetch violations tracker data (await to prevent race condition)
-    await fetchViolations(win);
-
     updateStatus('connected', statusText());
 
     // Production precedes delivery: food is cooked before it is delivered.
     renderProduction();
+    renderPackaging();
     renderDeliveries();
+    renderSales();
     renderFoodSafety();
+    configOnDataRefresh();   // the Config panel decides for itself what a poll may touch
   } catch (e) {
     console.error('[Data] Fetch failed:', e);
     updateStatus('error', `Fetch failed: ${e.message}`);
-  }
-}
-
-// Fetch violations from tracker
-async function fetchViolations(win) {
-  if (!CONFIG.webAppUrl) {
-    DATA.violations = [];
-    return;
-  }
-
-  try {
-    const range = win || defaultWindow();
-    const url = `${CONFIG.webAppUrl}?action=getViolations&from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
-    const response = await fetch(url, {
-      method: 'GET',
-      mode: 'cors'
-    });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
-    if (data.status === 'ok') {
-      DATA.violations = data.violations || [];
-      console.log('[Violations] Fetched:', DATA.violations.length);
-    } else {
-      console.warn('[Violations] API returned non-ok status:', {
-        status: data.status,
-        message: data.message || 'No message',
-        response: data
-      });
-      DATA.violations = [];
-    }
-  } catch (e) {
-    console.warn('[Violations] Endpoint not available or fetch failed (this is okay if endpoint not deployed):', e.message);
-    DATA.violations = [];
   }
 }
 
@@ -577,6 +563,7 @@ function showPanel(panelName) {
     populateShrinkFilters(); // Populate filter dropdowns
     renderShrinkDashboard();
   }
+  if (panelName === 'config') renderConfig();
 
   // Scroll to top on mobile when switching panels
   if (window.innerWidth <= 768) {
@@ -584,46 +571,65 @@ function showPanel(panelName) {
   }
 }
 
+/** An element with a class and text. Built nodes carry server strings as text, never as HTML. */
+function makeEl(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Home panel: form launchers
 // ═══════════════════════════════════════════════════════════════════════════
 // One launcher per form so the two cannot be confused. A kitchen opens the production
 // log with ?kitchen=<id>; a store opens the delivery form with ?store=<id>. The lists come
-// from data/stores.json, the same file the forms read.
+// from data/kitchens.json and data/stores.json, the same files the forms read.
 
 const HOME_FORMS = {
-  production: { page: '../taipei_production_form3.html', param: 'kitchen', selectId: 'home-kitchen', buttonId: 'home-open-production', label: 'Open Production Log', prompt: 'Select a kitchen' },
-  delivery:   { page: '../taipei_delivery_form3.html',   param: 'store',   selectId: 'home-store',   buttonId: 'home-open-delivery',   label: 'Open Delivery Form',   prompt: 'Select a store',   qrLabel: 'Store QR code',   qrCaption: 'Delivery Form' }
+  production: { page: '../taipei_production_form3.html', param: 'kitchen', list: 'kitchens', selectId: 'home-kitchen',      label: 'Open Production Log', noun: 'kitchen', caption: 'Production Log', file: k => 'taipei-production-' + (k.kitchenId || k.id) },
+  packaging:  { page: '../taipei_packaging_form.html',   param: 'kitchen', list: 'kitchens', selectId: 'home-pack-kitchen', label: 'Open Packaging Form', noun: 'kitchen', caption: 'Packaging Form', file: k => 'taipei-packaging-' + (k.kitchenId || k.id) },
+  delivery:   { page: '../taipei_delivery_form3.html',   param: 'store',   list: 'stores',   selectId: 'home-store',        label: 'Open Delivery Form',  noun: 'store',   caption: 'Delivery Form',  file: s => 'taipei-delivery-' + (s.storeId || s.id) }   // QR files are named by the organisation's own id, which is how a printed code is recognised
 };
+
+const HOME_LISTS = { kitchens: [], stores: [] };   // the entries behind the home page's pickers
+
+/** Whether a reference entry is one the forms offer: verified, not switched off, not deleted. Same rule as forms/common.js. */
+function referenceOffered(entry) {
+  return entry.active !== false && entry.verified !== false && !entry.deletedAt;
+}
 
 async function loadHomeLocations() {
   const status = document.getElementById('home-locations-status');
   try {
-    const response = await fetch('../data/stores.json');
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    const data = await response.json();
-    const kitchens = (data.kitchens || []).filter(k => k.active);
-    const stores = (data.stores || []).filter(s => s.active);
-    const storeText = s => s.location ? `${s.name} · ${s.location}` : s.name;
-
-    fillHomeSelect('home-kitchen', kitchens, k => k.name);
-    fillHomeSelect('home-store', stores, storeText);
-    fillHomeSelect('home-qr-store', stores, storeText);
+    await Promise.all(Object.keys(HOME_LISTS).map(async key => {
+      const response = await fetch('../data/' + key + '.json');
+      if (!response.ok) throw new Error(key + '.json: HTTP ' + response.status);
+      const data = await response.json();
+      HOME_LISTS[key] = (data[key] || []).filter(referenceOffered)
+        .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+    }));
+    // Links and QR codes carry the entry's System ID. The delivery form resolves the store
+    // number from it, and still accepts the number itself, which codes printed earlier carry.
+    Object.values(HOME_FORMS).forEach(form => fillHomeSelect(form.selectId, HOME_LISTS[form.list], homeEntryText, e => e.id));
     status.textContent = '';
   } catch (e) {
-    console.error('[Home] Could not load data/stores.json:', e);
+    console.error('[Home] Could not load the kitchen and store lists:', e);
     status.textContent = 'The kitchen and store lists could not be loaded. Reload to try again.';
   }
   homeUpdateLaunchers();
-  homeQrUpdate();
 }
 
-function fillHomeSelect(id, entries, text) {
+function homeEntryText(entry) {
+  return entry.location ? `${entry.name} · ${entry.location}` : entry.name;
+}
+
+function fillHomeSelect(id, entries, text, value) {
   const select = document.getElementById(id);
   while (select.options.length > 1) select.remove(1);
   entries.forEach(entry => {
     const option = document.createElement('option');
-    option.value = entry.id;
+    option.value = value ? value(entry) : entry.id;
     option.textContent = text(entry);
     select.appendChild(option);
   });
@@ -636,24 +642,18 @@ function homeTarget(kind) {
   return id ? `${form.page}?${form.param}=${encodeURIComponent(id)}` : null;
 }
 
+/** Each card's two buttons follow its picker; a change of location also retires the code drawn for the old one. */
 function homeUpdateLaunchers() {
   Object.keys(HOME_FORMS).forEach(kind => {
     const form = HOME_FORMS[kind];
     const ready = homeTarget(kind) !== null;
-
-    const button = document.getElementById(form.buttonId);
-    button.disabled = !ready;
-    button.textContent = ready ? form.label : form.prompt;
-
+    const open = document.getElementById('home-open-' + kind);
+    open.disabled = !ready;
+    open.textContent = ready ? form.label : `Select a ${form.noun}`;
+    document.getElementById('home-qr-' + kind).disabled = !ready;
+    const output = document.getElementById('home-qr-output-' + kind);
+    if (output.dataset.systemId && output.dataset.systemId !== document.getElementById(form.selectId).value) output.hidden = true;
   });
-}
-
-/** The QR card carries its own store picker, so it does not depend on a choice made above. */
-function homeQrUpdate() {
-  const chosen = document.getElementById('home-qr-store').value;
-  const button = document.getElementById('home-qr-generate');
-  button.disabled = !chosen;
-  button.textContent = chosen ? 'Generate QR code' : 'Select a store';
 }
 
 /**
@@ -661,19 +661,18 @@ function homeQrUpdate() {
  * is what a link needs and what a phone camera cannot use. Resolving against the current
  * location also means a code generated on the staging dashboard points at the staging form.
  */
-function homeQrUrl(storeId) {
-  const form = HOME_FORMS.delivery;
-  const target = `${form.page}?${form.param}=${encodeURIComponent(storeId)}`;
-  return new URL(target, window.location.href).href;
+function homeQrUrl(kind) {
+  return new URL(homeTarget(kind), window.location.href).href;
 }
 
-/** Draw the QR for the chosen location, at a size worth printing. */
-function homeGenerateQr() {
-  const status = document.getElementById('home-qr-status');
-  const output = document.getElementById('home-qr-output');
-  const select = document.getElementById('home-qr-store');
+/** Draw the code for the card's chosen location into that card, at a size worth printing. */
+function homeGenerateQr(kind) {
+  const form = HOME_FORMS[kind];
+  const select = document.getElementById(form.selectId);
+  const output = document.getElementById('home-qr-output-' + kind);
+  const status = document.getElementById('home-locations-status');
   if (!select.value) return;
-  const url = homeQrUrl(select.value);
+  const url = homeQrUrl(kind);
 
   if (typeof qrcode !== 'function') {
     output.hidden = true;
@@ -690,7 +689,7 @@ function homeGenerateQr() {
   const quiet = 4;               // the quiet zone the spec requires around the symbol
   const size = (modules + quiet * 2) * scale;
 
-  const canvas = document.getElementById('home-qr-canvas');
+  const canvas = output.querySelector('.home-qr-canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
@@ -705,26 +704,27 @@ function homeGenerateQr() {
     }
   }
 
-  document.getElementById('home-qr-label').textContent =
-    'Delivery Form — ' + select.options[select.selectedIndex].textContent;
-  document.getElementById('home-qr-url').textContent = url;
-
-  const download = document.getElementById('home-qr-download');
+  output.querySelector('.home-qr-label').textContent = form.caption + ' — ' + select.options[select.selectedIndex].textContent;
+  output.querySelector('.home-qr-url').textContent = url;
+  const download = output.querySelector('.home-qr-download');
   download.href = canvas.toDataURL('image/png');
-  download.download = 'taipei-delivery-' + select.value + '.png';
+  const entry = HOME_LISTS[form.list].find(e => e.id === select.value);
+  download.download = form.file(entry || { id: select.value }) + '.png';
 
+  output.dataset.systemId = select.value;
   output.hidden = false;
   status.textContent = '';
 }
 
-/** Print the code on its own page, captioned, so it can go straight on a wall. */
-function homePrintQr() {
-  const canvas = document.getElementById('home-qr-canvas');
-  const label = document.getElementById('home-qr-label').textContent;
-  const url = document.getElementById('home-qr-url').textContent;
+/** Print a card's code on its own page, captioned, so it can go straight on a wall. */
+function homePrintQr(kind) {
+  const output = document.getElementById('home-qr-output-' + kind);
+  const canvas = output.querySelector('.home-qr-canvas');
+  const label = output.querySelector('.home-qr-label').textContent;
+  const url = output.querySelector('.home-qr-url').textContent;
   const sheet = window.open('', '_blank', 'width=700,height=800');
   if (!sheet) {
-    document.getElementById('home-qr-status').textContent =
+    document.getElementById('home-locations-status').textContent =
       'The print window was blocked. Download the PNG and print that instead.';
     return;
   }
@@ -771,134 +771,85 @@ function hasTemperatureViolation(delivery) {
 // T-054: Weekly Food Safety Summary Panel
 // ═══════════════════════════════════════════════════════════════════════════
 
+// The rule names in backend/Violations.gs, by the kind of location each applies to.
+const VIOLATION_TYPES = {
+  Kitchen: ['Product Loading Temperature'],
+  Store:   ['Store Cooler Temperature', 'Product Arrival Temperature']
+};
+
+/**
+ * The store a row belongs to: by the System ID the row carries, else by the store number a
+ * row from before System IDs carries under storeId, or under store, bare or inside a name.
+ * Null when neither is on the list.
+ */
+function storeOf(row) {
+  const key = String(row.storeSystemId || '').trim().toLowerCase();
+  const byKey = key ? DATA.stores.find(s => String(s.key).toLowerCase() === key) : null;
+  if (byKey) return byKey;
+  const number = String(row.storeId || '').trim() || (String(row.store || '').match(/\b(\d{4})\b/) || [])[1] || '';
+  return (number && DATA.stores.find(s => String(s.id) === number)) || null;
+}
+
+/** A row's store as it should read: the list's current name, else what the row says. */
+function storeNameOf(row) {
+  const store = storeOf(row);
+  return store ? store.name : String(row.storeName || row.store || '');
+}
+
+/**
+ * Per-location counts for the week ending on the chosen day, from the Violations tab: one per
+ * violation, split by type. A kitchen that loaded coolers or a store that was delivered to
+ * that week with no violation shows zeros, so the week reads as a checklist. Kitchens come
+ * first. A type the table above does not know gets its own column on that card.
+ */
 function loadFoodSafety() {
   const weekEnd = document.getElementById('safety-week-end').value;
-  if (!weekEnd) return;
-
-  const weekStart = addDaysISO(weekEnd, -6);
-  ensureWindow(weekStart);
-
-  const weekDeliveries = DATA.deliveries.filter(d => {
-    const date = normalizeDate(d.date);
-    return date >= weekStart && date <= weekEnd;
-  });
-
-  // Group by store
-  const storeViolations = {};
-  weekDeliveries.forEach(d => {
-    if (!storeViolations[d.store]) {
-      storeViolations[d.store] = { coolerViolations: 0, deliveryTempViolations: 0 };
-    }
-    if (hasTemperatureViolation(d)) {
-      storeViolations[d.store].coolerViolations++;
-      // Note: deliveryTempViolations deprecated (arrivalTemp no longer tracked)
-    }
-  });
-
   const container = document.getElementById('safety-summary');
-  if (Object.keys(storeViolations).length === 0) {
-    container.innerHTML = '<div class="loading">No data for this week</div>';
+  if (!weekEnd) return;
+  const weekStart = addDaysISO(weekEnd, -6);
+  ensureWindow(weekStart);   // a wider window refetches and re-renders this panel
+
+  const inWeek = date => { const d = normalizeDate(date); return d >= weekStart && d <= weekEnd; };
+  const locations = new Map();   // "<type>:<System ID, or the own id of a row without one>" → { type, name, counts }
+  const location = (type, id, name) => {
+    const key = type + ':' + String(id || name || '');
+    if (!locations.has(key)) locations.set(key, { type: type, name: name || (type + ' ' + id), counts: {} });
+    return locations.get(key);
+  };
+  (DATA.packaging || []).filter(r => inWeek(r.date)).forEach(r => location('Kitchen', r.kitchenSystemId || r.kitchenId, r.kitchen));
+  DATA.deliveries.filter(d => inWeek(d.date)).forEach(d => { const store = storeOf(d); location('Store', store ? store.key : (d.storeId || d.store), storeNameOf(d)); });
+  (DATA.violations || []).filter(v => inWeek(v.date)).forEach(v => {
+    const where = location(v.locationType || 'Store', v.locationSystemId || v.locationId, v.location);
+    where.counts[v.violationType] = (where.counts[v.violationType] || 0) + 1;
+  });
+
+  container.textContent = '';
+  if (!locations.size) {
+    container.appendChild(makeEl('div', 'loading', 'No coolers, deliveries or violations in this week.'));
     return;
   }
-
-  container.innerHTML = Object.entries(storeViolations).map(([storeId, violations]) => {
-    const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
-    const totalViolations = violations.coolerViolations + violations.deliveryTempViolations;
-    const countClass = totalViolations === 0 ? 'zero' : '';
-    const clickableClass = totalViolations === 0 ? '' : 'clickable';
-
-    return `
-      <div class="safety-store-card">
-        <div class="safety-store-name">${storeName}</div>
-        <div class="safety-violations">
-          <div>
-            <div class="violation-count ${countClass} ${clickableClass}"
-                 onclick="${violations.coolerViolations > 0 ? `openViolationModal('${storeId}', 'cooler', '${weekStart}', '${weekEnd}')` : ''}">
-              ${violations.coolerViolations}
-            </div>
-            <div class="violation-label">Cooler Temp Violations</div>
-          </div>
-          <div>
-            <div class="violation-count ${countClass} ${clickableClass}"
-                 onclick="${violations.deliveryTempViolations > 0 ? `openViolationModal('${storeId}', 'delivery', '${weekStart}', '${weekEnd}')` : ''}">
-              ${violations.deliveryTempViolations}
-            </div>
-            <div class="violation-label">Delivery Temp Violations</div>
-          </div>
-        </div>
-        ${totalViolations === 0 ? '<p style="color:var(--green);font-weight:600;margin-top:12px;">All checks passed this week</p>' : ''}
-      </div>
-    `;
-  }).join('');
-}
-
-function openViolationModal(storeId, violationType, weekStart, weekEnd) {
-  const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
-
-  // Filter deliveries for this store and date range
-  const storeDeliveries = DATA.deliveries.filter(d => {
-    const date = normalizeDate(d.date);
-    return d.store === storeId && date >= weekStart && date <= weekEnd;
-  });
-
-  // Filter for cooler temp violations (arrivalTemp no longer tracked)
-  const violations = storeDeliveries.filter(d => {
-    return hasTemperatureViolation(d);
-  });
-
-  const violationTypeLabel = 'Cooler Temp';
-  const tempField = 'coolerTemp';
-  const threshold = TEMP_LIMIT_F + '°F';
-
-  // Build modal content
-  const modalContent = `
-    <div class="violation-modal-header">
-      <h2>${violationTypeLabel} Violations</h2>
-      <p>${storeName} • ${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-    </div>
-    <div class="violation-modal-body">
-      ${violations.length === 0 ? '<p class="hint">No violations found</p>' : `
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Time</th>
-              <th>Recorded Temp</th>
-              <th>Threshold</th>
-              <th>Received By</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${violations.map(v => `
-              <tr>
-                <td>${v.date}</td>
-                <td>${v.arrive || 'N/A'}</td>
-                <td style="color: var(--red); font-weight: 600;">${v[tempField]}°F</td>
-                <td>${threshold}</td>
-                <td>${v.receivedBy || 'N/A'}</td>
-                <td>${v.notes || '—'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `}
-    </div>
-    <div class="violation-modal-footer">
-      <button class="btn btn-secondary" onclick="closeViolationModal()">Close</button>
-      <button class="btn btn-primary" onclick="window.print()">Export to PDF</button>
-    </div>
-  `;
-
-  // Show modal
-  const modal = document.getElementById('violation-modal');
-  const modalBody = document.getElementById('violation-modal-content');
-  modalBody.innerHTML = modalContent;
-  modal.style.display = 'flex';
-}
-
-function closeViolationModal() {
-  document.getElementById('violation-modal').style.display = 'none';
+  const order = { Kitchen: 0, Store: 1 };
+  Array.from(locations.values())
+    .sort((a, b) => (order[a.type] - order[b.type]) || a.name.localeCompare(b.name))
+    .forEach(where => {
+      const types = (VIOLATION_TYPES[where.type] || []).slice();
+      Object.keys(where.counts).forEach(type => { if (!types.includes(type)) types.push(type); });
+      const card = makeEl('div', 'safety-store-card');
+      const title = makeEl('div', 'safety-store-name', where.name);
+      title.appendChild(makeEl('span', 'violation-location-type', where.type));
+      card.appendChild(title);
+      const counts = makeEl('div', 'safety-violations');
+      types.forEach(type => {
+        const n = where.counts[type] || 0;
+        const cell = makeEl('div');
+        cell.appendChild(makeEl('div', 'violation-count' + (n ? '' : ' zero'), String(n)));
+        cell.appendChild(makeEl('div', 'violation-label', type));
+        counts.appendChild(cell);
+      });
+      card.appendChild(counts);
+      if (!Object.values(where.counts).some(Boolean)) card.appendChild(makeEl('p', 'safety-all-clear', 'No violations this week'));
+      container.appendChild(card);
+    });
 }
 
 // Violation Alert Banner Functions
@@ -945,6 +896,160 @@ function checkForViolations() {
   } else {
     document.getElementById('violation-alert-banner').style.display = 'none';
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Packaging panel
+// ═══════════════════════════════════════════════════════════════════════════
+// One cooler per row: a submission's dish rows folded into their totals, with the dish lines
+// a tap away. Ranges work as on the other panels: filter what is loaded, widen when asked.
+
+const PACKAGING_STATE = {
+  quickRange: 7,
+  page: 1,
+  perPage: 25,
+  coolers: [],
+  open: {},   // cooler key → true while its dish lines are shown
+  isInitialized: false
+};
+
+function renderPackaging() {
+  PACKAGING_STATE.isInitialized = true;
+  setPackagingQuickRange(PACKAGING_STATE.quickRange);
+}
+
+function setPackagingQuickRange(range) {
+  PACKAGING_STATE.quickRange = range;
+  PACKAGING_STATE.page = 1;
+  document.querySelectorAll('#panel-packaging .btn-time-range').forEach(btn => btn.classList.toggle('active', btn.dataset.range == range));
+
+  const today = getTodayDate();
+  let rows = DATA.packaging || [];
+  if (range === 'today') {
+    rows = rows.filter(r => normalizeDate(r.date) === today);
+  } else if (range === 'all') {
+    ensureWindow(earliestWindowFrom());
+  } else {
+    const start = addDaysISO(today, -range);
+    ensureWindow(start);
+    rows = rows.filter(r => normalizeDate(r.date) >= start);
+  }
+  PACKAGING_STATE.coolers = packagingCoolers(rows);
+  updatePackagingMetrics();
+  displayPackagingTable();
+}
+
+/** Dish rows folded into coolers, newest first. */
+function packagingCoolers(rows) {
+  const coolers = new Map();
+  rows.forEach(r => {
+    const key = r.submissionId || [r.date, r.time, r.kitchen, r.store].join('|');
+    if (!coolers.has(key)) {
+      coolers.set(key, {
+        key, date: r.date, time: r.time || '', kitchen: r.kitchen || '', driver: r.driver || '',
+        storeName: storeNameOf(r), productTemp: r.productTemp, notes: r.notes || '',
+        loaded: 0, discarded: 0, dishes: []
+      });
+    }
+    const cooler = coolers.get(key);
+    cooler.loaded += parseInt(r.loaded, 10) || 0;
+    cooler.discarded += parseInt(r.discarded, 10) || 0;
+    cooler.dishes.push(r);
+  });
+  return Array.from(coolers.values()).sort((a, b) => (b.date + ' ' + b.time).localeCompare(a.date + ' ' + a.time));
+}
+
+function updatePackagingMetrics() {
+  const coolers = PACKAGING_STATE.coolers;
+  const loaded = coolers.reduce((sum, c) => sum + c.loaded, 0);
+  const discarded = coolers.reduce((sum, c) => sum + c.discarded, 0);
+  const temps = coolers.map(c => parseFloat(c.productTemp)).filter(t => !isNaN(t));
+  const warmest = temps.length ? Math.max(...temps) : null;
+  const over = temps.filter(t => t > TEMP_LIMIT_F).length;
+
+  const grid = document.getElementById('packaging-metrics');
+  grid.textContent = '';
+  [
+    ['Coolers Loaded', coolers.length.toLocaleString(), 'One per store per pickup', false],
+    ['Items Loaded', loaded.toLocaleString(), discarded.toLocaleString() + ' discarded at loading', false],
+    ['Warmest Product', warmest === null ? '—' : warmest + '°F', 'Limit ' + TEMP_LIMIT_F + '°F', warmest !== null && warmest > TEMP_LIMIT_F],
+    ['Over Limit', over.toLocaleString(), 'Coolers with product above ' + TEMP_LIMIT_F + '°F', over > 0]
+  ].forEach(([label, value, sub, alert]) => {
+    const card = makeEl('div', 'metric-card' + (alert ? ' alert' : ''));
+    card.appendChild(makeEl('div', 'metric-label', label));
+    card.appendChild(makeEl('div', 'metric-value', value));
+    card.appendChild(makeEl('div', 'metric-sub', sub));
+    grid.appendChild(card);
+  });
+}
+
+function displayPackagingTable() {
+  const coolers = PACKAGING_STATE.coolers;
+  const container = document.getElementById('packaging-table-container');
+  const pagination = document.getElementById('packaging-pagination');
+  document.getElementById('packaging-record-count').textContent = coolers.length + ' cooler' + (coolers.length === 1 ? '' : 's');
+  container.textContent = '';
+  if (!coolers.length) {
+    container.appendChild(makeEl('p', 'hint', 'No coolers in this range'));
+    pagination.hidden = true;
+    return;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(coolers.length / PACKAGING_STATE.perPage));
+  PACKAGING_STATE.page = Math.min(Math.max(1, PACKAGING_STATE.page), totalPages);
+  const start = (PACKAGING_STATE.page - 1) * PACKAGING_STATE.perPage;
+  const page = coolers.slice(start, start + PACKAGING_STATE.perPage);
+
+  const table = makeEl('table', 'data-table packaging-table');
+  const thead = makeEl('thead');
+  const headRow = makeEl('tr');
+  ['Date', 'Time', 'Kitchen', 'Driver', 'Intended Store', 'Loaded', 'Discarded', 'Product Temp'].forEach(h => headRow.appendChild(makeEl('th', '', h)));
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+  const tbody = makeEl('tbody');
+  page.forEach(cooler => {
+    const warm = parseFloat(cooler.productTemp) > TEMP_LIMIT_F;
+    const row = makeEl('tr', 'packaging-cooler' + (warm ? ' is-warm' : '') + (PACKAGING_STATE.open[cooler.key] ? ' is-open' : ''));
+    [normalizeDate(cooler.date), cooler.time, cooler.kitchen, cooler.driver, cooler.storeName,
+     String(cooler.loaded), String(cooler.discarded), isNaN(parseFloat(cooler.productTemp)) ? '—' : parseFloat(cooler.productTemp) + '°F']
+      .forEach(text => row.appendChild(makeEl('td', '', text)));
+    row.onclick = () => {
+      PACKAGING_STATE.open[cooler.key] = !PACKAGING_STATE.open[cooler.key];
+      displayPackagingTable();
+    };
+    tbody.appendChild(row);
+    if (PACKAGING_STATE.open[cooler.key]) tbody.appendChild(packagingDishesRow(cooler));
+  });
+  table.appendChild(tbody);
+  container.appendChild(table);
+
+  pagination.hidden = totalPages <= 1;
+  document.getElementById('packaging-page-info').textContent = 'Page ' + PACKAGING_STATE.page + ' of ' + totalPages;
+}
+
+/** The dish lines of one cooler, as a row spanning the table. */
+function packagingDishesRow(cooler) {
+  const row = makeEl('tr', 'packaging-dishes');
+  const cell = makeEl('td');
+  cell.colSpan = 8;
+  const inner = makeEl('table', 'packaging-dishes-table');
+  const head = makeEl('tr');
+  ['Dish', 'Loaded', 'Discarded', 'Reason'].forEach(h => head.appendChild(makeEl('th', '', h)));
+  inner.appendChild(head);
+  cooler.dishes.forEach(d => {
+    const line = makeEl('tr');
+    [d.dish || '', String(d.loaded || 0), String(d.discarded || 0), d.discardReason || ''].forEach(text => line.appendChild(makeEl('td', '', text)));
+    inner.appendChild(line);
+  });
+  cell.appendChild(inner);
+  if (cooler.notes) cell.appendChild(makeEl('p', 'packaging-notes', 'Notes: ' + cooler.notes));
+  row.appendChild(cell);
+  return row;
+}
+
+function packagingPage(delta) {
+  PACKAGING_STATE.page += delta;
+  displayPackagingTable();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1133,7 +1238,7 @@ function applyDeliveryAdvancedFilters() {
       d.driver?.toLowerCase().includes(search) ||
       d.dish?.toLowerCase().includes(search) ||
       d.receivedBy?.toLowerCase().includes(search) ||
-      DATA.stores.find(s => s.id === d.store)?.name.toLowerCase().includes(search)
+      storeNameOf(d).toLowerCase().includes(search)
     );
   }
 
@@ -1185,16 +1290,16 @@ function updateDeliveryMetrics() {
   // Calculate fullness by store
   const fullnessByStore = {};
   deliveriesWithFullness.forEach(d => {
-    if (!fullnessByStore[d.store]) {
-      fullnessByStore[d.store] = { sum: 0, count: 0 };
+    const storeName = storeNameOf(d);
+    if (!fullnessByStore[storeName]) {
+      fullnessByStore[storeName] = { sum: 0, count: 0 };
     }
-    fullnessByStore[d.store].sum += fullnessMap[d.casePrefillPercent];
-    fullnessByStore[d.store].count++;
+    fullnessByStore[storeName].sum += fullnessMap[d.casePrefillPercent];
+    fullnessByStore[storeName].count++;
   });
 
   const storeBreakdown = Object.entries(fullnessByStore)
-    .map(([storeId, data]) => {
-      const storeName = DATA.stores.find(s => s.id === storeId)?.name || `Store ${storeId}`;
+    .map(([storeName, data]) => {
       const avg = data.sum / data.count;
       return `${storeName}: ${avg.toFixed(0)}%`;
     })
@@ -1363,18 +1468,8 @@ function displayDeliveryTable() {
   }
 
   const rows = pageData.map(d => {
-    // Extract store ID from either format:
-    // - New format: "6542" (just ID)
-    // - Old format: "Store 6542 – Carlisle, PA" (full name with ID)
-    let storeId = d.store;
-    const idMatch = d.store?.toString().match(/\b(\d{4})\b/); // Extract 4-digit ID
-    if (idMatch) {
-      storeId = idMatch[1];
-    }
-
-    // Look up store name by ID, or use original value if no match
-    const storeData = DATA.stores.find(s => s.id === storeId);
-    const storeName = storeData ? `${storeData.name} – ${storeData.location}` : d.store;
+    const storeData = storeOf(d);
+    const storeName = storeData ? `${storeData.name} – ${storeData.location}` : String(d.store || '');
 
     const hasViolation = hasTemperatureViolation(d);
     const rowStyle = hasViolation ? 'style="background:#FADBD8;border-left:4px solid var(--red);"' : '';
@@ -1467,9 +1562,8 @@ const PRODUCTION_STATE = {
   chart: null,
   isInitialized: false,
   advancedFilters: {
-    shift: '',
     kitchen: '',
-    supervisor: '',
+    cook: '',
     dish: '',
     search: ''
   }
@@ -1634,20 +1728,18 @@ function populateProductionFilters() {
     select.value = currentValue;
   };
 
-  // Normalize supervisor names to remove duplicates with trailing spaces
+  // Normalize cook names to remove duplicates with trailing spaces
   const normalizeName = (name) => name ? name.trim() : '';
 
-  populateSelect('production-shift-filter', new Set(filtered.map(p => p.shift).filter(Boolean)));
   populateSelect('production-kitchen-filter', new Set(filtered.map(p => p.kitchen).filter(Boolean)));
-  populateSelect('production-supervisor-filter', new Set(filtered.map(p => normalizeName(p.supervisor)).filter(Boolean)));
+  populateSelect('production-cook-filter', new Set(filtered.map(p => normalizeName(p.cook)).filter(Boolean)));
   populateSelect('production-dish-filter', new Set(filtered.map(p => p.dish).filter(Boolean)));
 }
 
 function applyProductionAdvancedFilters() {
   PRODUCTION_STATE.advancedFilters = {
-    shift: document.getElementById('production-shift-filter').value,
     kitchen: document.getElementById('production-kitchen-filter').value,
-    supervisor: document.getElementById('production-supervisor-filter').value,
+    cook: document.getElementById('production-cook-filter').value,
     dish: document.getElementById('production-dish-filter').value,
     search: document.getElementById('production-search').value.toLowerCase()
   };
@@ -1656,15 +1748,13 @@ function applyProductionAdvancedFilters() {
 }
 
 function clearAllProductionFilters() {
-  document.getElementById('production-shift-filter').value = '';
   document.getElementById('production-kitchen-filter').value = '';
-  document.getElementById('production-supervisor-filter').value = '';
+  document.getElementById('production-cook-filter').value = '';
   document.getElementById('production-dish-filter').value = '';
   document.getElementById('production-search').value = '';
   PRODUCTION_STATE.advancedFilters = {
-    shift: '',
     kitchen: '',
-    supervisor: '',
+    cook: '',
     dish: '',
     search: ''
   };
@@ -1677,16 +1767,14 @@ function displayProductionTable() {
 
   // Apply advanced filters
   const filters = PRODUCTION_STATE.advancedFilters;
-  if (filters.shift) filtered = filtered.filter(p => p.shift === filters.shift);
   if (filters.kitchen) filtered = filtered.filter(p => p.kitchen === filters.kitchen);
-  if (filters.supervisor) filtered = filtered.filter(p => p.supervisor === filters.supervisor);
+  if (filters.cook) filtered = filtered.filter(p => p.cook === filters.cook);
   if (filters.dish) filtered = filtered.filter(p => p.dish === filters.dish);
   if (filters.search) {
     filtered = filtered.filter(p => {
       return (p.date && p.date.toLowerCase().includes(filters.search)) ||
-             (p.shift && p.shift.toLowerCase().includes(filters.search)) ||
              (p.kitchen && p.kitchen.toLowerCase().includes(filters.search)) ||
-             (p.supervisor && p.supervisor.toLowerCase().includes(filters.search)) ||
+             (p.cook && p.cook.toLowerCase().includes(filters.search)) ||
              (p.dish && p.dish.toLowerCase().includes(filters.search)) ||
              (p.discardReason && p.discardReason.toLowerCase().includes(filters.search));
     });
@@ -1713,9 +1801,8 @@ function displayProductionTable() {
   const rows = pageData.map(p => `
       <tr>
         <td>${normalizeDate(p.date)}</td>
-        <td>${p.shift || ''}</td>
         <td>${p.kitchen || ''}</td>
-        <td>${p.supervisor || ''}</td>
+        <td>${p.cook || ''}</td>
         <td>${p.dish || ''}</td>
         <td>${p.qtyProduced || 0}</td>
         <td>${p.qtyDiscarded || 0}</td>
@@ -1728,9 +1815,8 @@ function displayProductionTable() {
       <thead>
         <tr>
           <th>Date</th>
-          <th>Shift</th>
           <th>Kitchen</th>
-          <th>Supervisor</th>
+          <th>Cook</th>
           <th>Dish</th>
           <th>Produced</th>
           <th>Discarded</th>
@@ -1781,172 +1867,554 @@ function nextProductionPage() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function renderFoodSafety() {
-  // Check for violations and update alert banner
-  checkForViolations();
-  // Load violations queue
-  refreshViolationsQueue();
-  console.log('[Food Safety] Panel rendered');
+  const week = document.getElementById('safety-week-end');
+  if (week && !week.value) week.value = getTodayDate();   // the current week, until someone picks another
+  checkForViolations();   // the banner
+  loadFoodSafety();
+  renderViolations();
 }
 
-let violationStatusFilter = 'all'; // all, open, resolved — a violation is open until it is resolved
+// ═══════════════════════════════════════════════════════════════════════════
+// Sales panel
+// ═══════════════════════════════════════════════════════════════════════════
+// Sales rows are one store, dish and day each, from the retailer's export. The panel sums
+// our dishes by day, store and dish for the chosen range, and sets them against what the
+// deliveries put on the shelf over the same days. The retailer's other Asian-deli lines,
+// filed under the reserved NON-TAIPEI DISH, appear only as the denominator of one number:
+// our share of what the store rang up in that category.
 
-function refreshViolationsQueue() {
-  const container = document.getElementById('violations-queue');
-  if (!container) return;
+const SALES_CATCHALL_ID = '00000000-0000-4000-8000-000000000001';   // the reserved NON-TAIPEI DISH; see backend/ReferenceSeed.gs
+const SALES_STATE = {
+  quickRange: 7,
+  rows: [],          // our dishes' sales rows in range
+  otherNet: {},      // store number -> net sales of everything else in the category, in range
+  delivered: {},     // store number -> units added to shelves in range
+  chart: null
+};
 
-  // Defensive: ensure violations array exists
-  if (!DATA.violations || !Array.isArray(DATA.violations)) {
-    console.warn('[Violations] DATA.violations is not an array, initializing to empty array');
-    DATA.violations = [];
-  }
-
-  // Apply status filter
-  let filteredViolations = DATA.violations;
-  if (violationStatusFilter !== 'all') {
-    // FIX: Default to 'open' status if violation doesn't have status field
-    filteredViolations = DATA.violations.filter(v => (v.status || 'open') === violationStatusFilter);
-  }
-
-  // Sort newest first
-  filteredViolations = filteredViolations.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-  if (filteredViolations.length === 0) {
-    const message = violationStatusFilter === 'all'
-      ? '✓ No violations found'
-      : `✓ No ${violationStatusFilter} violations`;
-    container.innerHTML = `<div class="loading" style="color: var(--green);">${message}</div>`;
-    return;
-  }
-
-  container.innerHTML = filteredViolations.map(v => {
-    const statusBadge = getStatusBadge(v.status);
-    const timestamp = new Date(v.timestamp);
-    const displayDate = timestamp.toLocaleDateString();
-    const displayTime = timestamp.toLocaleTimeString();
-
-    return `
-      <div class="violation-queue-item" data-violation-id="${v.violationId}">
-        <div class="violation-queue-header">
-          <div class="violation-queue-badge">${v.violationType}</div>
-          ${statusBadge}
-          <div class="violation-queue-date">${displayDate} ${displayTime}</div>
-        </div>
-        <div class="violation-queue-details">
-          <div class="violation-queue-store">📍 ${v.storeName}</div>
-          <div class="violation-queue-temp" style="color: var(--red); font-weight: 700;">${v.value}°F</div>
-          ${v.resolvedAt ? `<div class="violation-queue-resolved">✅ Resolved ${new Date(v.resolvedAt).toLocaleDateString()} by ${v.resolvedBy}</div>` : ''}
-        </div>
-        <div class="violation-queue-actions">
-          ${v.status !== 'resolved' ? `
-            <button class="violation-queue-btn" onclick="markViolationResolved('${v.violationId}')">
-              Mark Resolved
-            </button>
-          ` : `
-            <button class="violation-queue-btn" disabled style="opacity: 0.5;">
-              Resolved
-            </button>
-          `}
-          <button class="violation-queue-btn-secondary" onclick="openViolationDetailsModal('${v.violationId}')">
-            View Details
-          </button>
-        </div>
-      </div>
-    `;
-  }).join('');
+function renderSales() {
+  setSalesQuickRange(SALES_STATE.quickRange);
 }
 
-function getStatusBadge(status) {
-  const badges = {
-    'open': '<span class="status-badge status-open">Open</span>',
-    'resolved': '<span class="status-badge status-resolved">Resolved</span>'
+function setSalesQuickRange(range) {
+  SALES_STATE.quickRange = range;
+  document.querySelectorAll('#panel-sales .btn-time-range').forEach(btn => btn.classList.toggle('active', btn.dataset.range == range));
+
+  const today = getTodayDate();
+  let start = null;
+  if (range === 'today') start = today;
+  else if (range === 'all') ensureWindow(earliestWindowFrom());
+  else { start = addDaysISO(today, -range); ensureWindow(start); }
+  const inRange = r => !start || normalizeDate(r.date) >= start;
+
+  const sales = (DATA.sales || []).filter(inRange);
+  SALES_STATE.rows = sales.filter(r => r.dishSystemId !== SALES_CATCHALL_ID);
+  const otherNet = {};
+  sales.filter(r => r.dishSystemId === SALES_CATCHALL_ID).forEach(r => { otherNet[String(r.store)] = (otherNet[String(r.store)] || 0) + salesNumber(r.netSales); });
+  SALES_STATE.otherNet = otherNet;
+  const delivered = {};
+  DATA.deliveries.filter(inRange).forEach(d => { delivered[String(d.store)] = (delivered[String(d.store)] || 0) + (parseInt(d.added, 10) || 0); });
+  SALES_STATE.delivered = delivered;
+
+  updateSalesMetrics();
+  updateSalesChart();
+  displaySalesByStore();
+  displaySalesByDish();
+}
+
+const salesNumber = n => (Number(n) || 0);
+const salesMoney = n => '$' + salesNumber(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const salesPercent = (part, whole) => whole > 0 ? Math.round(part / whole * 100) + '%' : '—';
+
+function updateSalesMetrics() {
+  const rows = SALES_STATE.rows;
+  const units = rows.reduce((s, r) => s + salesNumber(r.units), 0);
+  const net = rows.reduce((s, r) => s + salesNumber(r.netSales), 0);
+  const returned = rows.reduce((s, r) => s + salesNumber(r.returnedUnits), 0);
+  const delivered = Object.values(SALES_STATE.delivered).reduce((s, n) => s + n, 0);
+  const otherNet = Object.values(SALES_STATE.otherNet).reduce((s, n) => s + n, 0);
+
+  const grid = document.getElementById('sales-metrics');
+  grid.textContent = '';
+  [
+    ['Units Sold', units.toLocaleString(), returned ? returned.toLocaleString() + ' returned' : 'No returns'],
+    ['Net Sales', salesMoney(net), units ? salesMoney(net / units) + ' per unit' : '—'],
+    ['Sell-through', salesPercent(units, delivered), units.toLocaleString() + ' sold of ' + delivered.toLocaleString() + ' delivered'],
+    ['Share of Asian Deli', salesPercent(net, net + otherNet), 'of ' + salesMoney(net + otherNet) + ' rung up in the category']
+  ].forEach(([label, value, sub]) => {
+    const card = makeEl('div', 'metric-card');
+    card.appendChild(makeEl('div', 'metric-label', label));
+    card.appendChild(makeEl('div', 'metric-value', value));
+    card.appendChild(makeEl('div', 'metric-sub', sub));
+    grid.appendChild(card);
+  });
+}
+
+function updateSalesChart() {
+  const byDate = {};
+  SALES_STATE.rows.forEach(r => { const d = normalizeDate(r.date); byDate[d] = (byDate[d] || 0) + salesNumber(r.units); });
+  const dates = Object.keys(byDate).sort();
+  if (SALES_STATE.chart) SALES_STATE.chart.destroy();
+  const ctx = document.getElementById('chart-sales-units').getContext('2d');
+  SALES_STATE.chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: dates.map(d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+      datasets: [{ label: 'Units sold', data: dates.map(d => byDate[d]), borderColor: '#27AE60', backgroundColor: 'rgba(39, 174, 96, 0.1)', tension: 0.3, fill: true }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+/** A table built from rows of cells, headers first; cells are text. */
+function salesTable(headers, rows) {
+  const table = makeEl('table', 'data-table');
+  const thead = makeEl('thead');
+  const head = makeEl('tr');
+  headers.forEach(h => head.appendChild(makeEl('th', '', h)));
+  thead.appendChild(head);
+  table.appendChild(thead);
+  const tbody = makeEl('tbody');
+  rows.forEach(cells => {
+    const tr = makeEl('tr');
+    cells.forEach(text => tr.appendChild(makeEl('td', '', text)));
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  return table;
+}
+
+function salesEmpty(container, what) {
+  container.textContent = '';
+  container.appendChild(makeEl('p', 'hint', what));
+}
+
+function displaySalesByStore() {
+  const container = document.getElementById('sales-by-store');
+  const byStore = {};
+  SALES_STATE.rows.forEach(r => {
+    const key = String(r.storeSystemId || r.storeId || r.store);
+    const s = byStore[key] || (byStore[key] = { name: storeNameOf(r), units: 0, transactions: 0, net: 0 });
+    s.units += salesNumber(r.units);
+    s.transactions += salesNumber(r.transactions);
+    s.net += salesNumber(r.netSales);
+  });
+  const stores = Object.entries(byStore).sort((a, b) => b[1].net - a[1].net);
+  if (!stores.length) return salesEmpty(container, 'No sales rows in this range.');
+  container.textContent = '';
+  container.appendChild(salesTable(
+    ['Store', 'Units', 'Transactions', 'Net Sales', 'Delivered', 'Sell-through', 'Share of Asian Deli'],
+    stores.map(([number, s]) => {
+      const delivered = SALES_STATE.delivered[number] || 0;
+      const other = SALES_STATE.otherNet[number] || 0;
+      return [s.name, s.units.toLocaleString(), s.transactions.toLocaleString(), salesMoney(s.net), delivered.toLocaleString(), salesPercent(s.units, delivered), salesPercent(s.net, s.net + other)];
+    })
+  ));
+}
+
+function displaySalesByDish() {
+  const container = document.getElementById('sales-by-dish');
+  const byDish = {};
+  SALES_STATE.rows.forEach(r => {
+    const key = String(r.dishSystemId || r.dish);
+    const d = byDish[key] || (byDish[key] = { name: r.dish, units: 0, transactions: 0, net: 0, returned: 0 });
+    d.units += salesNumber(r.units);
+    d.transactions += salesNumber(r.transactions);
+    d.net += salesNumber(r.netSales);
+    d.returned += salesNumber(r.returnedUnits);
+  });
+  const dishes = Object.values(byDish).sort((a, b) => b.units - a.units);
+  if (!dishes.length) return salesEmpty(container, 'No sales rows in this range.');
+  container.textContent = '';
+  container.appendChild(salesTable(
+    ['Dish', 'Units', 'Transactions', 'Net Sales', 'Avg Net per Unit', 'Returned'],
+    dishes.map(d => [d.name, d.units.toLocaleString(), d.transactions.toLocaleString(), salesMoney(d.net), d.units ? salesMoney(d.net / d.units) : '—', d.returned.toLocaleString()])
+  ));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Sales import
+// ═══════════════════════════════════════════════════════════════════════════
+// The retailer's export is read in this browser, never uploaded. Its transaction lines are
+// reduced to one row per store, UPC and day, previewed, and sent to the backend a month at a
+// time as { type: 'sales', rows }. The backend resolves stores and dishes and replaces rows
+// in place, so the same week can be imported twice. The parser knows the DAX export's
+// columns by their names, not their positions, and reads the date out of the Transaction
+// Id, which the export carries it in.
+
+const SALES_IMPORT_MAX_LINES = 50000;   // a week is about 5,000; past this, ask for a shorter export rather than freeze the tab
+const SALES_IMPORT = { file: null, months: null, busy: false };
+
+/** Column indexes by what the importer needs, matched on header text with the retailer's numeric prefixes ("06 Store") dropped. */
+function salesImportColumns(headerRow) {
+  const normal = cell => String(cell === undefined || cell === null ? '' : cell).replace(/^\d+\s+/, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const headers = headerRow.map(normal);
+  const wanted = { store: 'store', upc: 'upc', transactionId: 'transaction id', gross: 'product gross sales', net: 'product net sales', units: 'scanned units', city: 'city' };
+  const at = {};
+  const missing = [];
+  Object.keys(wanted).forEach(key => {
+    at[key] = headers.indexOf(wanted[key]);
+    if (at[key] < 0 && key !== 'city') missing.push(wanted[key]);
+  });
+  if (missing.length) throw new Error('The sheet has no column for: ' + missing.join(', ') + '. Expected the DAX export\'s columns.');
+  return at;
+}
+
+/** The first sheet whose first row is the export's header row, with its rows as arrays. */
+function salesImportSheet(workbook) {
+  for (const name of workbook.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: true, defval: '' });
+    const first = rows.findIndex(row => row.some(cell => String(cell).trim() !== ''));
+    if (first < 0) continue;
+    try {
+      const columns = salesImportColumns(rows[first]);
+      return { name: name, columns: columns, lines: rows.slice(first + 1) };
+    } catch (e) {
+      // not this sheet; the DAX file's first sheet is its report description
+    }
+  }
+  throw new Error('No sheet in the file has the export\'s columns (Store, UPC, Transaction Id, Product Net Sales, Scanned Units).');
+}
+
+/** Transaction lines reduced to one row per store, UPC and day. */
+function salesImportReduce(lines, at) {
+  const cell = (line, key) => (at[key] < 0 ? '' : line[at[key]]);
+  const rows = {};
+  let kept = 0;
+  let skipped = 0;
+  const bad = [];
+  lines.forEach((line, i) => {
+    const storeText = String(cell(line, 'store') || '').trim();
+    const upcText = String(cell(line, 'upc') || '').trim();
+    const idText = String(cell(line, 'transactionId') || '').replace(/\D/g, '');
+    if (!storeText && !upcText && !idText) { skipped += 1; return; }   // a blank line, as the export ends with
+    const store = (storeText.match(/(\d+)\s*$/) || [])[1];
+    let upc = (upcText.match(/^\d+/) || [])[0] || '';
+    if (upc && upc.length < 14) upc = upc.padStart(14, '0');   // a UPC saved through a spreadsheet that dropped its leading zeros
+    const date = /^\d{8}/.test(idText) ? idText.slice(0, 4) + '-' + idText.slice(4, 6) + '-' + idText.slice(6, 8) : '';
+    const dateOk = date && !isNaN(new Date(date + 'T12:00:00Z').getTime()) && new Date(date + 'T12:00:00Z').toISOString().slice(0, 10) === date;
+    if (!store || upc.length !== 14 || !dateOk) {
+      if (bad.length < 5) bad.push('line ' + (i + 2) + ': ' + [storeText || '(no store)', upcText || '(no UPC)', idText || '(no transaction id)'].join(' / '));
+      skipped += 1;
+      return;
+    }
+    const units = Math.round(Number(cell(line, 'units')) || 0);
+    const net = Number(cell(line, 'net')) || 0;
+    const gross = Number(cell(line, 'gross')) || 0;
+    const key = date + '|' + store + '|' + upc;
+    const row = rows[key] || (rows[key] = { date: date, storeId: store, upc: upc, city: String(cell(line, 'city') || '').trim(), units: 0, netSales: 0, grossSales: 0, returnedUnits: 0, baskets: new Set() });
+    row.units += units;
+    row.netSales += net;
+    row.grossSales += gross;
+    if (units < 0) row.returnedUnits += -units;
+    row.baskets.add(idText);
+    kept += 1;
+  });
+  const out = Object.values(rows).map(row => ({
+    date: row.date, storeId: row.storeId, upc: row.upc, city: row.city,
+    units: row.units, transactions: row.baskets.size,
+    netSales: Math.round(row.netSales * 100) / 100, grossSales: Math.round(row.grossSales * 100) / 100,
+    returnedUnits: row.returnedUnits
+  })).sort((a, b) => (a.date + a.storeId + a.upc).localeCompare(b.date + b.storeId + b.upc));
+  return { rows: out, kept: kept, skipped: skipped, bad: bad };
+}
+
+function salesImportSay(text, bad) {
+  const status = document.getElementById('sales-import-status');
+  status.textContent = text;
+  status.className = 'hint' + (bad ? ' bad' : '');
+}
+
+function salesImportReset() {
+  SALES_IMPORT.file = null;
+  SALES_IMPORT.months = null;
+  document.getElementById('sales-import-preview').hidden = true;
+  document.getElementById('sales-import-preview').textContent = '';
+  document.getElementById('sales-import-go').disabled = true;
+}
+
+async function salesImportPick(input) {
+  const file = input.files && input.files[0];
+  salesImportReset();
+  document.getElementById('sales-import-name').textContent = file ? file.name : '';
+  salesImportSay('');
+  if (!file) return;
+  if (typeof XLSX === 'undefined') return salesImportSay('The spreadsheet library could not be loaded. Check the connection and reload.', true);
+
+  salesImportSay('Reading ' + file.name + '…');
+  try {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: 'array', dense: true });
+    const sheet = salesImportSheet(workbook);
+    if (sheet.lines.length > SALES_IMPORT_MAX_LINES) {
+      throw new Error('The sheet has ' + sheet.lines.length.toLocaleString() + ' lines; the importer takes up to ' + SALES_IMPORT_MAX_LINES.toLocaleString() + '. Export a shorter range.');
+    }
+    const reduced = salesImportReduce(sheet.lines, sheet.columns);
+    if (!reduced.rows.length) throw new Error('No usable lines: every line lacked a store, a 14-digit UPC or a dated Transaction Id.' + (reduced.bad.length ? ' First: ' + reduced.bad[0] : ''));
+
+    const months = {};
+    reduced.rows.forEach(row => { const m = row.date.slice(0, 7); (months[m] = months[m] || []).push(row); });
+    SALES_IMPORT.file = file.name;
+    SALES_IMPORT.months = months;
+    salesImportPreview(reduced, months);
+    document.getElementById('sales-import-go').disabled = !CONFIG.webAppUrl;
+    salesImportSay(CONFIG.webAppUrl ? '' : 'Demo mode: there is no backend to import into.', !CONFIG.webAppUrl);
+  } catch (e) {
+    console.error('[Sales import]', e);
+    salesImportSay(e.message || String(e), true);
+  }
+}
+
+/** What the import will do, from the reduced rows and the reference lists: the user confirms against this. */
+function salesImportPreview(reduced, months) {
+  const reference = DATA.reference || {};
+  const knownStores = new Set((reference.stores || []).map(s => String(s.storeId)));
+  const knownUpcs = new Set((reference.dishes || []).map(d => String(d.upc)).filter(Boolean));
+  const dates = reduced.rows.map(r => r.date).sort();
+  const stores = Array.from(new Set(reduced.rows.map(r => r.storeId))).sort();
+  const newStores = stores.filter(s => !knownStores.has(s));
+  const other = reduced.rows.filter(r => !knownUpcs.has(r.upc));
+  const otherUpcs = new Set(other.map(r => r.upc));
+  const returns = reduced.rows.filter(r => r.returnedUnits > 0).length;
+
+  const box = document.getElementById('sales-import-preview');
+  box.textContent = '';
+  const line = (label, value, warn) => {
+    const row = makeEl('div', 'sales-import-line' + (warn ? ' warn' : ''));
+    row.appendChild(makeEl('span', 'sales-import-label', label));
+    row.appendChild(makeEl('span', 'sales-import-value', value));
+    box.appendChild(row);
   };
-  return badges[status] || badges['open'];
+  line('Days', dates[0] + ' to ' + dates[dates.length - 1] + ' (' + new Set(dates).size + ' days)');
+  line('Lines read', reduced.kept.toLocaleString() + (reduced.skipped ? ', ' + reduced.skipped.toLocaleString() + ' skipped' : ''), reduced.bad.length > 0);
+  if (reduced.bad.length) line('Skipped because', reduced.bad.join('; ') + (reduced.skipped > reduced.bad.length ? '; …' : ''), true);
+  line('Rows to write', reduced.rows.length.toLocaleString() + ' — ' + Object.keys(months).sort().map(m => m + ': ' + months[m].length.toLocaleString()).join(', '));
+  line('Stores', stores.length + (newStores.length ? ' — ' + newStores.length + ' not on the list, to be added unverified: ' + newStores.join(', ') : ', all on the list'), newStores.length > 0);
+  line('Our dishes', (reduced.rows.length - other.length).toLocaleString() + ' rows; ' + other.length.toLocaleString() + ' rows of ' + otherUpcs.size + ' other items go to NON-TAIPEI DISH');
+  if (returns) line('Returns', returns.toLocaleString() + ' rows carry returned units');
+  box.hidden = false;
 }
+
+/** Send the months in order, one request each; a failure stops there with the earlier months written. */
+async function salesImportRun() {
+  if (SALES_IMPORT.busy || !SALES_IMPORT.months) return;
+  if (!CONFIG.webAppUrl) return salesImportSay('Demo mode: there is no backend to import into.', true);
+  const months = Object.keys(SALES_IMPORT.months).sort();
+  const button = document.getElementById('sales-import-go');
+  SALES_IMPORT.busy = true;
+  button.disabled = true;
+  const done = [];
+  try {
+    for (const month of months) {
+      const rows = SALES_IMPORT.months[month];
+      salesImportSay('Writing ' + month + ' (' + rows.length.toLocaleString() + ' rows)…' + (done.length ? ' Done: ' + done.join('; ') : ''));
+      const sent = await dashboardPost({ type: 'sales', rows: rows });
+      if (!sent.ok) throw new Error(month + ': ' + sent.error);
+      const r = sent.data;
+      done.push(month + ' ' + r.added.toLocaleString() + ' added, ' + r.updated.toLocaleString() + ' replaced' +
+        (r.storesCreated && r.storesCreated.length ? ', stores added: ' + r.storesCreated.join(', ') : ''));
+    }
+    salesImportSay('Imported ' + SALES_IMPORT.file + '. ' + done.join('; ') + '. Verify any added store on the Config tab.');
+    document.getElementById('sales-import-file').value = '';
+    salesImportReset();
+    document.getElementById('sales-import-name').textContent = '';
+    fetchData();   // the Sales panel below, and the reference lists if a store was added
+  } catch (e) {
+    console.error('[Sales import]', e);
+    salesImportSay('Stopped: ' + (e.message || String(e)) + (done.length ? ' Already written: ' + done.join('; ') + '. Import again to finish; written months are replaced, not doubled.' : ''), true);
+    button.disabled = false;
+  } finally {
+    SALES_IMPORT.busy = false;
+  }
+}
+
+// ─── Violations ──────────────────────────────────────────────────────────────
+// One card per violation, built with DOM calls and textContent: store names, notes and
+// corrective actions are typed by people. A violation is resolved on its own card by naming
+// the supervisor and the corrective action; both are required here and on the backend.
+
+let violationStatusFilter = 'open';   // open | resolved | all
+let violationRange = 30;              // 'today' | 7 | 30 | 'all', by the reading's date, like the other panels' ranges
+const VIOLATION_DRAFTS = {};          // violationId → what has been typed on its card, kept across re-renders
 
 function setViolationFilter(status) {
   violationStatusFilter = status;
-
-  // Update filter button states
-  const buttons = document.querySelectorAll('.violation-filter-btn');
-  buttons.forEach((btn, index) => {
-    btn.classList.remove('active');
-    // Match button to status by order: all, open, resolved
-    const statuses = ['all', 'open', 'resolved'];
-    if (statuses[index] === status) {
-      btn.classList.add('active');
-    }
-  });
-
-  refreshViolationsQueue();
+  document.querySelectorAll('.violation-filter-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === status));
+  renderViolations();
 }
 
-async function markViolationResolved(violationId) {
-  if (!CONFIG.webAppUrl) {
-    alert('Backend not configured. Cannot update violation status.');
+/** Pick a range; a wider one widens the loaded window first, which re-renders on arrival. */
+function setViolationRange(range) {
+  violationRange = range;
+  document.querySelectorAll('.violations-range .btn-time-range').forEach(btn => btn.classList.toggle('active', btn.dataset.range == range));
+  const from = violationRangeStart();
+  if (from) ensureWindow(from);
+  renderViolations();
+}
+
+/** The first date the chosen range covers, or null for a range the loaded window already bounds. */
+function violationRangeStart() {
+  const today = getTodayDate();
+  if (violationRange === 'today') return today;
+  if (violationRange === 'all') return earliestWindowFrom();
+  return addDaysISO(today, -violationRange);
+}
+
+function violationNode(tag, cls, text) {
+  return makeEl(tag, cls, text);
+}
+
+function violationField(label, value) {
+  const field = violationNode('div', 'violation-field');
+  field.appendChild(violationNode('span', 'violation-field-label', label));
+  field.appendChild(violationNode('span', 'violation-field-value', value));
+  return field;
+}
+
+function violationTemp(value) {
+  const n = parseFloat(value);
+  return isNaN(n) ? '—' : n + '°F';
+}
+
+function violationWhen(instant) {
+  const date = new Date(instant);
+  return isNaN(date) ? String(instant || '') : date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+/** Active supervisors by name, for the "resolved by" picker. */
+function violationResolvers() {
+  const list = (DATA.reference && DATA.reference.supervisors) || [];
+  return list.filter(referenceOffered)
+    .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0))
+    .map(s => s.name);
+}
+
+function renderViolations() {
+  const container = document.getElementById('violations-queue');
+  if (!container) return;
+  const all = Array.isArray(DATA.violations) ? DATA.violations : [];
+  const from = violationRangeStart();
+  const shown = all
+    .filter(v => normalizeDate(v.date) >= from)
+    .filter(v => violationStatusFilter === 'all' || (v.status || 'open') === violationStatusFilter)
+    .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));   // newest first
+
+  container.textContent = '';
+  if (!shown.length) {
+    const span = violationRange === 'today' ? 'today' : violationRange === 'all' ? 'in the loaded window' : 'in the last ' + violationRange + ' days';
+    const what = violationStatusFilter === 'all' ? 'violations' : violationStatusFilter + ' violations';
+    container.appendChild(violationNode('div', 'violations-empty', 'No ' + what + ' ' + span + '.'));
     return;
   }
-
-  if (!confirm('Mark this violation as resolved?')) return;
-
-  try {
-    const url = `${CONFIG.webAppUrl}?action=updateViolationStatus` +
-      `&violationId=${encodeURIComponent(violationId)}&status=resolved&resolvedBy=${encodeURIComponent('Dashboard User')}`;
-    const response = await fetch(url, { method: 'GET', mode: 'cors' });
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
-    if (data.status === 'ok') {
-      // Update local data
-      const violation = DATA.violations.find(v => v.violationId === violationId);
-      if (violation) {
-        violation.status = 'resolved';
-        violation.resolvedAt = new Date().toISOString();
-        violation.resolvedBy = 'Dashboard User';
-      }
-      refreshViolationsQueue();
-      alert('Violation marked as resolved!');
-    } else {
-      throw new Error(data.message);
-    }
-  } catch (e) {
-    console.error('[Violation] Update failed:', e);
-    alert(`Failed to update violation: ${e.message}`);
-  }
+  const resolvers = violationResolvers();
+  shown.forEach(v => container.appendChild(violationCard(v, resolvers)));
 }
 
-function openViolationDetailsModal(violationId) {
-  const violation = DATA.violations.find(v => v.violationId === violationId);
-  if (!violation) return;
+function violationCard(v, resolvers) {
+  const resolved = v.status === 'resolved';
+  const card = violationNode('article', 'violation-card' + (resolved ? ' resolved' : ''));
+  card.dataset.violationId = v.violationId;
 
-  const timestamp = new Date(violation.timestamp);
+  const head = violationNode('div', 'violation-head');
+  head.appendChild(violationNode('span', 'violation-status ' + (resolved ? 'is-resolved' : 'is-open'), resolved ? 'Resolved' : 'Open'));
+  const where = violationNode('span', 'violation-store', v.location || 'Unknown location');
+  where.appendChild(violationNode('span', 'violation-location-type', v.locationType || 'Store'));
+  head.appendChild(where);
+  head.appendChild(violationNode('span', 'violation-when', 'Detected ' + violationWhen(v.timestamp)));
+  card.appendChild(head);
 
-  const modal = document.createElement('div');
-  modal.className = 'modal-overlay';
-  modal.innerHTML = `
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Violation Details</h2>
-        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
-      </div>
-      <div class="modal-body">
-        ${getStatusBadge(violation.status)}
-        <p><strong>Type:</strong> ${violation.violationType}</p>
-        <p><strong>Store:</strong> ${violation.storeName} (${violation.storeId})</p>
-        <p><strong>Timestamp:</strong> ${timestamp.toLocaleString()}</p>
-        <p><strong>Temperature:</strong> <span style="color: var(--red); font-weight: 700;">${violation.value}°F</span></p>
-        <p><strong>Violation ID:</strong> <code>${violation.violationId}</code></p>
-        ${violation.resolvedAt ? `
-          <p><strong>Resolved:</strong> ${new Date(violation.resolvedAt).toLocaleString()}</p>
-          <p><strong>Resolved By:</strong> ${violation.resolvedBy}</p>
-        ` : ''}
-      </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Close</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
+  // The reading: the type says which temperature this is, the value sits beside it with the limit.
+  const reading = violationNode('div', 'violation-reading');
+  reading.appendChild(violationNode('span', 'violation-reading-type', v.violationType || 'Temperature'));
+  reading.appendChild(violationNode('span', 'violation-reading-value', violationTemp(v.value)));
+  reading.appendChild(violationNode('span', 'violation-reading-limit', 'limit ' + TEMP_LIMIT_F + '°F'));
+  card.appendChild(reading);
+
+  const meta = violationNode('div', 'violation-meta');
+  if (v.driver) meta.appendChild(violationField('Driver', v.driver));
+  meta.appendChild(violationField('Notes', v.notes || 'None'));
+  card.appendChild(meta);
+
+  if (resolved) {
+    const done = violationNode('div', 'violation-resolution');
+    done.appendChild(violationField('Resolved', violationWhen(v.resolvedAt) + (v.resolvedBy ? ' by ' + v.resolvedBy : '')));
+    done.appendChild(violationField('Corrective action', v.correctiveAction || 'Not recorded'));
+    card.appendChild(done);
+    return card;
+  }
+
+  const draft = VIOLATION_DRAFTS[v.violationId] || (VIOLATION_DRAFTS[v.violationId] = { resolvedBy: '', correctiveAction: '' });
+  const form = violationNode('div', 'violation-resolve');
+
+  const who = violationNode('label', 'violation-resolve-field');
+  who.appendChild(violationNode('span', 'violation-resolve-label', 'Resolved by'));
+  const select = document.createElement('select');
+  const blank = document.createElement('option');
+  blank.value = '';
+  blank.textContent = resolvers.length ? '— Select a supervisor —' : 'No supervisors on the list';
+  select.appendChild(blank);
+  resolvers.forEach(name => {
+    const option = document.createElement('option');
+    option.value = name;
+    option.textContent = name;
+    select.appendChild(option);
+  });
+  select.value = draft.resolvedBy;
+  select.disabled = !resolvers.length;
+  select.onchange = () => { draft.resolvedBy = select.value; select.classList.remove('missing'); };
+  who.appendChild(select);
+  form.appendChild(who);
+
+  const what = violationNode('label', 'violation-resolve-field grow');
+  what.appendChild(violationNode('span', 'violation-resolve-label', 'Corrective action taken'));
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 500;
+  input.placeholder = 'e.g. Product discarded; cooler reset and rechecked at 38°F';
+  input.value = draft.correctiveAction;
+  input.oninput = () => { draft.correctiveAction = input.value; input.classList.remove('missing'); };
+  what.appendChild(input);
+  form.appendChild(what);
+
+  const button = violationNode('button', 'btn-apply-filters violation-resolve-btn', 'Mark resolved');
+  button.type = 'button';
+  form.appendChild(button);
+  card.appendChild(form);
+
+  const status = violationNode('div', 'violation-resolve-status');
+  card.appendChild(status);
+  button.onclick = () => resolveViolation(v, { select, input, button, status });
+  return card;
+}
+
+async function resolveViolation(v, ui) {
+  const resolvedBy = ui.select.value;
+  const correctiveAction = ui.input.value.replace(/\s+/g, ' ').trim();
+  const refuse = (message, control) => {
+    ui.status.textContent = message;
+    ui.status.className = 'violation-resolve-status bad';
+    if (control) { control.classList.add('missing'); control.focus(); }
+  };
+  if (!resolvedBy) return refuse('Choose who resolved it.', ui.select);
+  if (!correctiveAction) return refuse('Describe the corrective action taken.', ui.input);
+  if (!CONFIG.webAppUrl) return refuse('Demo mode: there is no backend to record this.');
+  if (!v.month) return refuse('This violation has no month file and cannot be resolved here.');
+
+  ui.button.disabled = true;
+  ui.status.className = 'violation-resolve-status';
+  ui.status.textContent = 'Saving…';
+  try {
+    const sent = await dashboardPost({ type: 'resolveViolation', violationId: v.violationId, month: v.month, resolvedBy, correctiveAction });
+    if (!sent.ok) throw new Error(sent.error);
+    const data = sent.data;
+    Object.assign(v, { status: 'resolved', resolvedAt: data.resolvedAt, resolvedBy: data.resolvedBy, correctiveAction: data.correctiveAction });
+    delete VIOLATION_DRAFTS[v.violationId];
+    renderViolations();
+    checkForViolations();
+  } catch (e) {
+    ui.button.disabled = false;
+    refuse('Not saved: ' + e.message);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2521,10 +2989,980 @@ function exportShrinkToCSV() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Settings Panel Functions
+// Config panel: the reference lists
 // ═══════════════════════════════════════════════════════════════════════════════
+// Six lists, one on screen at a time. The owner edits a buffer per list and saves it as a
+// batch of ops (type: 'config'); the backend writes the Reference sheet and asks GitHub to
+// republish data/<list>.json for the forms. A row is never removed from the sheet: an entry
+// is deleted (Deleted At set; folded away here, restorable) and a dish may also be switched
+// off, and ids never change once saved. Store numbers are on printed QR codes. Kitchens,
+// stores and dishes are stored in the records with their System ID and read back under
+// their current name, so renaming them is safe; cooks, drivers and supervisors are stored
+// by name alone, so a rename there splits history and the panel says so before it happens.
+//
+// Every server-supplied string is set with textContent or .value, never innerHTML: these
+// names are edited on a web page and reach every form.
 
-// Settings object with defaults
+// The order of the strip, the backend payload and the sheet's tabs alike.
+const CONFIG_LISTS = [
+  { key: 'kitchens',    label: 'Kitchens',    noun: 'kitchen',    byName: false,
+    attrs: [
+      { key: 'kitchenType', label: 'Kitchen Type', kind: 'type' },
+      { key: 'kitchenId',   label: 'Kitchen ID',   kind: 'orgId', uniqueWith: 'kitchenType', assigned: { Taipei: 'TK-000' } },   // ours: assigned on save; Giant's is input
+      { key: 'location',    label: 'Location',     kind: 'text', required: true, editable: true }
+    ],
+    verified: true,
+    blurb: 'Where batches are cooked and coolers are loaded. The production and packaging forms carry the kitchen name, and its QR code carries its System ID. The Kitchen ID is the identifier the organisation named by Kitchen Type uses for it: a Taipei kitchen\'s is assigned on save, TK-001 upward, and a Giant kitchen\'s is entered.' },
+  { key: 'stores',      label: 'Stores',      noun: 'store',      byName: false,
+    attrs: [
+      { key: 'storeType', label: 'Store Type', kind: 'type' },
+      { key: 'storeId',   label: 'Store ID',   kind: 'orgId', uniqueWith: null, printed: true },   // in the QR code posted at the store and in every delivery row
+      { key: 'location',  label: 'Location',   kind: 'text', required: true, editable: true }
+    ],
+    verified: true,
+    blurb: 'Where coolers are bound for and deliveries go. The packaging and delivery forms carry the store name, and its QR code carries its System ID. The Store ID is the identifier the organisation named by Store Type uses for it: for a Giant store, its store number.' },
+  { key: 'dishes',      label: 'Dishes',      noun: 'dish',       byName: false,
+    attrs: [{ key: 'upc', label: 'UPC', kind: 'upc' }],   // Giant's 14-digit code for the dish, which its sales rows carry; set when the dish is added, not edited here
+    activeToggle: true,   // the one list with a pause switch as well as delete: a dish is tried for a while, then kept or not
+    verified: true,
+    blurb: 'What is cooked, loaded and delivered. All three forms show these as cards, in this order. Switch a dish off to pause it without losing its place; delete it to retire it.' },
+  // `records` names where a form's free-text "+ Add new" lands, so the unlisted-names card
+  // can offer what was typed. Only the two people pickers accept typed names.
+  { key: 'cooks',       label: 'Cooks',       noun: 'cook',       byName: true, attrs: [],
+    records: [{ source: 'production', field: 'cook' }],
+    blurb: 'Who cooks a batch. The production form offers these and also accepts a typed name.' },
+  { key: 'drivers',     label: 'Drivers',     noun: 'driver',     byName: true, attrs: [],
+    records: [{ source: 'deliveries', field: 'driver' }],
+    blurb: 'Who loads the coolers and delivers. The packaging and delivery forms offer these and also accept a typed name.' },
+  { key: 'supervisors', label: 'Supervisors', noun: 'supervisor', byName: true, attrs: [],
+    blurb: 'Who may resolve a violation. The dashboard offers these on a violation\'s card; no form reads them.' }
+];
+const CONFIG_TYPES_FALLBACK = { kitchens: ['Taipei', 'Giant'], stores: ['Giant'] };   // what the backend serves as `types`; for a payload without it
+const CONFIG_ORG_ID_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;                     // the backend's rule: URL- and filename-safe
+
+const CONFIG_PANEL = {
+  list: 'kitchens',
+  loaded: null,     // the reference payload the buffers were taken from; its version goes back with a save
+  buffer: {},       // list key -> entries as the owner has edited them; new ones carry _new: true, a _tmp ref and no id
+  editing: null,    // { key, ref } of the one card whose name and switch are open; everything else is read-only
+  showDeleted: false,   // whether the current list's deleted entries are unfolded
+  busy: false
+};
+let CONFIG_MODAL_RESOLVE = null;
+
+function configEl(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function configCapitalise(word) {
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+/** What identifies an entry across re-renders: its UUID, or the temporary ref a new one carries until it is saved. */
+function configEntryRef(entry) {
+  return entry.id || entry._tmp;
+}
+
+function configTempRef() {
+  return 'new-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+}
+
+function configListDef(key) {
+  return CONFIG_LISTS.find(def => def.key === key) || CONFIG_LISTS[0];
+}
+
+/** The allowed values of a list's Type attribute, as the backend serves them. */
+function configTypes(key) {
+  const served = CONFIG_PANEL.loaded && CONFIG_PANEL.loaded.types && CONFIG_PANEL.loaded.types[key];
+  return served || CONFIG_TYPES_FALLBACK[key] || [];
+}
+
+/** The pattern the backend assigns an org id under for this entry's type, such as 'TK-000', or null when the id is entered. */
+function configAssignedPattern(attr, entry) {
+  return (attr.assigned && attr.uniqueWith && attr.assigned[configNormalise(entry[attr.uniqueWith])]) || null;
+}
+
+/** Trimmed, internal whitespace collapsed: the form the backend stores and compares on. */
+function configNormalise(value) {
+  return String(value === undefined || value === null ? '' : value).replace(/\s+/g, ' ').trim();
+}
+
+function configSetStatus(text, cls) {
+  const status = document.getElementById('config-status');
+  status.textContent = text;
+  status.className = 'config-status' + (cls ? ' ' + cls : '');
+}
+
+/** The six published data/<list>.json files, as the site publishes them. */
+async function loadStaticReference() {
+  const out = { version: null, lists: {} };
+  await Promise.all(CONFIG_LISTS.map(async def => {
+    try {
+      const response = await fetch('../data/' + def.key + '.json', { cache: 'no-cache' });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const data = await response.json();
+      out.lists[def.key] = { entries: data[def.key] || [], version: data.version || null, generatedAt: data.generatedAt || null };
+      if (!out.version && data.version) out.version = data.version;
+    } catch (e) {
+      out.lists[def.key] = { entries: [], version: null, generatedAt: null, error: e.message };
+    }
+  }));
+  return out;
+}
+
+// ─── Buffers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Take the buffers from a reference payload. A list with unsaved edits keeps them, except
+ * the one just saved (`savedKey`), which is replaced by what the server wrote.
+ */
+function configLoadFrom(reference, savedKey) {
+  const keep = {};
+  if (CONFIG_PANEL.loaded) CONFIG_LISTS.forEach(def => { keep[def.key] = def.key !== savedKey && configDiffOps(def.key).length > 0; });
+  CONFIG_PANEL.loaded = reference;
+  CONFIG_LISTS.forEach(def => {
+    if (keep[def.key]) return;
+    CONFIG_PANEL.buffer[def.key] = (reference[def.key] || []).map(entry => Object.assign({}, entry));
+  });
+}
+
+function configAnyDirty() {
+  return !!CONFIG_PANEL.loaded && CONFIG_LISTS.some(def => configDiffOps(def.key).length > 0);
+}
+
+/**
+ * The ops that take the loaded list to the buffer: adds, updates, setActives, and one
+ * reorder when the existing entries moved. A new entry lands at the end on the server and
+ * has no id until then, so it cannot be moved before it is saved.
+ */
+function configDiffOps(key) {
+  const def = configListDef(key);
+  const loaded = (CONFIG_PANEL.loaded && CONFIG_PANEL.loaded[key]) || [];
+  const buffer = CONFIG_PANEL.buffer[key] || [];
+  const before = {};
+  loaded.forEach(entry => { before[entry.id] = entry; });
+  const ops = [];
+
+  buffer.forEach(entry => {
+    if (entry._new) {
+      const add = { name: configNormalise(entry.name) };
+      def.attrs.forEach(attr => { if (!configAssignedPattern(attr, entry)) add[attr.key] = configNormalise(entry[attr.key]); });   // an assigned id is the backend's to give
+      ops.push({ op: 'add', entry: add });
+      return;
+    }
+    const was = before[entry.id];
+    if (!was) return;
+    const patch = {};
+    if (configNormalise(entry.name) !== configNormalise(was.name)) patch.name = configNormalise(entry.name);
+    def.attrs.forEach(attr => {
+      if (configNormalise(entry[attr.key]) !== configNormalise(was[attr.key])) patch[attr.key] = configNormalise(entry[attr.key]);
+    });
+    if (def.verified && !!entry.verified !== !!was.verified) patch.verified = !!entry.verified;
+    if (Object.keys(patch).length) ops.push({ op: 'update', entry: Object.assign({ id: entry.id }, patch) });
+    if (def.activeToggle && !!entry.active !== !!was.active) ops.push({ op: 'setActive', id: entry.id, active: !!entry.active });
+    if (!!entry.deletedAt !== !!was.deletedAt) ops.push({ op: entry.deletedAt ? 'delete' : 'restore', id: entry.id });
+  });
+
+  const existing = buffer.filter(entry => !entry._new).map(entry => entry.id);
+  if (existing.join('\n') !== loaded.map(entry => entry.id).join('\n')) ops.push({ op: 'reorder', order: existing });
+  return ops;
+}
+
+/** Problems in one list's buffer, mirroring what the backend refuses: [{ index?, message }]. */
+function configValidate(key) {
+  const def = configListDef(key);
+  const buffer = CONFIG_PANEL.buffer[key] || [];
+  const problems = [];
+  const seen = {};
+  buffer.forEach((entry, index) => {
+    const name = configNormalise(entry.name);
+    if (!name) { problems.push({ index: index, message: 'A name is required.' }); return; }
+    if (name.length > 80) problems.push({ index: index, message: 'Names are at most 80 characters.' });
+    if (/[\u0000-\u001F\u007F]/.test(name) || name.charAt(0) === '=') problems.push({ index: index, message: 'That name cannot be stored as written.' });
+    const lower = name.toLowerCase();
+    if (seen[lower] !== undefined) problems.push({ index: index, message: 'Another ' + def.noun + ' on this list already has this name.' });
+    seen[lower] = index;
+
+    def.attrs.forEach(attr => {
+      const value = configNormalise(entry[attr.key]);
+      if (attr.kind === 'type') {
+        if (!value) problems.push({ index: index, message: attr.label + ' is required.' });
+        else if (configTypes(key).indexOf(value) < 0) problems.push({ index: index, message: attr.label + ' must be one of ' + configTypes(key).join(', ') + '.' });
+      } else if (attr.kind === 'orgId') {
+        if (entry._new && configAssignedPattern(attr, entry)) return;   // assigned on save
+        if (!value) problems.push({ index: index, message: attr.label + ' is required.' });
+        else if (value.length > 40 || !CONFIG_ORG_ID_PATTERN.test(value)) problems.push({ index: index, message: attr.label + ' may only contain letters, digits and single hyphens.' });
+        else if (buffer.some((other, j) => j !== index
+            && configNormalise(other[attr.key]).toLowerCase() === value.toLowerCase()
+            && (!attr.uniqueWith || configNormalise(other[attr.uniqueWith]) === configNormalise(entry[attr.uniqueWith])))) {
+          problems.push({ index: index, message: 'Another ' + def.noun + ' already has ' + attr.label + ' ' + value + (attr.uniqueWith ? ' for that type' : '') + '.' });
+        }
+      } else if (attr.kind === 'upc') {
+        if (!value) problems.push({ index: index, message: attr.label + ' is required.' });
+        else if (!/^\d{14}$/.test(value)) problems.push({ index: index, message: attr.label + ' must be the 14 digits of the code.' });
+        else if (buffer.some((other, j) => j !== index && configNormalise(other[attr.key]) === value)) problems.push({ index: index, message: 'Another ' + def.noun + ' already has UPC ' + value + '.' });
+      } else if (value.length > 120) {
+        problems.push({ index: index, message: attr.label + ' is at most 120 characters.' });
+      } else if (attr.required && !value) {
+        // Required on a new entry and on an edit that blanked it; a row seeded without one is shown as "—" and left alone.
+        const was = ((CONFIG_PANEL.loaded && CONFIG_PANEL.loaded[key]) || []).find(e => e.id === entry.id);
+        if (entry._new || (was && configNormalise(was[attr.key]))) problems.push({ index: index, message: attr.label + ' is required.' });
+      }
+    });
+  });
+  if (buffer.length && !buffer.some(entry => (!def.activeToggle || entry.active) && !entry.deletedAt)) {
+    problems.push({ message: 'At least one ' + def.noun + ' must stay' + (def.activeToggle ? ' active and' : '') + ' not deleted.' });
+  }
+  return problems;
+}
+
+// ─── Rendering ───────────────────────────────────────────────────────────────
+
+/**
+ * The showPanel hook. The panel never re-renders on a poll: fetchData refreshes
+ * DATA.reference every fifteen minutes, and that would wipe an unsaved buffer. A fresher
+ * payload is adopted only while nothing is dirty.
+ */
+function renderConfig() {
+  const fresh = DATA.reference;
+  if (fresh && (!CONFIG_PANEL.loaded || (fresh.version !== CONFIG_PANEL.loaded.version && !configAnyDirty()))) {
+    configLoadFrom(fresh);
+  }
+  if (!CONFIG_PANEL.loaded) {
+    configSetStatus(CONFIG.webAppUrl ? 'Waiting for the dashboard data to load…' : 'Demo mode: the published lists could not be read.', '');
+    return;
+  }
+  configRenderStrip();
+  configRenderList();
+  configRenderAdd();
+  configRefreshActions();
+  configRenderUnlisted();
+  configRenderPublished();
+  if (!CONFIG.webAppUrl) configSetStatus('Demo mode: no backend configured. These are the published lists, read-only.', '');
+}
+
+/** After a poll: with unsaved edits on screen, only the unlisted-names card may change. */
+function configOnDataRefresh() {
+  if (!document.getElementById('panel-config').classList.contains('active')) return;
+  if (configAnyDirty()) configRenderUnlisted();
+  else renderConfig();
+}
+
+function configRenderStrip() {
+  const strip = document.getElementById('config-lists');
+  strip.textContent = '';
+  CONFIG_LISTS.forEach(def => {
+    const pending = configDiffOps(def.key).length;
+    const button = configEl('button', 'btn-time-range' + (def.key === CONFIG_PANEL.list ? ' active' : ''), pending ? def.label + ' (' + pending + ')' : def.label);
+    button.onclick = () => configSelectList(def.key);
+    strip.appendChild(button);
+  });
+}
+
+function configSelectList(key) {
+  CONFIG_PANEL.list = key;
+  CONFIG_PANEL.editing = null;
+  CONFIG_PANEL.showDeleted = false;
+  configSetStatus('', '');
+  renderConfig();
+}
+
+function configToggleDeleted() {
+  CONFIG_PANEL.showDeleted = !CONFIG_PANEL.showDeleted;
+  configRenderList();
+}
+
+function configMoveButton(glyph, disabled, onclick, readOnly) {
+  const button = configEl('button', 'config-move', glyph);
+  button.type = 'button';
+  button.disabled = disabled || readOnly;
+  button.onclick = onclick;
+  return button;
+}
+
+/** One labelled field of an entry card. */
+function configField(label, valueNode, extraClass) {
+  const field = configEl('div', 'config-field' + (extraClass ? ' ' + extraClass : ''));
+  field.appendChild(configEl('span', 'config-field-label', label));
+  field.appendChild(valueNode);
+  return field;
+}
+
+/** A plain value, truncated with an ellipsis when its column is narrower than it, the whole text in the tooltip. */
+function configTextValue(text, muted) {
+  const node = configEl('span', 'config-field-value text' + (muted ? ' muted' : ''), text);
+  if (!muted) node.title = text;
+  return node;
+}
+
+/** An identifier shortened to `truncateAt` characters, with the whole value in the tooltip and a Copy button. */
+function configIdValue(full, truncateAt) {
+  const text = String(full || '');
+  const value = configEl('span', 'config-field-value');
+  const code = configEl('code', '', text.length > truncateAt ? text.slice(0, truncateAt) + '…' : text);
+  code.title = text;
+  value.appendChild(code);
+  if (text) {
+    const copy = configEl('button', 'config-copy', 'Copy');
+    copy.type = 'button';
+    copy.title = 'Copy ' + text;
+    copy.onclick = () => configCopy(text, copy);
+    value.appendChild(copy);
+  }
+  return value;
+}
+
+async function configCopy(text, button) {
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = 'Copied';
+  } catch (e) {
+    window.prompt('Copy this value:', text);   // no clipboard access: hand it over the old way
+  }
+  setTimeout(() => { button.textContent = 'Copy'; }, 1200);
+}
+
+/** Open one card for editing, or close it. One card at a time, so it is clear which entry is being changed. */
+function configToggleEdit(key, ref) {
+  const current = CONFIG_PANEL.editing;
+  CONFIG_PANEL.editing = current && current.key === key && current.ref === ref ? null : { key: key, ref: ref };
+  configRenderList();
+  if (CONFIG_PANEL.editing) {
+    const input = document.querySelector('#config-rows .config-card.editing .config-input');
+    if (input) { input.focus(); input.select(); }
+  }
+}
+
+/** A text input for a field under Edit. */
+function configInput(value, placeholder, maxLength, oninput) {
+  const input = configEl('input', 'config-input');
+  input.type = 'text';
+  input.value = value || '';
+  input.placeholder = placeholder;
+  input.maxLength = maxLength;
+  input.oninput = () => oninput(input.value);
+  return input;
+}
+
+/** Indices of the entries a list shows as cards: not deleted. Moves happen among these, skipping deleted rows in between. */
+function configVisibleIndices(buffer) {
+  return buffer.map((entry, i) => (entry.deletedAt ? -1 : i)).filter(i => i >= 0);
+}
+
+/**
+ * One list's entries as cards of labelled fields: ID, name, the list's attributes, Active.
+ * The fields sit on a grid whose columns are fixed per list, so every card lines up whatever
+ * its values. Read-only until a card's Edit button is pressed; then its name, its location
+ * and its Active switch open, and it can be deleted. Type and organisation id are set when
+ * an entry is added. Deleted entries are folded away below the list, each with Restore.
+ */
+function configRenderList() {
+  const def = configListDef(CONFIG_PANEL.list);
+  const readOnly = !CONFIG.webAppUrl;
+  document.getElementById('config-list-title').textContent = def.label;
+  document.getElementById('config-list-blurb').textContent = def.blurb;
+
+  const container = document.getElementById('config-rows');
+  container.className = 'config-rows ' + (def.attrs.length ? 'with-attrs attrs-' + def.attrs.length : 'no-attrs') + (def.activeToggle ? ' with-active' : '');   // picks the column template
+  container.textContent = '';
+  const buffer = CONFIG_PANEL.buffer[def.key] || [];
+  const loadedById = {};
+  (CONFIG_PANEL.loaded[def.key] || []).forEach(entry => { loadedById[entry.id] = entry; });
+  const problems = {};
+  configValidate(def.key).forEach(problem => { if (problem.index !== undefined && !problems[problem.index]) problems[problem.index] = problem.message; });
+  const visible = configVisibleIndices(buffer);
+  const movable = visible.filter(i => !buffer[i]._new);   // new entries land at the end on save and cannot be moved before it
+  const nameLabel = configCapitalise(def.noun) + ' Name';
+  const deleted = buffer.map((entry, i) => (entry.deletedAt ? i : -1)).filter(i => i >= 0);
+
+  const renderCard = index => {
+    const entry = buffer[index];
+    const ref = configEntryRef(entry);
+    const isDeleted = !!entry.deletedAt;
+    const editing = !readOnly && !isDeleted && !!CONFIG_PANEL.editing && CONFIG_PANEL.editing.key === def.key && CONFIG_PANEL.editing.ref === ref;
+    const wrap = configEl('div', 'config-entry');
+    wrap.dataset.index = index;
+    const unverified = def.verified && !entry._new && entry.verified === false;
+    const card = configEl('div', 'config-card' + (def.activeToggle && !entry.active ? ' inactive' : '') + (unverified ? ' unverified' : '') + (isDeleted ? ' deleted' : '') + (problems[index] ? ' invalid' : '') + (editing ? ' editing' : ''));
+
+    const move = configEl('div', 'config-card-move');
+    const at = movable.indexOf(index);
+    move.appendChild(configMoveButton('↑', at <= 0, () => configMove(def.key, index, -1), readOnly || isDeleted));
+    move.appendChild(configMoveButton('↓', at < 0 || at >= movable.length - 1, () => configMove(def.key, index, 1), readOnly || isDeleted));
+
+    const fields = configEl('div', 'config-card-fields');
+    fields.appendChild(configField('System ID', entry._new ? configTextValue('assigned on save', true) : configIdValue(entry.id, 8)));
+    fields.appendChild(configField(nameLabel, editing
+      ? configInput(entry.name, nameLabel, 80, value => configEdit(def.key, index, 'name', value))
+      : configTextValue(entry.name || '—', !entry.name), 'config-field-name'));
+    def.attrs.forEach(attr => {
+      const value = configNormalise(entry[attr.key]);
+      let node;
+      if (editing && attr.editable) node = configInput(entry[attr.key], attr.label, 120, v => configEdit(def.key, index, attr.key, v));
+      else if (attr.kind === 'orgId') node = entry._new && configAssignedPattern(attr, entry) ? configTextValue('assigned on save', true) : configIdValue(value, 12);
+      else if (attr.kind === 'upc') node = configIdValue(value, 14);
+      else node = configTextValue(value || '—', !value);
+      fields.appendChild(configField(attr.label, node));
+    });
+
+    if (isDeleted) {
+      const when = new Date(entry.deletedAt);
+      fields.appendChild(configField('Deleted', configTextValue(isNaN(when.getTime()) ? entry.deletedAt : when.toLocaleDateString(), false)));
+    } else if (def.activeToggle) {
+      const toggle = configEl('label', 'config-switch' + (editing ? '' : ' disabled'));
+      const checkbox = configEl('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = !!entry.active;
+      checkbox.disabled = !editing;
+      checkbox.onchange = () => configEdit(def.key, index, 'active', checkbox.checked);
+      toggle.append(checkbox, configEl('span', 'config-switch-track'), configEl('span', 'config-switch-text', entry.active ? 'Active' : 'Inactive'));
+      fields.appendChild(configField('Active', toggle));
+    }
+
+    const actions = configEl('div', 'config-card-actions');
+    if (!readOnly && isDeleted) {
+      const restore = configEl('button', 'btn-clear-filters config-edit', 'Restore');
+      restore.type = 'button';
+      restore.onclick = () => configEdit(def.key, index, 'deletedAt', '');
+      actions.appendChild(restore);
+    } else if (!readOnly) {
+      const edit = configEl('button', 'btn-clear-filters config-edit', editing ? 'Done' : 'Edit');
+      edit.type = 'button';
+      edit.onclick = () => configToggleEdit(def.key, ref);
+      actions.appendChild(edit);
+      if (editing && unverified) {
+        const verify = configEl('button', 'btn-apply-filters config-edit', 'Verify');
+        verify.type = 'button';
+        verify.onclick = () => configEdit(def.key, index, 'verified', true);
+        actions.appendChild(verify);
+      }
+      if (editing) {
+        // A new entry is only in this buffer, so removing it is free; a saved one is deleted
+        // in the sheet on Save and can be restored from the deleted list.
+        const remove = configEl('button', 'btn-clear-filters config-delete', entry._new ? 'Remove' : 'Delete');
+        remove.type = 'button';
+        remove.onclick = () => (entry._new ? configRemoveNew(def.key, index) : configEdit(def.key, index, 'deletedAt', new Date().toISOString()));   // the server stamps its own instant on save
+        actions.appendChild(remove);
+      }
+    }
+
+    card.append(move, fields, actions);
+    wrap.appendChild(card);
+    const warn = configRowWarning(def, entry, loadedById[entry.id], problems[index]);
+    if (warn) wrap.appendChild(warn);
+    container.appendChild(wrap);
+  };
+
+  visible.forEach(renderCard);
+  if (!visible.length) container.appendChild(configEl('p', 'home-status', deleted.length ? 'Every ' + def.noun + ' on this list is deleted.' : 'Nothing on this list yet.'));
+
+  if (deleted.length) {
+    const toggle = configEl('button', 'config-deleted-toggle', (CONFIG_PANEL.showDeleted ? 'Hide ' : 'Show ') + deleted.length + ' deleted ' + def.noun + (deleted.length === 1 ? '' : 's'));
+    toggle.type = 'button';
+    toggle.onclick = configToggleDeleted;
+    container.appendChild(toggle);
+    if (CONFIG_PANEL.showDeleted) deleted.forEach(renderCard);
+  }
+}
+
+/** The note under a row: a validation problem, or what the pending change means for history. */
+function configRowWarning(def, entry, was, problem) {
+  if (problem) return configEl('div', 'config-warn', problem);
+  if (entry._new || !was) return null;
+  const printed = def.attrs.find(attr => attr.kind === 'orgId' && attr.printed);
+  if (printed) {
+    const from = configNormalise(was[printed.key]);
+    if (from && configNormalise(entry[printed.key]) !== from) {
+      return configEl('div', 'config-warn', 'Changing the ' + printed.label + ' re-keys this ' + def.noun + ': the QR code printed with ' + from + ' will no longer match it, and past delivery records keep the old number. To move to a new number, add the new ' + def.noun + ' and deactivate this one.');
+    }
+  }
+  const oldName = configNormalise(was.name);
+  const newName = configNormalise(entry.name);
+  if (oldName && oldName !== newName) {
+    if (def.byName) {
+      return configEl('div', 'config-warn', 'Renaming splits this ' + def.noun + '\'s history: records already filed as "' + oldName + '" keep that name and will show separately in reports. To retire a ' + def.noun + ' instead, add the new one and deactivate the old.');
+    }
+    return configEl('div', 'config-warn safe', 'Safe: records carry this ' + def.noun + '\'s System ID, so renaming only changes the label.');
+  }
+  if (def.activeToggle && !entry.active && was.active) {
+    return configEl('div', 'config-warn', 'Removed from the forms on their next load. Past records keep it.');
+  }
+  if (def.verified && entry.verified === false && !entry.deletedAt) {
+    return configEl('div', 'config-warn unverified', 'Unverified: an import created this ' + def.noun + ' from the data it met. Check the name and details, then Edit and press Verify; the forms do not offer it until then.');
+  }
+  return null;
+}
+
+/** Update one row's class and note after a keystroke, without rebuilding the inputs under the caret. */
+function configRefreshEntry(key, index) {
+  const def = configListDef(key);
+  const wrap = document.querySelector('#config-rows .config-entry[data-index="' + index + '"]');
+  if (!wrap) return;
+  const entry = CONFIG_PANEL.buffer[key][index];
+  const problem = configValidate(key).find(p => p.index === index);
+  const card = wrap.querySelector('.config-card');
+  card.classList.toggle('invalid', !!problem);
+  card.classList.toggle('inactive', !entry.active);
+  const old = wrap.querySelector('.config-warn');
+  if (old) old.remove();
+  const was = (CONFIG_PANEL.loaded[key] || []).find(e => e.id === entry.id);
+  const warn = configRowWarning(def, entry, was, problem && problem.message);
+  if (warn) wrap.appendChild(warn);
+}
+
+/** The control for one attribute on the add row. Ids are `config-add-<attr key>`. */
+function configAddControl(def, attr) {
+  if (attr.kind === 'type') {
+    const select = configEl('select', 'config-type');
+    select.id = 'config-add-' + attr.key;
+    configTypes(def.key).forEach(type => {
+      const option = configEl('option', '', type);
+      option.value = type;
+      select.appendChild(option);
+    });
+    return select;
+  }
+  const input = configEl('input', 'config-' + attr.kind);
+  input.type = 'text';
+  input.id = 'config-add-' + attr.key;
+  input.placeholder = attr.label;
+  input.maxLength = attr.kind === 'orgId' ? 40 : attr.kind === 'upc' ? 14 : 120;
+  return input;
+}
+
+function configRenderAdd() {
+  const def = configListDef(CONFIG_PANEL.list);
+  const add = document.getElementById('config-add');
+  add.textContent = '';
+  add.hidden = !CONFIG.webAppUrl;
+  if (add.hidden) return;
+  const byKind = kind => def.attrs.filter(attr => attr.kind === kind);
+
+  add.appendChild(configEl('h3', 'config-add-title', 'Add ' + configCapitalise(def.noun)));
+  byKind('type').forEach(attr => add.appendChild(configAddControl(def, attr)));
+  byKind('orgId').forEach(attr => add.appendChild(configAddControl(def, attr)));
+  configSyncAssignedAdd(def);
+  const name = configEl('input');
+  name.type = 'text';
+  name.id = 'config-add-name';
+  name.placeholder = 'New ' + def.noun + ' name';
+  name.maxLength = 80;
+  name.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); configAdd(); } };
+  add.appendChild(name);
+  byKind('text').forEach(attr => add.appendChild(configAddControl(def, attr)));
+  byKind('upc').forEach(attr => add.appendChild(configAddControl(def, attr)));
+  const button = configEl('button', 'btn-clear-filters', 'Add');
+  button.type = 'button';
+  button.onclick = configAdd;
+  add.appendChild(button);
+
+  const help = def.key === 'stores'
+    ? 'The Store ID is the identifier the organisation named by Store Type uses for this store (eg for a Giant store, the store number Giant assigns it).'
+    : def.key === 'kitchens'
+      ? 'The Kitchen ID is the identifier the organisation named by Kitchen Type uses for this kitchen: for a Giant kitchen, the kitchen ID Giant assigns it; for a Taipei kitchen it is assigned on save, TK-001 upward.'
+      : def.key === 'dishes'
+        ? 'An id is assigned on save and never changes. The UPC is the 14-digit code Giant\'s sales data carries for the dish.'
+        : 'An id is assigned on save and never changes.';
+  add.appendChild(configEl('div', 'config-add-help', help));
+}
+
+/** On the add row, an org id the backend assigns for the chosen type takes no input: its field is hidden while that type is selected. */
+function configSyncAssignedAdd(def) {
+  def.attrs.filter(attr => attr.kind === 'orgId' && attr.assigned && attr.uniqueWith).forEach(attr => {
+    const type = document.getElementById('config-add-' + attr.uniqueWith);
+    const input = document.getElementById('config-add-' + attr.key);
+    if (!type || !input) return;
+    const pattern = attr.assigned[type.value];
+    input.hidden = !!pattern;
+    if (pattern) input.value = '';
+    type.onchange = () => configSyncAssignedAdd(def);
+  });
+}
+
+function configRefreshActions() {
+  const key = CONFIG_PANEL.list;
+  const readOnly = !CONFIG.webAppUrl;
+  const ops = CONFIG_PANEL.loaded ? configDiffOps(key) : [];
+  const problems = CONFIG_PANEL.loaded ? configValidate(key) : [];
+  document.getElementById('config-dirty').textContent = ops.length ? ops.length + ' unsaved change' + (ops.length === 1 ? '' : 's') : '';
+  const save = document.getElementById('config-save');
+  const discard = document.getElementById('config-discard');
+  const reload = document.getElementById('config-reload');
+  save.hidden = discard.hidden = reload.hidden = readOnly;
+  save.disabled = readOnly || CONFIG_PANEL.busy || !ops.length || problems.length > 0;
+  discard.disabled = readOnly || CONFIG_PANEL.busy || !ops.length;
+  reload.disabled = readOnly || CONFIG_PANEL.busy;
+  configRenderStrip();
+}
+
+// ─── Editing ─────────────────────────────────────────────────────────────────
+
+function configEdit(key, index, field, value) {
+  const entry = CONFIG_PANEL.buffer[key] && CONFIG_PANEL.buffer[key][index];
+  if (!entry) return;
+  entry[field] = value;
+  if (field === 'deletedAt') {
+    CONFIG_PANEL.editing = null;        // the card leaves the list (or comes back); nothing is open any more
+    if (value) CONFIG_PANEL.showDeleted = true;
+    configRenderList();
+  } else if (field === 'active' || field === 'verified') {
+    configRenderList();                 // the card's look, its note and the last-active guard all change
+  } else {
+    configRefreshEntry(key, index);
+  }
+  configRefreshActions();
+}
+
+/** Drop an entry that was added but never saved. Nothing is on the server, so there is nothing to confirm. */
+function configRemoveNew(key, index) {
+  const buffer = CONFIG_PANEL.buffer[key];
+  if (!buffer[index] || !buffer[index]._new) return;
+  buffer.splice(index, 1);
+  CONFIG_PANEL.editing = null;
+  configRenderList();
+  configRefreshActions();
+}
+
+/** Swap an entry with its neighbour among the movable cards: saved and not deleted. */
+function configMove(key, index, delta) {
+  const buffer = CONFIG_PANEL.buffer[key];
+  const movable = configVisibleIndices(buffer).filter(i => !buffer[i]._new);
+  const at = movable.indexOf(index);
+  if (at < 0 || at + delta < 0 || at + delta >= movable.length) return;
+  const target = movable[at + delta];
+  const [moved] = buffer.splice(index, 1);
+  buffer.splice(target, 0, moved);
+  configRenderList();
+  configRefreshActions();
+}
+
+/** Refuse an Add: say why, mark the field it is about and put the cursor there. The mark clears when the field is edited. */
+function configAddRefuse(control, message) {
+  configSetStatus(message, 'bad');
+  if (!control) return;
+  control.classList.add('missing');
+  control.addEventListener('input', () => control.classList.remove('missing'), { once: true });
+  control.focus();
+}
+
+function configAdd() {
+  const key = CONFIG_PANEL.list;
+  const def = configListDef(key);
+  const nameInput = document.getElementById('config-add-name');
+  const name = configNormalise(nameInput.value);
+  if (!name) { configAddRefuse(nameInput, 'Type a name first.'); return; }
+  const entry = Object.assign({ _new: true, _tmp: configTempRef(), name: name, sortOrder: 0 }, def.activeToggle ? { active: true } : {}, def.verified ? { verified: true } : {});
+  def.attrs.forEach(attr => {
+    const control = document.getElementById('config-add-' + attr.key);
+    entry[attr.key] = control ? configNormalise(control.value) : '';
+  });
+  const missing = def.attrs.find(attr => !entry[attr.key] && !configAssignedPattern(attr, entry));   // every attribute is required on a new entry, bar an id the backend assigns
+  if (missing) {
+    configAddRefuse(document.getElementById('config-add-' + missing.key), missing.label + ' is required.');
+    return;
+  }
+  CONFIG_PANEL.buffer[key].push(entry);
+  configRenderList();
+  configRenderAdd();
+  configRefreshActions();
+  configSetStatus('', '');
+  document.getElementById('config-add-name').focus();
+}
+
+/** Put a name seen in the records onto the list, pending Save. */
+function configUnlistedAdd(name) {
+  const key = CONFIG_PANEL.list;
+  if ((CONFIG_PANEL.buffer[key] || []).some(entry => configNormalise(entry.name).toLowerCase() === name.toLowerCase())) return;
+  const def = configListDef(key);
+  CONFIG_PANEL.buffer[key].push(Object.assign({ _new: true, _tmp: configTempRef(), name: name, sortOrder: 0 }, def.activeToggle ? { active: true } : {}, def.verified ? { verified: true } : {}));
+  configRenderList();
+  configRefreshActions();
+  configRenderUnlisted();
+}
+
+async function configDiscard() {
+  const key = CONFIG_PANEL.list;
+  const ops = configDiffOps(key);
+  if (!ops.length) return;
+  const def = configListDef(key);
+  const ok = await configConfirm('Discard ' + ops.length + ' unsaved change' + (ops.length === 1 ? '' : 's') + ' to ' + def.label + '?',
+    [{ cls: '', text: 'The list goes back to what the server has. Nothing is sent.' }], 'Discard');
+  if (!ok) return;
+  CONFIG_PANEL.buffer[key] = (CONFIG_PANEL.loaded[key] || []).map(entry => Object.assign({}, entry));
+  renderConfig();
+  configSetStatus('', '');
+}
+
+async function configReload() {
+  if (!CONFIG.webAppUrl || CONFIG_PANEL.busy) return;
+  if (configAnyDirty()) {
+    const ok = await configConfirm('Reload from the server?', [{ cls: 'caution', text: 'Unsaved changes on every list are discarded.' }], 'Reload');
+    if (!ok) return;
+  }
+  configSetStatus('Reloading…', '');
+  try {
+    const response = await fetch(CONFIG.webAppUrl + '?action=reference', { mode: 'cors' });
+    const data = await response.json();
+    if (data.status !== 'ok') throw new Error(data.message || 'the server returned an error');
+    DATA.reference = data;
+    CONFIG_PANEL.buffer = {};
+    configLoadFrom(data);
+    renderConfig();
+    configSetStatus('Reloaded.', 'ok');
+  } catch (e) {
+    configSetStatus('Reload failed: ' + e.message, 'bad');
+  }
+}
+
+// ─── Saving ──────────────────────────────────────────────────────────────────
+
+/** What a Save will do, one line per change, for the confirmation. */
+function configChangeSummary(key) {
+  const def = configListDef(key);
+  const loaded = CONFIG_PANEL.loaded[key] || [];
+  const buffer = CONFIG_PANEL.buffer[key] || [];
+  const before = {};
+  loaded.forEach(entry => { before[entry.id] = entry; });
+  const items = [];
+
+  buffer.forEach(entry => {
+    const name = configNormalise(entry.name);
+    if (entry._new) {
+      const orgId = def.attrs.find(attr => attr.kind === 'orgId');
+      items.push({ cls: 'safe', text: key === 'stores'
+        ? 'Add "' + name + '" as store ' + configNormalise(entry.storeId) + '. Generate its QR code from the Home tab after saving.'
+        : 'Add "' + name + '"' + (orgId ? ' (' + orgId.label + ' ' + (configAssignedPattern(orgId, entry) ? 'assigned on save' : configNormalise(entry[orgId.key])) + ')' : '') + '. Its id is assigned on save and never changes.' });
+      return;
+    }
+    const was = before[entry.id];
+    if (!was) return;
+    const oldName = configNormalise(was.name);
+    if (oldName !== name) {
+      items.push(def.byName
+        ? { cls: 'caution', text: 'Rename "' + oldName + '" to "' + name + '". Records already filed under "' + oldName + '" keep that name, so reports will show the two as separate ' + def.noun + 's.' }
+        : { cls: 'safe', text: 'Rename "' + oldName + '" to "' + name + '". Safe: records carry the ' + def.noun + '\'s System ID, so history stays together.' });
+    }
+    def.attrs.forEach(attr => {
+      const from = configNormalise(was[attr.key]);
+      const to = configNormalise(entry[attr.key]);
+      if (from === to) return;
+      if (attr.printed) {
+        items.push({ cls: 'caution', text: 'Change the ' + attr.label + ' of "' + name + '" from ' + from + ' to ' + to + '. The QR code printed with ' + from + ' will no longer match this store, past delivery records keep ' + from + ', and new ones will carry ' + to + '.' });
+      } else {
+        items.push({ cls: '', text: 'Change the ' + attr.label + ' of "' + name + '"' + (from ? ' from "' + from + '"' : '') + ' to "' + to + '".' });
+      }
+    });
+    if (def.activeToggle && !!entry.active !== !!was.active) {
+      if (entry.active) items.push({ cls: 'safe', text: 'Reactivate "' + name + '". The forms will offer it again on their next load.' });
+      else items.push({ cls: 'caution', text: 'Deactivate "' + name + '". Removed from the forms on their next load. Past records keep it.' });
+    }
+    if (def.verified && entry.verified && !was.verified) {
+      items.push({ cls: 'safe', text: 'Mark "' + name + '" verified. The forms will offer it on their next load.' });
+    }
+    if (!!entry.deletedAt !== !!was.deletedAt) {
+      if (entry.deletedAt) items.push({ cls: 'caution', text: 'Delete "' + name + '". It leaves this list and the forms; past records keep it and still show its name on the dashboard. It can be restored from the deleted ' + def.noun + 's below the list.' + (key === 'stores' ? ' Its printed QR code will open a delivery form that does not recognise the store.' : '') });
+      else items.push({ cls: 'safe', text: 'Restore "' + name + '". It returns to this list as it was' + (def.activeToggle && !entry.active ? ', still inactive.' : ' and to the forms on their next load.') });
+    }
+  });
+
+  const existing = buffer.filter(entry => !entry._new).map(entry => entry.id);
+  if (existing.join('\n') !== loaded.map(entry => entry.id).join('\n')) items.push({ cls: '', text: 'Change the order the forms show them in.' });
+  return items;
+}
+
+/** The confirmation modal. Resolves true on confirm; false on cancel, Escape or a click outside. Focus lands on Cancel. */
+function configConfirm(title, items, okLabel) {
+  return new Promise(resolve => {
+    CONFIG_MODAL_RESOLVE = resolve;
+    const content = document.getElementById('config-modal-content');
+    content.textContent = '';
+    const header = configEl('div', 'modal-header');
+    header.appendChild(configEl('h2', '', title));
+    const body = configEl('div', 'modal-body');
+    items.forEach(item => body.appendChild(configEl('div', 'config-modal-item' + (item.cls ? ' ' + item.cls : ''), item.text)));
+    const footer = configEl('div', 'modal-footer');
+    const cancel = configEl('button', 'btn-secondary', 'Cancel');
+    cancel.type = 'button';
+    cancel.onclick = () => configModalResolve(false);
+    const ok = configEl('button', 'btn-primary', okLabel || 'Save changes');
+    ok.type = 'button';
+    ok.onclick = () => configModalResolve(true);
+    footer.append(cancel, ok);
+    content.append(header, body, footer);
+    document.getElementById('config-modal').style.display = 'flex';
+    cancel.focus();
+  });
+}
+
+function configModalResolve(result) {
+  document.getElementById('config-modal').style.display = 'none';
+  const resolve = CONFIG_MODAL_RESOLVE;
+  CONFIG_MODAL_RESOLVE = null;
+  if (resolve) resolve(result);
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && CONFIG_MODAL_RESOLVE) configModalResolve(false); });
+
+window.addEventListener('beforeunload', e => {
+  if (configAnyDirty()) { e.preventDefault(); e.returnValue = ''; }
+});
+
+/**
+ * POST as the forms do: text/plain so the browser sends no preflight, which Apps Script
+ * cannot answer, and the body read whatever the HTTP status, since Apps Script answers 200
+ * for everything and puts the outcome in `status`. Never throws.
+ */
+/** POST a JSON body to the backend as text/plain (no preflight; see forms/common.js). Returns { ok, data, error }. */
+async function dashboardPost(payload) {
+  try {
+    const response = await fetch(CONFIG.webAppUrl, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    const text = await response.text();
+    let data;
+    try { data = JSON.parse(text); } catch (e) { return { ok: false, error: 'the server did not answer with JSON; it may be redeploying' }; }
+    if (data.status !== 'ok') return { ok: false, data: data, error: data.message || 'the server rejected the change' };
+    return { ok: true, data: data };
+  } catch (e) {
+    return { ok: false, error: e.message || 'no connection' };
+  }
+}
+
+async function configSave() {
+  const key = CONFIG_PANEL.list;
+  const def = configListDef(key);
+  if (CONFIG_PANEL.busy || !CONFIG.webAppUrl || !CONFIG_PANEL.loaded) return;
+  const problems = configValidate(key);
+  if (problems.length) { configSetStatus(problems[0].message, 'bad'); return; }
+  const ops = configDiffOps(key);
+  if (!ops.length) { configSetStatus('Nothing to save.', ''); return; }
+
+  const items = configChangeSummary(key);
+  const ok = await configConfirm('Save ' + items.length + ' change' + (items.length === 1 ? '' : 's') + ' to ' + def.label + '?', items);
+  if (!ok) return;
+
+  CONFIG_PANEL.busy = true;
+  configRefreshActions();
+  configSetStatus('Saving…', '');
+  const result = await dashboardPost({ type: 'config', list: key, baseVersion: CONFIG_PANEL.loaded.version, publish: true, ops: ops });
+  CONFIG_PANEL.busy = false;
+
+  if (!result.ok) {
+    const code = result.data && result.data.code;
+    configSetStatus(code === 'conflict'
+      ? 'These lists changed somewhere else since this page loaded. Your edits are still here: Reload from server to see the current lists, then redo what still applies.'
+      : 'Not saved: ' + (result.error || 'unknown error') + '. Your edits are still here.', 'bad');
+    configRefreshActions();
+    return;
+  }
+
+  const data = result.data;
+  DATA.reference = data.reference;
+  configLoadFrom(data.reference, key);
+  renderConfig();
+
+  let message = 'Saved.';
+  if (data.warning) message += ' ' + data.warning;
+  if (data.published) message += ' Publishing to the forms now; they will have it within about ten minutes.';
+  else if (data.publishError) message += ' But publishing failed: ' + data.publishError + '. The forms keep the previous lists until the next successful save or deploy.';
+  configSetStatus(message, data.publishError ? 'bad' : 'ok');
+  fetchData();   // the records come back resolved under the saved names, the store list follows, and every panel redraws
+  setTimeout(configRenderPublished, 2 * 60 * 1000);   // the site job takes about two minutes; then check the forms' copy
+}
+
+// ─── The forms' copy, and names the list has never seen ──────────────────────
+
+/** Whether the static file the forms read matches the version on screen. What makes a failed publish visible. */
+async function configRenderPublished() {
+  const line = document.getElementById('config-published');
+  if (!CONFIG.webAppUrl || !CONFIG_PANEL.loaded) { line.textContent = ''; return; }
+  const key = CONFIG_PANEL.list;
+  try {
+    const response = await fetch('../data/' + key + '.json', { cache: 'no-cache' });
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
+    if (key !== CONFIG_PANEL.list) return;   // the list changed while this was in flight
+    if (data.version === CONFIG_PANEL.loaded.version) {
+      const when = data.generatedAt ? new Date(data.generatedAt) : null;
+      line.textContent = 'The forms have this version (' + data.version + ')' + (when && !isNaN(when.getTime()) ? ', published ' + when.toLocaleString() : '') + '.';
+    } else {
+      line.textContent = 'The forms are behind: they have ' + (data.version || 'an unversioned copy') + ' and the current version is ' + CONFIG_PANEL.loaded.version + '. A publish runs after each save and takes about two minutes; if this stays behind, the publish failed and the next save or deploy will retry it.';
+    }
+  } catch (e) {
+    line.textContent = 'Could not read the forms\' copy of ' + key + '.json (' + e.message + ').';
+  }
+}
+
+/**
+ * Names typed under "+ Add new" on a form that are not on the list yet, with one tap to add
+ * them. Only the cook and driver pickers accept typed names, so the card shows for
+ * those two lists alone. Scoped to the window the dashboard has loaded, and says so.
+ */
+function configRenderUnlisted() {
+  const def = configListDef(CONFIG_PANEL.list);
+  const card = document.getElementById('config-unlisted-card');
+  card.hidden = !def.records;
+  if (card.hidden) return;
+  const container = document.getElementById('config-unlisted');
+  const scope = document.getElementById('config-unlisted-scope');
+  container.textContent = '';
+  scope.textContent = '';
+
+  const sources = { production: DATA.production || [], deliveries: DATA.deliveries || [] };
+  const seen = {};
+  let records = 0;
+  def.records.forEach(where => {
+    sources[where.source].forEach(record => {
+      records += 1;
+      const raw = configNormalise(record[where.field]);
+      if (!raw) return;
+      const lower = raw.toLowerCase();
+      const entry = seen[lower] || (seen[lower] = { name: raw, count: 0, last: '' });
+      entry.count += 1;
+      const date = normalizeDate(record.date);
+      if (date > entry.last) entry.last = date;
+    });
+  });
+  const listed = new Set((CONFIG_PANEL.buffer[def.key] || []).map(entry => configNormalise(entry.name).toLowerCase()));
+  const unlisted = Object.values(seen).filter(entry => !listed.has(entry.name.toLowerCase())).sort((a, b) => b.count - a.count);
+
+  const win = DATA.window;
+  const label = iso => localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const range = win && win.from && win.to ? label(win.from) + ' to ' + label(win.to) : 'the loaded window';
+  const sourceNames = def.records.map(where => where.source === 'production' ? 'production' : 'delivery').join(' and ');
+  scope.textContent = 'Checked against ' + records + ' ' + sourceNames + ' records from ' + range + ', the dates this dashboard has loaded. Names used before that are not included. ';
+  if (CONFIG.webAppUrl && REQUESTED_FROM && REQUESTED_FROM > earliestWindowFrom()) {
+    const more = configEl('button', 'btn-clear-filters', 'Load six months');
+    more.type = 'button';
+    more.style.marginLeft = '8px';
+    more.onclick = () => ensureWindow(earliestWindowFrom());
+    scope.appendChild(more);
+  }
+
+  if (!unlisted.length) {
+    container.appendChild(configEl('p', 'home-status', 'No unlisted ' + def.noun + 's in this window.'));
+    return;
+  }
+  unlisted.forEach(entry => {
+    const row = configEl('div', 'config-unlisted-row');
+    row.appendChild(configEl('span', 'config-unlisted-name', entry.name));
+    row.appendChild(configEl('span', 'config-unlisted-meta', entry.count + ' record' + (entry.count === 1 ? '' : 's') + (entry.last ? ', last ' + entry.last : '') + ' · typed with "+ Add new" on a form'));
+    if (CONFIG.webAppUrl) {
+      const add = configEl('button', 'btn-clear-filters', 'Add to list');
+      add.type = 'button';
+      add.onclick = () => configUnlistedAdd(entry.name);
+      row.appendChild(add);
+    }
+    container.appendChild(row);
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Auto-Collapsible Sidebar (CSS-based, no JS needed)
 // Sidebar starts collapsed (70px) and expands on hover (220px)

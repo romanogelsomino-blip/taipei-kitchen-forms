@@ -40,6 +40,26 @@ function handleProductionSubmission(payload, ctx) {
   return jsonResponse({ status: 'ok', duplicate: !!ctx.duplicate });
 }
 
+/**
+ * One cooler loaded at a kitchen for one store: the rows are written, then its temperature is
+ * checked the way a delivery's are. Written first, checked second, for the same reason as
+ * deliveries: losing an alert is recoverable, losing the record is not.
+ */
+function handlePackagingSubmission(payload, ctx) {
+  const rows = normaliseRows(payload.rows || [], ctx);
+  writeRecords('packaging', rows, ctx);
+  if (!ctx.duplicate) {
+    try {
+      checkViolations(rows, ctx, 'packaging');
+    } catch (alertError) {
+      note(ctx, 'violation_check_failed=' + alertError.message);
+      Logger.log(`Warning: violation check failed: ${alertError}`);
+    }
+  }
+  ctx.logEntry.status = 'SUCCESS';
+  return jsonResponse({ status: 'ok', duplicate: !!ctx.duplicate });
+}
+
 function handleDeliverySubmission(payload, ctx) {
   const rows = normaliseRows(payload.rows || [], ctx);
   writeRecords('deliveries', rows, ctx);
@@ -55,7 +75,7 @@ function handleDeliverySubmission(payload, ctx) {
   // failure here must not fail the submission: losing an alert is recoverable, losing the
   // record is not.
   try {
-    checkViolations(rows, ctx);
+    checkViolations(rows, ctx, 'delivery');
   } catch (alertError) {
     note(ctx, 'violation_check_failed=' + alertError.message);
     Logger.log(`Warning: violation check failed: ${alertError}`);
@@ -68,8 +88,12 @@ function handleDeliverySubmission(payload, ctx) {
 /**
  * Photos arrive in a second request, after the delivery rows are written: the form submits
  * data first so a photo failure cannot cost the HACCP record. The files are saved once and
- * the links written to every row of the delivery. A linking failure is noted, never thrown:
- * the photos exist, and a retry would duplicate them.
+ * the links written to every row of the delivery.
+ *
+ * An upload whose rows have not arrived yet is answered with `pending`, and the form keeps it
+ * queued rather than reporting it done. The stored files are reused on the retry, so the two
+ * requests may arrive in either order. A linking failure is noted, never thrown: the photos
+ * exist either way.
  */
 function handlePhotoUpload(payload, ctx) {
   const photos = payload.photos || {};
@@ -99,6 +123,12 @@ function handlePhotoUpload(payload, ctx) {
     }
   }
 
+  // Stored, but nothing carries the links yet: the delivery rows have not arrived. The
+  // upload is unfinished and the caller has to send it again. Without a submission id there
+  // is nothing to match on later, so that is an orphan to investigate, not one to wait for.
+  const pending = !!photos.submissionId && !linked && (saved.savedCount > 0 || saved.reusedCount > 0);
+  if (pending) note(ctx, 'photos_pending_rows');
+
   ctx.logEntry.status = 'SUCCESS';
-  return jsonResponse({ status: 'ok', savedPhotos: saved.savedCount, reusedPhotos: saved.reusedCount, linkedRows: linked });
+  return jsonResponse({ status: 'ok', pending: pending, savedPhotos: saved.savedCount, reusedPhotos: saved.reusedCount, linkedRows: linked });
 }

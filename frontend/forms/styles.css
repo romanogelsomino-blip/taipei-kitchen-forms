@@ -11,6 +11,12 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--dark);min-height:100vh;font-size:15px;}
 
+/* ── Dropdowns ── the closed control is themed; the open list is the phone's own picker. */
+select{appearance:none;-webkit-appearance:none;cursor:pointer;background-repeat:no-repeat;background-position:right 12px center;background-size:12px 8px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%239B9B9B' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");}
+select:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23d35042' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");}
+select:disabled{color:var(--soft);background-color:var(--surface);cursor:not-allowed;opacity:.7;}
+select option{color:var(--dark);background:var(--surface);}
+
 /* ── Topbar ── */
 .topbar{
   background:var(--dark);padding:0 20px;height:60px;
@@ -44,10 +50,11 @@ body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--dark);mi
 .field input,.field select,.field textarea{
   border:1.5px solid var(--border);border-radius:5px;
   padding:8px 10px;font-family:'Inter',sans-serif;
-  font-size:.88rem;color:var(--dark);background:var(--row-alt);
-  outline:none;transition:border-color .15s,background .15s;
+  font-size:.88rem;color:var(--dark);background-color:var(--row-alt);
+  outline:none;transition:border-color .15s,background-color .15s;
 }
-.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--red);background:#fff;}
+.field select{padding-right:34px;}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--red);background-color:#fff;}
 .field textarea{resize:vertical;min-height:72px;}
 
 /* ── Dish list ── */
@@ -84,9 +91,10 @@ body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--dark);mi
 .modal-field{margin-bottom:18px;}
 .modal-field:last-child{margin-bottom:0;}
 .modal-field label{display:block;font-family:'DM Mono',monospace;font-size:.75rem;color:var(--soft);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;}
-.modal-field input[type="number"],.modal-field select,.modal-field input[type="text"],.modal-field textarea{width:100%;border:1.5px solid var(--border);border-radius:6px;padding:14px 12px;font-family:'Inter',sans-serif;font-size:1.1rem;color:var(--dark);background:var(--row-alt);outline:none;transition:border-color .15s,background .15s;min-height:54px;}
+.modal-field input[type="number"],.modal-field select,.modal-field input[type="text"],.modal-field textarea{width:100%;border:1.5px solid var(--border);border-radius:6px;padding:14px 12px;font-family:'Inter',sans-serif;font-size:1.1rem;color:var(--dark);background-color:var(--row-alt);outline:none;transition:border-color .15s,background-color .15s;min-height:54px;}
+.modal-field select{padding-right:40px;background-position:right 14px center;}
 .modal-field textarea{min-height:80px;resize:vertical;}
-.modal-field input[type="number"]:focus,.modal-field select:focus,.modal-field input[type="text"]:focus,.modal-field textarea:focus{border-color:var(--red);background:#fff;}
+.modal-field input[type="number"]:focus,.modal-field select:focus,.modal-field input[type="text"]:focus,.modal-field textarea:focus{border-color:var(--red);background-color:#fff;}
 .modal-calc{font-family:'DM Mono',monospace;font-size:1.1rem;font-weight:500;color:var(--soft);background:var(--row-alt);border:1.5px solid var(--border);border-radius:6px;padding:14px 12px;text-align:center;min-height:54px;}
 .dish-modal-footer{padding:16px 20px;border-top:2px solid var(--border);display:flex;gap:12px;background:var(--cream);}
 .btn-modal-primary,.btn-modal-secondary{flex:1;border:none;border-radius:8px;padding:16px;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;cursor:pointer;transition:all .15s;min-height:54px;text-transform:uppercase;letter-spacing:.03em;}
@@ -95,6 +103,11 @@ body{font-family:'Inter',sans-serif;background:var(--cream);color:var(--dark);mi
 .btn-modal-primary:active{transform:scale(0.97);}
 .btn-modal-secondary{background:transparent;color:var(--soft);border:1.5px solid var(--border);}
 .btn-modal-secondary:hover{border-color:var(--mid);color:var(--mid);}
+
+/* ── Missing required values ── */
+.field input.invalid,.field select.invalid,.field textarea.invalid,
+.modal-field input.invalid,.modal-field select.invalid,
+.upload-zone.invalid{border-color:var(--red);background-color:var(--red-lt);}
 
 /* ── Submit ── */
 .submit-area{padding:20px;display:flex;flex-direction:column;gap:10px;}

@@ -1,98 +1,128 @@
 // forms/production.js — the kitchen's per-batch production log. Loads after forms/common.js.
 
-let DISHES   = FALLBACK_DATA.dishes;
-let KITCHENS = FALLBACK_DATA.kitchens;
+let DISHES       = [];   // active dish names, set once the reference lists load
+let DISH_ENTRIES = [];   // the same dishes with their System IDs
+let KITCHENS     = [];   // active kitchen entries, likewise
 
-const supervisorPicker = createPeoplePicker({
-  selectId: 'f-supervisor',
-  customId: 'f-supervisor-custom',
-  file:     'supervisors.json',
-  key:      'supervisors',
-  fallback: ["Anna", "Lucia", "Jiang", "Guy"],
-  addLabel: '+ Add new supervisor'
+const cookPicker = createPeoplePicker({
+  selectId: 'f-cook',
+  customId: 'f-cook-custom',
+  addLabel: '+ Add new cook'
 });
 
-// T-041: one-tap recall of the previous submission's supervisor and kitchen
-const lastSubmission = createRecall({
-  storageKey: 'tk_production_last_submission',
-  capture() {
-    const snap = supervisorPicker.snapshot();
-    return {
-      supervisor: supervisorPicker.value(),
-      supervisorSelectValue: snap.select,
-      supervisorCustomValue: snap.custom,
-      kitchen: document.getElementById('f-kitchen').value
-    };
-  },
-  restore(values) {
-    supervisorPicker.restore({ select: values.supervisorSelectValue, custom: values.supervisorCustomValue });
-    document.getElementById('f-kitchen').value = values.kitchen;
+/** The reason as the sheet records it: the typed text when "Other (specify)" is chosen, else the option. */
+function effectiveDiscardReason(data) {
+  return data.discardReason === '__other__' ? (data.discardReasonCustom || '').trim() : data.discardReason;
+}
+
+/**
+ * What one dish still needs, or null. Only the produced count is required outright — the
+ * rest stand at zero — but a discard has to say why it was discarded.
+ */
+function dishProblem(data) {
+  if (data.produced === '') {
+    return { id: 'modal-produced', message: 'Enter a produced count for this dish. Enter 0 if none were made.' };
   }
-});
+  if ((parseInt(data.discarded) || 0) > 0 && !effectiveDiscardReason(data)) {
+    return {
+      id: data.discardReason === '__other__' ? 'modal-discard-reason-custom' : 'modal-discard-reason',
+      message: 'Say why this dish was discarded.'
+    };
+  }
+  return null;
+}
 
 // Per-dish entries survive a reload: a production session can run for hours in the kitchen.
 const dishEntry = createDishEntry({
   dishes: () => DISHES,
   fields: [
-    { key: 'produced',      id: 'modal-produced' },
-    { key: 'discarded',     id: 'modal-discarded' },
-    { key: 'discardReason', id: 'modal-discard-reason' }
+    { key: 'produced',            id: 'modal-produced' },
+    { key: 'discarded',           id: 'modal-discarded' },
+    { key: 'discardReason',       id: 'modal-discard-reason' },
+    { key: 'discardReasonCustom', id: 'modal-discard-reason-custom' }
   ],
   status(data) {
     if (data.produced !== '') return 'complete';
-    return (data.discarded !== '' || data.discardReason) ? 'partial' : 'empty';
+    return (data.discarded !== '' || effectiveDiscardReason(data)) ? 'partial' : 'empty';
   },
+  validate: dishProblem,
   totals: [
     { key: 'produced',  id: 'total-produced' },
     { key: 'discarded', id: 'total-discarded' }
   ],
-  storageKey: 'tk_production_dish_data'
+  storageKey: 'tk_production_dish_data',
+  onOpen()  { handleDiscardReasonChange(false); },
+  onClear() { handleDiscardReasonChange(false); }
 });
+
+function handleDiscardReasonChange(focusCustom) {
+  const select = document.getElementById('modal-discard-reason');
+  const custom = document.getElementById('modal-discard-reason-custom');
+  const isOther = select.value === '__other__';
+  custom.style.display = isOther ? 'block' : 'none';
+  if (!isOther) custom.value = '';
+  if (isOther && focusCustom) custom.focus();
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Page load
 // ═══════════════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
-  const data = await loadStoresData();
-  DISHES   = activeDishNames(data, DISHES);
-  KITCHENS = activeEntries(data, 'kitchens', KITCHENS);
+  const lists = await loadReferenceLists(['kitchens', 'cooks', 'dishes']);
+  DISH_ENTRIES = activeEntries(lists, 'dishes');
+  DISHES       = DISH_ENTRIES.map(dish => dish.name);
+  KITCHENS     = activeEntries(lists, 'kitchens');
   populateKitchens();
   applyKitchenParam();
 
   document.getElementById('f-date').value = localDateISO();
   dishEntry.buildList();
-  supervisorPicker.load();
-  lastSubmission.offerIfRecent();
+  cookPicker.load(activeNames(lists, 'cooks'));
 });
 
 // ─── Production kitchen ───────────────────────────────────
-// The sheet's Kitchen column holds the display name, so option values are names, not ids.
+// Option values are the kitchen's System ID; the payload writes its name, System ID and
+// Kitchen ID from the matching entry, so the sheet's Production Kitchen column still holds
+// the name the dashboard groups on.
 function populateKitchens() {
   const select = document.getElementById('f-kitchen');
   while (select.options.length > 1) select.remove(1);
   KITCHENS.forEach(kitchen => {
     const option = document.createElement('option');
-    option.value = kitchen.name;
+    option.value = kitchen.id;
     option.textContent = kitchen.name;
     select.appendChild(option);
   });
 }
 
-// The landing page opens this form with ?kitchen=<id>, the way QR codes open the delivery
-// form with ?store=<id>. Unknown ids leave the dropdown on "— Select —".
-function applyKitchenParam() {
-  const id = new URLSearchParams(window.location.search).get('kitchen');
-  const kitchen = id && KITCHENS.find(k => k.id === id);
-  if (kitchen) document.getElementById('f-kitchen').value = kitchen.name;
+/** The kitchen entry chosen in the dropdown, or null. */
+function selectedKitchen() {
+  const id = document.getElementById('f-kitchen').value;
+  return KITCHENS.find(k => k.id === id) || null;
 }
 
-// ─── Batch cook & cool times ─────────────────────────────
+// The landing page opens this form with ?kitchen=<System ID>, the way QR codes open the
+// delivery form with ?store=<store number>. Unknown ids leave the dropdown on "— Select —".
+function applyKitchenParam() {
+  const id = new URLSearchParams(window.location.search).get('kitchen');
+  if (id && KITCHENS.some(k => k.id === id)) document.getElementById('f-kitchen').value = id;
+}
+
+// ─── Batch cook times ────────────────────────────────────
 function timeDiff(t1, t2) {
   const [h1, m1] = t1.split(':').map(Number);
   const [h2, m2] = t2.split(':').map(Number);
   return (h2 * 60 + m2) - (h1 * 60 + m1);
 }
 
+/** Minutes as the cell shows them: "45 min" up to an hour, "5h 00m" beyond it. */
+function formatCookTime(minutes) {
+  if (minutes < 60) return minutes + ' min';
+  return Math.floor(minutes / 60) + 'h ' + String(minutes % 60).padStart(2, '0') + 'm';
+}
+
+// The cell shows a readable duration; the minute count the sheet stores rides on
+// data-minutes, so the display format and the stored value never have to agree.
 function calcBatchCook() {
   const start = document.getElementById('b-cook-start').value;
   const end   = document.getElementById('b-cook-end').value;
@@ -100,38 +130,9 @@ function calcBatchCook() {
   if (start && end) {
     let diff = timeDiff(start, end);
     if (diff < 0) diff += 1440;
-    cell.textContent = diff + ' min';
+    cell.dataset.minutes = diff;
+    cell.textContent = formatCookTime(diff);
     cell.style.color = diff > 0 ? 'var(--orange)' : 'var(--red)';
-  }
-}
-
-function calcBatchCool() {
-  const nextAM = document.getElementById('b-cool-next-am').checked;
-  const cell   = document.getElementById('b-cool-time');
-  if (nextAM) { cell.textContent = 'Overnight'; cell.style.color = 'var(--green)'; return; }
-  const start = document.getElementById('b-cool-start').value;
-  const end   = document.getElementById('b-cool-end').value;
-  if (start && end) {
-    let diff = timeDiff(start, end);
-    if (diff < 0) diff += 1440;
-    cell.textContent = diff + ' min';
-    if (diff > 360)      cell.style.color = 'var(--red)';
-    else if (diff > 240) cell.style.color = 'var(--orange)';
-    else                 cell.style.color = 'var(--green)';
-  }
-}
-
-function toggleBatchNextAM() {
-  const checked = document.getElementById('b-cool-next-am').checked;
-  const coolEnd = document.getElementById('b-cool-end');
-  coolEnd.disabled = checked;
-  coolEnd.style.opacity = checked ? '0.3' : '1';
-  if (checked) {
-    document.getElementById('b-cool-time').textContent = 'Overnight';
-    document.getElementById('b-cool-time').style.color = 'var(--green)';
-  } else {
-    document.getElementById('b-cool-time').textContent = '—';
-    document.getElementById('b-cool-time').style.color = 'var(--orange)';
   }
 }
 
@@ -141,39 +142,36 @@ function toggleBatchNextAM() {
 function buildPayload() {
   const submissionId = newSubmissionId();
   const date       = document.getElementById('f-date').value;
-  const shift      = document.getElementById('f-shift').value;
-  const kitchen    = document.getElementById('f-kitchen').value;
-  const supervisor = supervisorPicker.value();
+  const chosen     = selectedKitchen();
+  const kitchen    = chosen ? chosen.name : '';
+  const cook       = cookPicker.value();
 
   // Shared batch values
   const cookTemp   = document.getElementById('b-cook-temp').value;
   const cookStart  = document.getElementById('b-cook-start').value;
   const cookEnd    = document.getElementById('b-cook-end').value;
-  const cookTime   = document.getElementById('b-cook-time').textContent.replace(' min','').replace('—','');
-  const coolStart  = document.getElementById('b-cool-start').value;
-  const nextAM     = document.getElementById('b-cool-next-am').checked;
-  const coolEnd    = nextAM ? 'Next Morning' : document.getElementById('b-cool-end').value;
-  const coolTime   = nextAM ? 'Overnight' : document.getElementById('b-cool-time').textContent.replace(' min','').replace('—','');
-  const finalTemp  = document.getElementById('b-final-temp').value;
+  const cookTime   = document.getElementById('b-cook-time').dataset.minutes || '';
+  const notes      = document.getElementById('f-notes').value;
+  const dishSystemIdOf = name => (DISH_ENTRIES.find(d => d.name === name) || {}).id || '';
 
   const rows = [];
   DISHES.forEach(dish => {
     const data = dishEntry.get(dish);
     rows.push({
       submissionId,
-      date, shift, kitchen, supervisor,
+      date, kitchen, cook,
+      kitchenSystemId: chosen ? chosen.id : '',
+      kitchenId:       chosen ? chosen.kitchenId : '',
       dish:          dish,
+      dishSystemId:  dishSystemIdOf(dish),
       qtyProduced:   data.produced || '0',
       qtyDiscarded:  data.discarded || '0',
-      discardReason: data.discardReason,
+      discardReason: effectiveDiscardReason(data),
       cookTemp:      cookTemp,
       cookStart:     cookStart,
       cookEnd:       cookEnd,
       cookTime:      cookTime,
-      coolStart:     coolStart,
-      coolEnd:       coolEnd,
-      coolTime:      coolTime,
-      finalTemp:     finalTemp,
+      notes,
       formType:      'production',
       clientTimestamp: new Date().toISOString()
     });
@@ -181,12 +179,77 @@ function buildPayload() {
   return rows;
 }
 
+// ─── Validation ───────────────────────────────────────────
+// Everything the batch record needs. Specs run in page order so the field scrolled to is
+// the topmost one outstanding.
+function formIsComplete() {
+  const missing = missingFields([
+    { id: 'f-date',                    label: 'Date' },
+    { id: 'f-kitchen',                 label: 'Production Kitchen' },
+    { id: cookPicker.activeId(),       label: 'Cook',               value: cookPicker.value() },
+    { id: 'b-cook-temp',               label: 'Cook Temp °F' },
+    { id: 'b-cook-start',              label: 'Cook Start' },
+    { id: 'b-cook-end',                label: 'Cook End' }
+  ]);
+  if (missing.length) {
+    reportMissing('Fill these in before submitting:', missing);
+    return false;
+  }
+
+  const dishes = dishEntry.invalidDishes();
+  if (dishes.length) {
+    reportMissing('Every dish needs a produced count, 0 included. Still to enter:', dishes);
+    return false;
+  }
+  return true;
+}
+
+// ─── Review ───────────────────────────────────────────────
+function showSummary() {
+  if (!formIsComplete()) return;
+
+  const chosen = selectedKitchen();
+  const rows = buildPayload();
+  const cookTemp  = document.getElementById('b-cook-temp').value;
+  const cookStart = document.getElementById('b-cook-start').value;
+  const cookEnd   = document.getElementById('b-cook-end').value;
+  const minutes   = parseInt(document.getElementById('b-cook-time').dataset.minutes, 10);
+  document.getElementById('sum-kitchen').textContent    = chosen ? chosen.name : '—';
+  document.getElementById('sum-cook').textContent       = cookPicker.value();
+  document.getElementById('sum-cook-times').textContent =
+    cookTemp + '°F · ' + cookStart + ' – ' + cookEnd + (isNaN(minutes) ? '' : ' (' + formatCookTime(minutes) + ')');
+
+  // Built with textContent, never innerHTML: dish names are edited on the dashboard and must
+  // render as text whatever they contain.
+  const dishContainer = document.getElementById('sum-dishes');
+  dishContainer.textContent = '';
+  rows.forEach(row => {
+    const line = document.createElement('div');
+    line.style.cssText = 'padding:4px 0;border-bottom:1px solid #f0f0f0;';
+    const name = document.createElement('strong');
+    name.textContent = row.dish;
+    line.appendChild(name);
+    const parts = [`${row.qtyProduced} produced`];
+    if (row.qtyDiscarded !== '0') parts.push(`−${row.qtyDiscarded} discarded (${row.discardReason})`);
+    line.appendChild(document.createTextNode(' · ' + parts.join(' · ')));
+    dishContainer.appendChild(line);
+  });
+
+  document.getElementById('summary-overlay').classList.add('show');
+}
+
+function closeSummary() {
+  document.getElementById('summary-overlay').classList.remove('show');
+}
+
+function confirmSubmit() {
+  closeSummary();
+  submitForm();
+}
+
 // ─── Submit ───────────────────────────────────────────────
 async function submitForm() {
-  const supervisor = supervisorPicker.value();
-  const kitchen    = document.getElementById('f-kitchen').value;
-  if (!supervisor) { alert('Please select a supervisor before submitting.'); return; }
-  if (!kitchen)    { alert('Please select the production kitchen before submitting.'); return; }
+  if (!formIsComplete()) return;
 
   showStatus('⏳', 'Submitting…', 'Sending to Google Sheets…');
   document.getElementById('submit-btn').disabled = true;
@@ -207,7 +270,6 @@ async function submitForm() {
   if (wrote.ok) {
     showStatus('✅', 'Submitted!', payload.length + ' dish rows saved. You can close this page.');
     showStatusDone();
-    lastSubmission.save();
   } else {
     // The batch is kept locally so nothing is lost, but it does not resend by itself: the
     // kitchen is at a desk and can press submit again, and a silent resend is what put
@@ -228,15 +290,12 @@ function clearAll() {
   });
 
   dishEntry.reset();
+  document.querySelectorAll('.' + INVALID_CLASS).forEach(clearMissing);
 
-  // Reset batch display fields
-  ['b-cook-time','b-cool-time'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.textContent = '—'; el.style.color = 'var(--orange)'; }
-  });
-  document.getElementById('b-final-temp').style.borderColor = '';
-  document.getElementById('b-final-temp').style.background  = '';
-  document.getElementById('b-cool-end').disabled = false;
-  document.getElementById('b-cool-end').style.opacity = '1';
+  // Reset the cook time display and the minutes it carries
+  const cookTime = document.getElementById('b-cook-time');
+  cookTime.textContent = '—';
+  cookTime.style.color = 'var(--orange)';
+  delete cookTime.dataset.minutes;
   document.getElementById('f-date').value = localDateISO();
 }

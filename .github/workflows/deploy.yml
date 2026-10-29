@@ -6,6 +6,9 @@ name: Deploy
 # Backend deploys BEFORE the frontend, so a still-cached old frontend talks to a backend
 # that already understands the new contract (expand/contract). The two platforms cannot be
 # made atomic, so contract changes must stay backward-compatible for one release cycle.
+#
+# The site job lives in site.yml, shared with publish-lists.yml: a save on the dashboard's
+# Config tab republishes the site alone, without redeploying the backend.
 
 on:
   push:
@@ -89,6 +92,10 @@ jobs:
       # not in this repo. They used to be set by hand in the Apps Script UI, which meant two
       # uncontrolled copies of each id and nothing keeping them in step. Pushing them here
       # makes the secrets authoritative — the same values, applied every deploy.
+      # GITHUB_REPOSITORY and DISPATCH_TOKEN are what a Config-tab save uses to ask GitHub
+      # to republish the lists (publish-lists.yml). The repository comes from the runner's
+      # default environment; the token is one shared secret, named without the GITHUB_
+      # prefix because secret names may not carry it.
       #
       # ADMIN_TOKEN is deliberately NOT pushed: this endpoint authenticates *with* it, so it
       # cannot bootstrap itself. It stays a manual Script Property. That also means a brand
@@ -134,6 +141,7 @@ jobs:
           ALERT_RECIPIENTS: ${{ github.ref_name == 'prod' && secrets.PROD_ALERT_RECIPIENTS || secrets.STAGING_ALERT_RECIPIENTS }}
           ALERT_FROM: ${{ github.ref_name == 'prod' && secrets.PROD_ALERT_FROM || secrets.STAGING_ALERT_FROM }}
           SUPPORT_RECIPIENTS: ${{ github.ref_name == 'prod' && secrets.PROD_SUPPORT_RECIPIENTS || secrets.STAGING_SUPPORT_RECIPIENTS }}
+          DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
         run: |
           set -euo pipefail
           source .github/scripts/webapp.sh
@@ -141,7 +149,7 @@ jobs:
             echo "::error::admin token secret is not set for ${{ steps.env.outputs.name }}."
             exit 1
           fi
-          for KEY in SPREADSHEET_FOLDER_ID PHOTO_FOLDER_ID ALERT_RECIPIENTS SUPPORT_RECIPIENTS ALERT_FROM; do
+          for KEY in SPREADSHEET_FOLDER_ID PHOTO_FOLDER_ID ALERT_RECIPIENTS SUPPORT_RECIPIENTS ALERT_FROM GITHUB_REPOSITORY DISPATCH_TOKEN; do
             VALUE="${!KEY}"
             if [ -z "$VALUE" ] && [ "$KEY" != ALERT_FROM ]; then
               echo "::error::${{ steps.env.outputs.name }} $KEY secret is not set."
@@ -155,6 +163,37 @@ jobs:
               exit 1
             fi
             if [ -n "$VALUE" ]; then echo "set $KEY"; else echo "cleared $KEY (secret is empty)"; fi
+          done
+
+      # The Reference sheet: created and seeded on the first run, repaired on every run
+      # (init is idempotent and never overwrites a populated tab). Then the lists it serves,
+      # which the site job publishes, must all be non-empty.
+      - name: Create and seed the reference store
+        env:
+          URL: ${{ steps.env.outputs.web_app_url }}
+          TOKEN: ${{ github.ref_name == 'prod' && secrets.PROD_ADMIN_TOKEN || secrets.STAGING_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          source .github/scripts/webapp.sh
+          OUT=$(webapp_get init) \
+            || { echo "::error::init never answered with JSON."; exit 1; }
+          [ "$(webapp_field "$OUT" .status)" = ok ] \
+            || { echo "$OUT"; echo "::error::init failed: $(webapp_field "$OUT" .message)"; exit 1; }
+          REF_URL=$(webapp_field "$OUT" .reference.url)
+          REF=$(webapp_get reference) \
+            || { echo "::error::reference never answered with JSON."; exit 1; }
+          [ "$(webapp_field "$REF" .status)" = ok ] \
+            || { echo "$REF"; echo "::error::reference failed: $(webapp_field "$REF" .message)"; exit 1; }
+          {
+            echo "### ${{ steps.env.outputs.name }} reference lists"
+            echo "- version $(webapp_field "$REF" .version), from the $(webapp_field "$REF" .source)"
+            echo "- [Reference sheet]($REF_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for LIST in kitchens stores dishes cooks drivers supervisors; do
+            N=$(jq -r --arg l "$LIST" '(.[$l] // []) | length' <<<"$REF")
+            [ "$N" -gt 0 ] || { echo "::error::the reference store has no $LIST."; exit 1; }
+            echo "$LIST: $N"
+            echo "- $LIST: $N" >> "$GITHUB_STEP_SUMMARY"
           done
 
       - name: Verify deployment is live and bound to the right store
@@ -204,13 +243,16 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Reads can succeed while writes fail, so only real writes prove the deployment can
-      # reach its stores: one production row, then one delivery row. The two kinds share the
-      # dispatch but not the schema, tab or legacy writer. Staging only: production has no
+      # reach its stores: one production row, one packaging row, then one delivery row. The
+      # three kinds share the dispatch but not the schema or tab; then one sales row, imported
+      # twice to prove it replaces rather than duplicates. Staging only: production has no
       # write-then-clean endpoint, so a synthetic row there would pollute the HACCP record.
       # Rows are dated today in New York so they file into the current month, and each tab
       # must grow by exactly one row: that is what proves the write reached the monthly store
       # and not only the legacy sheet. Each write is sent once; if its reply is Google's
-      # error page, the row count decides whether it landed.
+      # error page, the row count decides whether it landed. Then one config write against
+      # the reserved store row proves the reference store's write path and its cache. Last,
+      # one simulated violation runs the alert path end to end and is resolved over POST.
       - name: Verify writes (staging only)
         if: github.ref_name == 'dev'
         env:
@@ -242,13 +284,22 @@ jobs:
               || { echo "::error::the monthly $tab tab went $before -> $after instead of growing by one; the write did not reach the monthly store."; return 1; }
             echo "monthly $tab rows: $before -> $after"
           }
-          # Payloads come from the same builders the test scripts use, mirroring the forms.
-          node scripts/smoke-payload.js production tag=ZZ-CI-SMOKE > production.json
+          # Payloads come from the same builders the test scripts use, mirroring the forms. The
+          # kitchen, store, driver, cook and dish are real entries from this environment's
+          # reference lists, so the rows look like real ones; the capitalised note is the marker.
+          BEFORE=$(webapp_get reference) \
+            || { echo "::error::reference never answered with JSON."; exit 1; }
+          printf '%s' "$BEFORE" > reference.json
+          NOTE="CI SMOKE TEST - run ${{ github.run_id }} - safe to delete"
+          node scripts/smoke-payload.js production reference=reference.json "note=$NOTE" > production.json
           smoke_write Production production.json
-          echo "production submission $(jq -r '.rows[0].submissionId' production.json)"
+          echo "production submission $(jq -r '.rows[0].submissionId' production.json): $(jq -r '.rows[0] | "\(.kitchen) / \(.cook) / \(.dish)"' production.json)"
 
-          node scripts/smoke-payload.js delivery tag=ZZ-CI-SMOKE store=0000 \
-            "note=CI smoke test run ${{ github.run_id }} - safe to delete" > delivery.json
+          node scripts/smoke-payload.js packaging reference=reference.json "note=$NOTE" > packaging.json
+          smoke_write Packaging packaging.json
+          echo "packaging submission $(jq -r '.rows[0].submissionId' packaging.json): $(jq -r '.rows[0] | "\(.kitchen) -> \(.store) / \(.driver) / \(.dish)"' packaging.json)"
+
+          node scripts/smoke-payload.js delivery reference=reference.json "note=$NOTE" > delivery.json
           smoke_write Deliveries delivery.json
           DELIVERY_ID=$(jq -r '.rows[0].submissionId' delivery.json)
           echo "delivery submission $DELIVERY_ID"
@@ -260,97 +311,79 @@ jobs:
             || { echo "::error::the smoke row is not readable back by its submission id ($(webapp_field "$BACK" .matched) matched)."; exit 1; }
           echo "read back 1 row for $DELIVERY_ID"
 
+          # One sales row for a real store and a real dish: the Sales tab grows by one, and the
+          # same row sent again is replaced where it stands, so the tab does not grow.
+          node scripts/smoke-payload.js sales reference=reference.json > sales.json
+          smoke_write Sales sales.json
+          BEFORE_SALES=$(tab_rows Sales) \
+            || { echo "::error::storageStatus never answered with JSON before the sales re-import."; exit 1; }
+          AGAIN=$(webapp_post sales.json) \
+            || { echo "::error::the sales re-import's reply was not JSON."; exit 1; }
+          [ "$(webapp_field "$AGAIN" .status)" = ok ] && [ "$(webapp_field "$AGAIN" .updated)" = 1 ] && [ "$(webapp_field "$AGAIN" .added)" = 0 ] \
+            || { echo "::error::re-importing the same sales row should replace it (updated 1, added 0); got $(jq -c . <<<"$AGAIN")"; exit 1; }
+          AFTER_SALES=$(tab_rows Sales) \
+            || { echo "::error::storageStatus never answered with JSON after the sales re-import."; exit 1; }
+          [ "$AFTER_SALES" -eq "$BEFORE_SALES" ] \
+            || { echo "::error::the Sales tab went $BEFORE_SALES -> $AFTER_SALES on a re-import; the row was duplicated."; exit 1; }
+          echo "sales row for store $(jq -r '.rows[0].storeId' sales.json), UPC $(jq -r '.rows[0].upc' sales.json): written once, replaced in place on re-import"
+
+          # A config write for a random real store that carries the store's current name, so
+          # nothing about it changes: the write path is exercised end to end (lock, sheet read,
+          # plan, reply) and the lists are left exactly as they were. An update is idempotent,
+          # so webapp_post's single attempt is enough; publish:false keeps a routine dev push
+          # from firing a second Pages publish behind itself.
+          STORES=$(jq '[.stores[] | select(.deletedAt == "" and .verified != false)]' reference.json)
+          STORE=$(jq -c --argjson i "$(( RANDOM % $(jq length <<<"$STORES") ))" '.[$i]' <<<"$STORES")
+          jq -n --argjson store "$STORE" \
+            '{type:"config", list:"stores", publish:false,
+              ops:[{op:"update", entry:{id:$store.id, name:$store.name}}]}' > config.json
+          OUT=$(webapp_post config.json) \
+            || { echo "::error::the config write's reply was not JSON."; exit 1; }
+          jq '{status, code, message, applied, version, published, publishError}' <<<"$OUT"
+          [ "$(webapp_field "$OUT" .status)" = ok ] \
+            || { echo "::error::the config write was rejected: $(webapp_field "$OUT" .message)"; exit 1; }
+          [ "$(webapp_field "$OUT" .applied)" = 0 ] \
+            || { echo "::error::a config write carrying a store's current name should change nothing; it applied $(webapp_field "$OUT" .applied) mutation(s)."; exit 1; }
+          [ "$(webapp_field "$OUT" .version)" = "$(webapp_field "$BEFORE" .version)" ] \
+            || { echo "::error::the lists changed under a config write that changed nothing: $(webapp_field "$BEFORE" .version) -> $(webapp_field "$OUT" .version)."; exit 1; }
+          echo "config write ok for $(jq -r .name <<<"$STORE"): accepted, nothing changed, version $(webapp_field "$OUT" .version)"
+
+          # One real violation for a real store, driver and dish, marked only by its note: the
+          # Violations row, the alert email (one per run, to staging's ALERT_RECIPIENTS), the
+          # resolve over POST by a real supervisor, the refusal of a second resolve, the read-back.
+          SIM=$(WEBAPP_ATTEMPTS=1 webapp_get test "note=CI SMOKE TEST - run ${{ github.run_id }} - safe to resolve") \
+            || { echo "::error::test (simulated violation) did not answer with JSON; it is sent once, as it writes and emails."; exit 1; }
+          jq '{status, store, raised, notes}' <<<"$SIM"
+          [ "$(webapp_field "$SIM" .status)" = SUCCESS ] \
+            || { echo "::error::the simulated violation did not raise and alert: $(jq -c '[.error, .raised, .notes]' <<<"$SIM")"; exit 1; }
+          VIOLATION_ID=$(jq -r '.raised[0].violationId' <<<"$SIM")
+          MONTH=$(TZ=America/New_York date +%Y-%m)
+          SUPERVISORS=$(jq '[.supervisors[] | select(.deletedAt == "")]' reference.json)
+          RESOLVER=$(jq -r --argjson i "$(( RANDOM % $(jq length <<<"$SUPERVISORS") ))" '.[$i].name' <<<"$SUPERVISORS")
+          jq -n --arg id "$VIOLATION_ID" --arg month "$MONTH" --arg who "$RESOLVER" --arg run "${{ github.run_id }}" \
+            '{type:"resolveViolation", violationId:$id, month:$month, resolvedBy:$who,
+              correctiveAction:("CI SMOKE TEST - run " + $run + " - simulated violation, nothing to correct")}' > resolve.json
+          OUT=$(webapp_post resolve.json) \
+            || { echo "::error::the resolve's reply was not JSON."; exit 1; }
+          jq '{status, message, violationStatus, resolvedBy}' <<<"$OUT"
+          [ "$(webapp_field "$OUT" .status)" = ok ] \
+            || { echo "::error::the resolve was rejected: $(webapp_field "$OUT" .message)"; exit 1; }
+          AGAIN=$(webapp_post resolve.json) \
+            || { echo "::error::the second resolve's reply was not JSON."; exit 1; }
+          case "$(webapp_field "$AGAIN" .message)" in
+            *"already resolved"*) echo "second resolve refused, as it should be" ;;
+            *) echo "::error::resolving twice should be refused as already resolved; got $(jq -c . <<<"$AGAIN")"; exit 1 ;;
+          esac
+          BACK=$(webapp_get getViolations "date=$(TZ=America/New_York date +%F)") \
+            || { echo "::error::getViolations never answered with JSON."; exit 1; }
+          ROW=$(jq -c --arg id "$VIOLATION_ID" '.violations[] | select(.violationId == $id)' <<<"$BACK")
+          [ -n "$ROW" ] || { echo "::error::the simulated violation is not readable back for today."; exit 1; }
+          [ "$(jq -r .status <<<"$ROW")" = resolved ] && [ "$(jq -r .resolvedBy <<<"$ROW")" = "$RESOLVER" ] \
+            || { echo "::error::the violation read back is not resolved as written: $ROW"; exit 1; }
+          echo "violation $VIOLATION_ID for $(webapp_field "$SIM" .store) raised, alerted, resolved over POST by $RESOLVER, refused a second resolve, read back resolved"
+
   # ───────────────────────────────────────────────────────────────────────────────
   frontend:
-    name: Site (prod at /, dev at /staging/)
     needs: backend
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      # A Pages deploy replaces the ENTIRE site, so the artifact must always contain both
-      # halves regardless of which branch triggered this run.
-      - name: Check out prod
-        uses: actions/checkout@v4
-        with:
-          ref: prod
-          path: prod-src
-
-      - name: Check out dev
-        uses: actions/checkout@v4
-        with:
-          ref: dev
-          path: dev-src
-
-      - name: Assemble site
-        env:
-          PROD_URL: ${{ secrets.PROD_WEB_APP_URL }}
-          STAGING_URL: ${{ secrets.STAGING_WEB_APP_URL }}
-        run: |
-          set -euo pipefail
-
-          for b in prod-src dev-src; do
-            [ -d "$b/frontend" ] || { echo "::error::$b has no frontend/ — restructure that branch first."; exit 1; }
-          done
-
-          # prod -> site root. frontend/ is FLATTENED: every printed QR code depends on
-          # the served URL containing no /frontend/ segment.
-          mkdir -p _site
-          cp -r prod-src/frontend/. _site/
-          cp -r prod-src/data       _site/data
-
-          # dev -> /staging/
-          mkdir -p _site/staging
-          cp -r dev-src/frontend/. _site/staging/
-          cp -r dev-src/data       _site/staging/data
-
-          # Each tree gets its own config.js. The browser has no environment to read, so
-          # the endpoint is written into a file here and every page reads window.APP_CONFIG
-          # from it. Nothing in git holds a Web App URL, so a form cannot inherit the wrong
-          # backend by being copied to the wrong directory.
-          if [ -z "$PROD_URL" ] || [ -z "$STAGING_URL" ]; then
-            echo "::error::PROD_WEB_APP_URL / STAGING_WEB_APP_URL secrets are not set."
-            exit 1
-          fi
-          write_config() {
-            printf 'window.APP_CONFIG = {\n  "environment": "%s",\n  "webAppUrl": "%s"\n};\n' "$1" "$2" > "$3"
-          }
-          write_config production "$PROD_URL"    _site/config.js
-          write_config staging    "$STAGING_URL" _site/staging/config.js
-
-          # No page may carry its own endpoint. This is the guard the old string-replace
-          # lacked: it caught only the exact production URL, so the bug-report handler's
-          # stale one survived into both trees unnoticed.
-          if grep -rn --include='*.html' --include='*.js' -F 'script.google.com/macros' _site \
-               | grep -v '^_site/config.js:' | grep -v '^_site/staging/config.js:'; then
-            echo "::error::Hardcoded Apps Script URL above. Read it from window.APP_CONFIG instead."
-            exit 1
-          fi
-
-          # Stamp cache-busters. __BUILD_ID__ has no valid runtime value, so both a missing
-          # token and a surviving one are build failures rather than something that ships
-          # looking fine. This replaces the hand-bumped ?v=N nobody remembered to change.
-          STAMP=$(grep -rl -F '__BUILD_ID__' _site || true)
-          if [ -z "$STAMP" ]; then
-            echo "::error::No __BUILD_ID__ tokens found — cache-busting would silently no-op."
-            exit 1
-          fi
-          echo "$STAMP" | xargs sed -i "s|__BUILD_ID__|${GITHUB_SHA}|g"
-          if grep -rq -F '__BUILD_ID__' _site; then
-            echo "::error::__BUILD_ID__ survived stamping."
-            exit 1
-          fi
-
-          # The /staging/ banner is not injected here — frontend/env-banner.js renders it
-          # from APP_CONFIG.environment. See the comment in that file for why.
-
-          # Actions mode does not run Jekyll, but be explicit.
-          touch _site/.nojekyll
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-      - id: deploy
-        uses: actions/deploy-pages@v4
+    uses: ./.github/workflows/site.yml
+    secrets: inherit

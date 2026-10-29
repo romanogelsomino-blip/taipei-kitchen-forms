@@ -1,10 +1,18 @@
 {
   "supervisors": [
-    "Anna",
-    "Lucia",
-    "Jiang",
-    "Guy"
+    {
+      "id": "4b1b2e17-4a9f-423e-9c48-d749452be887",
+      "name": "Romano Gelsomino",
+      "deletedAt": "",
+      "sortOrder": 1
+    },
+    {
+      "id": "f75404de-c203-4992-bad9-dc83f19891d5",
+      "name": "Sam Blumenthal",
+      "deletedAt": "",
+      "sortOrder": 2
+    }
   ],
-  "allowCustom": true,
-  "lastUpdated": "2026-05-07"
+  "version": "r5-06212c46",
+  "generatedAt": "2026-10-29T15:29:24-04:00"
 }

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taipei Kitchen · Packaging Form</title>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/branding/favicon-32x32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/branding/apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="forms/styles.css?v=__BUILD_ID__">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <img src="assets/branding/taipei-logo-wide.svg"
+         alt="Taipei Kitchen"
+         class="brand-logo brand-logo-wide">
+    <img src="assets/branding/taipei-logo-stacked-1x.png"
+         srcset="assets/branding/taipei-logo-stacked-1x.png 1x,
+                 assets/branding/taipei-logo-stacked-2x.png 2x,
+                 assets/branding/taipei-logo-stacked-3x.png 3x"
+         alt="Taipei Kitchen"
+         class="brand-logo brand-logo-stacked">
+  </div>
+  <span class="topbar-right">Packaging Form</span>
+</div>
+
+<div class="page">
+  <div id="kitchen-header" style="margin-bottom:16px;display:none;">
+    <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--dark);" id="kitchen-title"></div>
+    <div style="font-family:'DM Mono',monospace;font-size:.78rem;color:var(--soft);margin-top:2px;" id="kitchen-location"></div>
+  </div>
+
+  <div class="form-card">
+    <div class="card-header">
+      <h2>Pickup</h2>
+      <p>One cooler per store. Probe the product, then enter what went in.</p>
+    </div>
+    <div class="field-group fg-3">
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="field">
+        <label>Driver</label>
+        <select id="f-driver" onchange="driverPicker.handleChange()">
+          <option value="">— Select Driver —</option>
+        </select>
+        <input type="text" id="f-driver-custom" placeholder="Enter driver name" style="display:none;margin-top:8px;">
+      </div>
+      <div class="field">
+        <label>Time</label>
+        <input type="time" id="f-time">
+      </div>
+    </div>
+    <div class="field-group fg-2">
+      <div class="field">
+        <label>Intended Store</label>
+        <select id="f-store">
+          <option value="">— Select Store —</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Product Temp °F</label>
+        <input type="number" id="f-product-temp" min="-20" max="212" placeholder="e.g. 38" oninput="flagTemp(this)">
+      </div>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <div class="card-header">
+      <h2>Cooler Contents</h2>
+      <p>Tap each dish to enter what was loaded · <span id="progress-text">0 of 13 completed</span></p>
+    </div>
+    <div id="dish-list" class="dish-list"></div>
+    <div style="padding:16px 20px;border-top:2px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-family:'DM Mono',monospace;font-size:.78rem;color:var(--soft);">
+        Totals: <strong style="color:var(--dark)"><span id="total-loaded">0</span> loaded</strong> · <strong style="color:var(--dark)"><span id="total-discarded">0</span> discarded</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <div class="card-header"><h2>Notes</h2></div>
+    <div class="field-group" style="grid-template-columns:1fr;padding:16px 20px;">
+      <div class="field">
+        <label>Notes (optional)</label>
+        <textarea id="f-notes" placeholder="Short on a dish, cooler issues, anything unusual…"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="submit-area">
+    <button class="btn-submit" id="submit-btn" onclick="showSummary()">Review & Submit</button>
+    <button class="btn-secondary" onclick="clearAll()">Clear Form</button>
+  </div>
+</div>
+
+<div id="status-overlay">
+  <div class="status-box">
+    <div class="s-icon" id="s-icon">⏳</div>
+    <h3 id="s-title">Submitting…</h3>
+    <p id="s-msg">Sending to Google Sheets…</p>
+    <button onclick="nextCooler()" id="s-next-btn" style="display:none">Next cooler</button>
+    <button onclick="closeStatus()" id="s-btn" style="display:none">Done</button>
+  </div>
+</div>
+
+<!-- DISH ENTRY MODAL -->
+<div id="dish-modal" class="dish-modal">
+  <div class="dish-modal-content">
+    <div class="dish-modal-header">
+      <button class="modal-close" onclick="dishEntry.close()">✕</button>
+      <h3 id="modal-dish-name">Dish Name</h3>
+      <p id="modal-dish-progress">Dish 1 of 13</p>
+    </div>
+    <div class="dish-modal-body">
+      <div class="modal-field">
+        <label>Loaded</label>
+        <input type="number" inputmode="numeric" id="modal-loaded" min="0" placeholder="0">
+      </div>
+      <div class="modal-field">
+        <label>Discarded</label>
+        <input type="number" inputmode="numeric" id="modal-discarded" min="0" placeholder="0">
+      </div>
+      <div class="modal-field">
+        <label>Discard Reason</label>
+        <select id="modal-discard-reason" onchange="handleDiscardReasonChange(true)">
+          <option value="">—</option>
+          <option value="Damaged">Damaged</option>
+          <option value="Quality Issue">Quality Issue</option>
+          <option value="__other__">Other (specify)</option>
+        </select>
+        <input type="text" id="modal-discard-reason-custom" placeholder="Specify reason" style="display:none;margin-top:8px;">
+      </div>
+    </div>
+    <div class="dish-modal-footer">
+      <button class="btn-modal-secondary" onclick="dishEntry.clear()">Clear</button>
+      <button class="btn-modal-primary" onclick="dishEntry.saveAndNext()" id="save-next-btn">Save & Next</button>
+    </div>
+  </div>
+</div>
+
+<div id="summary-overlay">
+  <div class="summary-box">
+    <h2 style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;margin-bottom:16px;">📋 Review Cooler</h2>
+
+    <div class="summary-section">
+      <div class="summary-label">Intended Store</div>
+      <div class="summary-value" id="sum-store">—</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-label">Product Temp</div>
+      <div class="summary-value" id="sum-temp">—</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-label">Driver</div>
+      <div class="summary-value" id="sum-driver">—</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-label">Dishes to Submit</div>
+      <div id="sum-dishes" style="font-size:.82rem;color:var(--mid);margin-top:8px;max-height:200px;overflow-y:auto;"></div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:24px;">
+      <button onclick="closeSummary()" style="flex:1;background:var(--border);color:var(--dark);border:none;border-radius:6px;padding:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;">← Edit</button>
+      <button onclick="confirmSubmit()" style="flex:2;background:var(--green);color:#fff;border:none;border-radius:6px;padding:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;">✓ Confirm & Submit</button>
+    </div>
+  </div>
+</div>
+
+<script src="config.js?v=__BUILD_ID__"></script>
+<script src="env-banner.js?v=__BUILD_ID__"></script>
+<script src="forms/common.js?v=__BUILD_ID__"></script>
+<script src="forms/packaging.js?v=__BUILD_ID__"></script>
+</body>
+</html>

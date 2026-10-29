@@ -1,19 +1,25 @@
-// Schemas.gs — the four tabs of a monthly file: headers, keys, and how rows are built and read.
+// Schemas.gs — the six tabs of a monthly file: headers, keys, and how rows are built and read.
 //
 // Header text is the read contract; column position is not. A column entry is
 // { header, key, type, width?, value? }: `key` is the payload field on write and the output key
 // on read; `width` is the column's pixel width; `value(row, ctx)` overrides the payload for server-derived cells; `type` is one of
-// date | time | text | number | instant and drives cell handling both ways. Renaming a
+// date | time | text | number | bool | instant and drives cell handling both ways. Renaming a
 // header requires adding the old text to `aliases` so old files still read.
+//
+// tabNames() and schemaFor() name the monthly tabs only. The reference lists have their own
+// tabs and schemas in Reference.gs; the helpers below the Writing fold take a schema and
+// serve both.
 
 function tabNames() {
-  return ['Production', 'Deliveries', 'Violations', 'Executions'];
+  return ['Production', 'Packaging', 'Deliveries', 'Sales', 'Violations', 'Executions'];
 }
 
 function schemaFor(tab) {
   switch (tab) {
     case 'Production': return productionSchema();
+    case 'Packaging':  return packagingSchema();
     case 'Deliveries': return deliveriesSchema();
+    case 'Sales':      return salesSchema();
     case 'Violations': return violationsSchema();
     case 'Executions': return executionsSchema();
     default: throw new Error('Unknown tab: ' + tab);
@@ -24,13 +30,16 @@ function submissionIdOf(row, ctx) {
   return row.submissionId || ctx.submissionId || '';
 }
 
-/** One row per dish per production run. */
+/**
+ * One row per dish per production run. Batches cool overnight from cook end, so no cooling
+ * interval or final temperature is recorded. The kitchen is carried three ways: its name,
+ * which the dashboard groups on, and its System ID and Kitchen ID from the Reference sheet.
+ */
 function productionSchema() {
   return [
     { header: 'Date',                key: 'date',            type: 'date' },
     { header: 'Production Kitchen',  key: 'kitchen',         type: 'text',    width: 170 },
-    { header: 'Supervisor',          key: 'supervisor',      type: 'text',    width: 140 },
-    { header: 'Shift',               key: 'shift',           type: 'text',    width: 80 },
+    { header: 'Cook',                key: 'cook',            type: 'text',    width: 140 },
     { header: 'Dish',                key: 'dish',            type: 'text',    width: 220 },
     { header: 'Qty Produced',        key: 'qtyProduced',     type: 'number',  width: 110 },
     { header: 'Qty Discarded',       key: 'qtyDiscarded',    type: 'number',  width: 110 },
@@ -39,21 +48,57 @@ function productionSchema() {
     { header: 'Cook Start',          key: 'cookStart',       type: 'time' },
     { header: 'Cook End',            key: 'cookEnd',         type: 'time' },
     { header: 'Cook Time (min)',     key: 'cookTime',        type: 'number',  width: 120 },
-    { header: 'Cool Start',          key: 'coolStart',       type: 'time' },
-    { header: 'Cool End',            key: 'coolEnd',         type: 'time',    width: 110 },  // or 'Next Morning'
-    { header: 'Cool Time (min)',     key: 'coolTime',        type: 'number',  width: 120 },  // or 'Overnight'
-    { header: 'Final Batch Temp °F', key: 'finalTemp',       type: 'number',  width: 150 },
+    { header: 'Notes',               key: 'notes',           type: 'text',    width: 260 },
+    { header: 'Kitchen System ID',   key: 'kitchenSystemId', type: 'text',    width: 290 },
+    { header: 'Kitchen ID',          key: 'kitchenId',       type: 'text',    width: 120 },
+    { header: 'Dish System ID',      key: 'dishSystemId',    type: 'text',    width: 290 },
     { header: 'Submission ID',       key: 'submissionId',    type: 'text',    width: 290, value: submissionIdOf },
     { header: 'Submitted At',        key: 'clientTimestamp', type: 'instant' },
     { header: 'Received At',         key: 'serverTimestamp', type: 'instant', value: (row, ctx) => ctx.serverTimestamp }
   ];
 }
 
-/** One row per dish per store visit. */
+/**
+ * One row per dish per cooler loaded at the kitchen, one cooler per intended store. The
+ * product temperature, probed once per cooler, is on every row of its cooler. Kitchen and
+ * store are each carried as name, System ID and the organisation's own id, as on the other
+ * tabs.
+ */
+function packagingSchema() {
+  return [
+    { header: 'Date',              key: 'date',            type: 'date' },
+    { header: 'Kitchen',           key: 'kitchen',         type: 'text',    width: 170 },
+    { header: 'Driver',            key: 'driver',          type: 'text' },
+    { header: 'Intended Store',    key: 'store',           type: 'text',    width: 120 },
+    { header: 'Dish',              key: 'dish',            type: 'text',    width: 220 },
+    { header: 'Time',              key: 'time',            type: 'time',    width: 90 },
+    { header: 'Loaded',            key: 'loaded',          type: 'number' },
+    { header: 'Discarded',         key: 'discarded',       type: 'number' },
+    { header: 'Discard Reason',    key: 'discardReason',   type: 'text',    width: 200 },
+    { header: 'Product Temp °F',   key: 'productTemp',     type: 'number',  width: 120 },
+    { header: 'Notes',             key: 'notes',           type: 'text',    width: 260 },
+    { header: 'Kitchen System ID', key: 'kitchenSystemId', type: 'text',    width: 290 },
+    { header: 'Kitchen ID',        key: 'kitchenId',       type: 'text',    width: 120 },
+    { header: 'Store System ID',   key: 'storeSystemId',   type: 'text',    width: 290 },
+    { header: 'Store ID',          key: 'storeId',         type: 'text',    width: 80 },
+    { header: 'Dish System ID',    key: 'dishSystemId',    type: 'text',    width: 290 },
+    { header: 'Submission ID',     key: 'submissionId',    type: 'text',    width: 290, value: submissionIdOf },
+    { header: 'Submitted At',      key: 'clientTimestamp', type: 'instant' },
+    { header: 'Received At',       key: 'serverTimestamp', type: 'instant', value: (row, ctx) => ctx.serverTimestamp }
+  ];
+}
+
+/**
+ * One row per dish per store visit. The store is carried three ways: its name under Store,
+ * which is what a reader of the sheet wants, and its System ID and store number from the
+ * Reference sheet; the number is what the QR code, the dashboard and the photo filenames
+ * key on. Files written before Store ID existed held the number under Store; see
+ * normaliseRecords.
+ */
 function deliveriesSchema() {
   return [
     { header: 'Date',                      key: 'date',               type: 'date' },
-    { header: 'Store',                     key: 'storeId',            type: 'text',    width: 80, value: row => row.storeId || row.store || '' },
+    { header: 'Store',                     key: 'store',              type: 'text',    width: 120 },
     { header: 'Driver',                    key: 'driver',             type: 'text' },
     { header: 'Dish',                      key: 'dish',               type: 'text',    width: 220 },
     { header: 'Arrival Time',              key: 'arrive',             type: 'time',    width: 110 },
@@ -69,28 +114,63 @@ function deliveriesSchema() {
     { header: 'Store Notes',               key: 'notes',              type: 'text',    width: 260 },
     { header: 'Before Photo',              key: 'beforePhotoLink',    type: 'text',    width: 220 },  // filled by the photo upload
     { header: 'After Photo',               key: 'afterPhotoLink',     type: 'text',    width: 220 },  // filled by the photo upload
+    { header: 'Store System ID',           key: 'storeSystemId',      type: 'text',    width: 290 },
+    { header: 'Store ID',                  key: 'storeId',            type: 'text',    width: 80 },
+    { header: 'Dish System ID',            key: 'dishSystemId',       type: 'text',    width: 290 },
     { header: 'Submission ID',             key: 'submissionId',       type: 'text',    width: 290, value: submissionIdOf },
     { header: 'Submitted At',              key: 'clientTimestamp',    type: 'instant' },
     { header: 'Received At',               key: 'serverTimestamp',    type: 'instant', value: (row, ctx) => ctx.serverTimestamp }
   ];
 }
 
-/** One row per violation; open until Resolved At is filled. */
+/**
+ * One row per store, UPC and day of what the retailer's registers rang up, reduced to that
+ * grain before it arrives. Keyed by the retailer's store number and UPC; the store's and
+ * dish's names and System IDs are resolved from the Reference sheet on import. Units are net
+ * of returns, as the retailer's totals are; Returned Units says how many of them were. A row
+ * with the same Date, Store ID and UPC is replaced on re-import, never duplicated.
+ */
+function salesSchema() {
+  return [
+    { header: 'Date',            key: 'date',          type: 'date' },
+    { header: 'Store',           key: 'store',         type: 'text',    width: 120 },
+    { header: 'Dish',            key: 'dish',          type: 'text',    width: 220 },
+    { header: 'Units',           key: 'units',         type: 'number' },
+    { header: 'Transactions',    key: 'transactions',  type: 'number',  width: 110 },
+    { header: 'Net Sales',       key: 'netSales',      type: 'number',  width: 100 },
+    { header: 'Gross Sales',     key: 'grossSales',    type: 'number',  width: 100 },
+    { header: 'Returned Units',  key: 'returnedUnits', type: 'number',  width: 120 },
+    { header: 'UPC',             key: 'upc',           type: 'text',    width: 150 },
+    { header: 'Store System ID', key: 'storeSystemId', type: 'text',    width: 290 },
+    { header: 'Store ID',        key: 'storeId',       type: 'text',    width: 80 },
+    { header: 'Dish System ID',  key: 'dishSystemId',  type: 'text',    width: 290 }
+  ];
+}
+
+/**
+ * One row per violation; open until Resolved At is filled. A violation belongs to a location,
+ * a store (from a delivery) or a kitchen (from packaging): the row keys on the location's
+ * System ID and carries its name and type; the organisation's own id is not stored, the
+ * dashboard attaches it when needed. Files written when violations were store-shaped held
+ * the store number or name under Store; see normaliseRecords.
+ */
 function violationsSchema() {
   return [
-    { header: 'Date',          key: 'date',          type: 'date' },
-    { header: 'Store',         key: 'storeId',       type: 'text',    width: 80 },
-    { header: 'Driver',        key: 'driver',        type: 'text' },
-    { header: 'Type',          key: 'violationType', type: 'text',    width: 170 },
-    { header: 'Temp °F',       key: 'value',         type: 'number' },
-    { header: 'Resolved By',   key: 'resolvedBy',    type: 'text',    width: 140 },
-    { header: 'Resolved At',   key: 'resolvedAt',    type: 'instant' },
-    { header: 'Alert Sent To', key: 'recipients',    type: 'text',    width: 240 },
-    { header: 'Alert Status',  key: 'emailStatus',   type: 'text',    width: 110 },
-    { header: 'Alert Error',   key: 'errorMessage',  type: 'text',    width: 260 },
-    { header: 'Detected At',   key: 'timestamp',     type: 'instant' },
-    { header: 'Submission ID', key: 'submissionId',  type: 'text',    width: 290 },
-    { header: 'Violation ID',  key: 'violationId',   type: 'text',    width: 180 }
+    { header: 'Date',               key: 'date',             type: 'date' },
+    { header: 'Time',               key: 'time',             type: 'time',    width: 90,  aliases: ['Arrival Time'] },
+    { header: 'Location',           key: 'location',         type: 'text',    width: 150, aliases: ['Store'] },
+    { header: 'Location Type',      key: 'locationType',     type: 'text',    width: 110 },   // Kitchen | Store
+    { header: 'Driver',             key: 'driver',           type: 'text' },
+    { header: 'Type',               key: 'violationType',    type: 'text',    width: 170 },
+    { header: 'Temp °F',            key: 'value',            type: 'number' },
+    { header: 'Notes',              key: 'notes',            type: 'text',    width: 260, aliases: ['Store Notes'] },
+    { header: 'Corrective Action',  key: 'correctiveAction', type: 'text',    width: 300 },
+    { header: 'Resolved By',        key: 'resolvedBy',       type: 'text',    width: 140 },
+    { header: 'Resolved At',        key: 'resolvedAt',       type: 'instant' },
+    { header: 'Detected At',        key: 'timestamp',        type: 'instant' },
+    { header: 'Location System ID', key: 'locationSystemId', type: 'text',    width: 290, aliases: ['Store System ID'] },
+    { header: 'Submission ID',      key: 'submissionId',     type: 'text',    width: 290 },
+    { header: 'Violation ID',       key: 'violationId',      type: 'text',    width: 290 }
   ];
 }
 
@@ -116,7 +196,9 @@ function executionsSchema() {
 function tabLayout(tab) {
   return {
     Production: { rows: 4000, filterThrough: 'Dish' },
+    Packaging:  { rows: 6000, filterThrough: 'Dish' },
     Deliveries: { rows: 6000, filterThrough: 'Dish' },
+    Sales:      { rows: 6000, filterThrough: 'Dish' },
     Violations: { rows: 1000, filterThrough: null },
     Executions: { rows: 4000, filterThrough: null }
   }[tab];
@@ -124,7 +206,7 @@ function tabLayout(tab) {
 
 /** Pixel width for a column: its own, else a default for its type. */
 function columnWidth(col) {
-  return col.width || { date: 100, time: 90, number: 90, instant: 175, text: 130 }[col.type] || 130;
+  return col.width || { date: 100, time: 90, number: 90, bool: 80, instant: 175, text: 130 }[col.type] || 130;
 }
 
 // ─── Writing ─────────────────────────────────────────────────────────────────
@@ -138,10 +220,18 @@ function writeFormats(schema) {
   return schema.map(col => (col.type === 'number' ? 'General' : '@'));
 }
 
-/** A cell value for one column: numeric strings become numbers, instants are normalised, everything else is text. */
+/** A stored boolean cell: a real boolean, TRUE/true/yes/1, or anything else (an empty cell included) as false. */
+function boolFromCell(value) {
+  if (value === true || value === false) return value;
+  const s = String(value === null || value === undefined ? '' : value).trim().toLowerCase();
+  return s === 'true' || s === 'yes' || s === '1';
+}
+
+/** A cell value for one column: numeric strings become numbers, instants are normalised, booleans the words TRUE/FALSE, everything else is text. */
 function cellForWrite(col, value) {
   if (value === undefined || value === null) return '';
   if (col.type === 'instant') return normaliseInstant(value);
+  if (col.type === 'bool') return boolFromCell(value) ? 'TRUE' : 'FALSE';   // text under the '@' format, so Sheets stores the word
   if (col.type === 'number') {
     if (typeof value === 'number') return value;
     const s = String(value).trim();
@@ -173,6 +263,7 @@ function headerIndex(headerRow, schema) {
 
 /** A cell as the API returns it. Date objects only appear in cells someone reformatted by hand. */
 function normaliseCell(value, type) {
+  if (type === 'bool') return boolFromCell(value);   // before the null check: an empty Active cell reads as false, not ''
   if (value === null || value === undefined) return '';
   if (value instanceof Date) {
     if (type === 'date') return Utilities.formatDate(value, NY_TZ, 'yyyy-MM-dd');
@@ -180,6 +271,56 @@ function normaliseCell(value, type) {
     return formatInstant(value);
   }
   return value;
+}
+
+/**
+ * Rows as the API returns them: every kitchen, store and dish name on a row is resolved
+ * through the System ID beside it, so an entry renamed on the Config tab shows under its
+ * current name on every row, past ones included. The stored text is never rewritten, and an
+ * id no list has leaves it as it is. Rows from before System IDs existed get the earlier
+ * repairs: a delivery whose Store held the store number gets the number under storeId and
+ * the store's name and System ID from it; a store-shaped violation, with the store number
+ * under Location, gets its name, System ID and Location Type the same way. Call on every
+ * read of a tab; never on a write.
+ */
+function normaliseRecords(tab, records) {
+  const resolved = {   // the name field each System ID field stands behind
+    Production: [['kitchenSystemId', 'kitchen'], ['dishSystemId', 'dish']],
+    Packaging:  [['kitchenSystemId', 'kitchen'], ['storeSystemId', 'store'], ['dishSystemId', 'dish']],
+    Deliveries: [['storeSystemId', 'store'], ['dishSystemId', 'dish']],
+    Sales:      [['storeSystemId', 'store'], ['dishSystemId', 'dish']],
+    Violations: [['locationSystemId', 'location']]
+  }[tab];
+  if (!resolved) return records;
+  const byId = referenceEntryById();
+  let stores = null;
+  const byNumber = number => {
+    if (!stores) stores = storeList();
+    return stores.find(s => String(s.id) === number) || null;
+  };
+  records.forEach(record => {
+    if (tab === 'Deliveries') {
+      const store = String(record.store || '').trim();
+      if (store && !record.storeId) record.storeId = store;
+      if (store && !record.storeSystemId && String(record.storeId) === store) {
+        const match = byNumber(store);
+        if (match) { record.store = match.name; record.storeSystemId = match.key; }
+      }
+    }
+    if (tab === 'Violations') {
+      const location = String(record.location || '').trim();
+      if (!record.locationSystemId && location) {
+        const match = byNumber(location);
+        if (match) { record.location = match.name; record.locationSystemId = match.key; }
+      }
+      if (!record.locationType && (record.locationSystemId || location)) record.locationType = 'Store';
+    }
+    resolved.forEach(pair => {
+      const entry = byId[String(record[pair[0]] || '').trim().toLowerCase()];
+      if (entry) record[pair[1]] = entry.name;
+    });
+  });
+  return records;
 }
 
 /**

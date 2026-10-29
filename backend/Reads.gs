@@ -6,21 +6,15 @@
 // month has no file until the first record of that month is written.
 
 /**
- * Store list for the dashboard's filters. Mirror of data/stores.json, which is the source of
- * truth: the forms read that file directly. Kept in sync by hand, so a new store needs a
- * backend deploy to reach the dashboard.
+ * Store list for the dashboard's filters and for naming a violation's store. Comes from the
+ * Reference sheet, which the dashboard's Config tab edits. Deleted stores are included: a
+ * closed store still has rows and violations that need its name.
+ *
+ * `id` here is the store number, because that is what the delivery rows and every dashboard
+ * lookup carry; the sheet's UUID rides along as `key`, which the Violations tab keys on.
  */
 function storeList() {
-  return [
-    { id: '6006', name: 'Store 6006', location: 'Kline Village, Harrisburg, PA' },
-    { id: '6061', name: 'Store 6061', location: 'Shippensburg, PA' },
-    { id: '6112', name: 'Store 6112', location: '255 S Spring Garden St, Carlisle, PA' },
-    { id: '6253', name: 'Store 6253', location: 'New Cumberland, PA' },
-    { id: '6331', name: 'Store 6331', location: 'Mechanicsburg, PA' },
-    { id: '6443', name: 'Store 6443', location: 'Chambersburg, PA' },
-    { id: '6542', name: 'Store 6542', location: 'Carlisle, PA' },
-    { id: '6564', name: 'Store 6564', location: 'Harrisburg (Gayson Rd), PA' }
-  ];
+  return referencePayload().stores.map(s => ({ id: s.storeId, key: s.id, name: s.name, location: s.location, verified: s.verified, deletedAt: s.deletedAt }));
 }
 
 /**
@@ -64,30 +58,42 @@ function publicRecord(record) {
 }
 
 /**
- * The dashboard payload for one window. `waste` is derived, not stored: it is the delivery
- * rows that had something removed from a shelf. It does not include what a kitchen discarded
+ * The dashboard payload for one window: everything the dashboard shows, in one request, so
+ * each month file is opened once. `waste` is derived, not stored: it is the delivery rows
+ * that had something removed from a shelf. It does not include what a kitchen discarded
  * during production, which lives on the Production tab.
  */
 function action_dashboard(e) {
   try {
     const win = requestWindow(e);
-    const production = recordsInWindow(win, 'Production').records.map(publicRecord);
-    const deliveryRead = recordsInWindow(win, 'Deliveries');
-    const deliveries = deliveryRead.records.map(record => {
+    // Delivery and packaging rows name the store two ways: the dashboard filters and groups
+    // on `store`, the store number, and shows `storeName`, the sheet's own column.
+    const byStoreNumber = record => {
       const row = publicRecord(record);
-      row.store = row.storeId;   // the dashboard filters and groups on `store`
+      row.storeName = row.store;
+      row.store = row.storeId;
       return row;
-    });
+    };
+    const production = recordsInWindow(win, 'Production').records.map(publicRecord);
+    const packaging = recordsInWindow(win, 'Packaging').records.map(byStoreNumber);
+    const deliveryRead = recordsInWindow(win, 'Deliveries');
+    const deliveries = deliveryRead.records.map(byStoreNumber);
+    const sales = recordsInWindow(win, 'Sales').records.map(byStoreNumber);
     const waste = deliveries
       .filter(row => (parseInt(row.removed, 10) || 0) > 0)
       .map(row => Object.assign({}, row, { qtyRemoved: row.removed }));
+    const violations = publicViolations(recordsInWindow(win, 'Violations').records);
 
     return jsonResponse({
       status: 'ok',
       production: production,
+      packaging: packaging,
       deliveries: deliveries,
+      sales: sales,
       waste: waste,
+      violations: violations,
       stores: storeList(),
+      reference: referencePayload(),   // the six lists, for the Config tab; same memo as storeList()
       window: { from: win.from, to: win.to, months: win.months, missingMonths: deliveryRead.missing },
       lastUpdated: formatInstant(new Date())
     });
@@ -155,6 +161,7 @@ function action_queryDeliveries(e) {
       count: page.length,
       deliveries: page.map(record => {
         const row = publicRecord(record);
+        row.storeName = row.store;
         row.store = row.storeId;
         row.month = record._month;
         row.rowNumber = record._row;

@@ -43,44 +43,73 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
 4. Waits until the web app answers with JSON. An in-place redeploy can serve Google's
    "unable to open the file" page for several minutes before the new version is live.
 5. Sets the `SPREADSHEET_FOLDER_ID`, `PHOTO_FOLDER_ID`, `ALERT_RECIPIENTS`,
-   `SUPPORT_RECIPIENTS` and `ALERT_FROM` Script Properties through the `setScriptProperty`
-   admin action, so the secrets are authoritative. `ALERT_FROM` is the one that may be empty,
-   which means alerts send as the deploying account.
-6. Pings the deployment and asserts the operations folder id and the current month's file
+   `SUPPORT_RECIPIENTS`, `ALERT_FROM`, `GITHUB_REPOSITORY` and `DISPATCH_TOKEN` Script
+   Properties through the `setScriptProperty` admin action, so the secrets are
+   authoritative. `ALERT_FROM` is the one that may be empty, which means alerts send as the
+   deploying account. `GITHUB_REPOSITORY` comes from the runner's environment, not a secret.
+6. Calls `init`, which creates and seeds the `Reference` sheet the first time and repairs a
+   missing tab on any later run, then reads the lists back and requires all six to be
+   non-empty.
+7. Pings the deployment and asserts the operations folder id and the current month's file
    name. The month file itself is created by the first record written in the month, never by
    the workflow.
-7. On `dev` only, submits a real production row and then a real delivery row, both dated
-   today and marked `ZZ-CI-SMOKE` (store `0000`), requires the current month file's Production
-   and Deliveries tabs to each grow by one row, and reads the delivery row back by its
-   submission id. Reads can succeed while writes fail, and a write is the only thing that
-   proves the deployment can reach its stores. Production gets no synthetic row.
+8. On `dev` only, submits a real production row, a real packaging row and a real delivery
+   row, all dated today, naming a random kitchen, store, driver, cook and dish from the
+   environment's reference lists and carrying the note `CI SMOKE TEST - run <run id> - safe to
+   delete`; requires the current month file's Production, Packaging and Deliveries tabs to
+   each grow by one row, and reads the delivery row back by its submission id. Then it
+   imports one sales row for a random real store and dish, requires the Sales tab to grow by
+   one, imports the same row again and requires the tab not to grow. Reads can succeed while
+   writes fail, and a write is the only thing that proves the deployment can reach its
+   stores. Production gets no synthetic row. Then it
+   sends the config endpoint an update for a random real store carrying the store's current
+   name, and requires it to be accepted with nothing applied and the reference version
+   unchanged, which proves the write path without touching the lists. Last, it
+   raises one simulated violation for a random real store, driver and dish, noted
+   `CI SMOKE TEST - run <run id> - safe to resolve` (one alert email per run, to staging's
+   `ALERT_RECIPIENTS`), resolves it over POST as a random real supervisor, requires a second
+   resolve to be refused, and reads it back resolved.
 
 Every call to the web app after the redeploy retries while Google's error page comes back
-instead of JSON. The smoke write is the exception: it is sent once, and the row count
-decides whether it landed.
+instead of JSON. The smoke writes are the exception: each is sent once, and the row count or
+the read-back decides whether it landed.
 
-**Site job** (after the backend job)
+**Site job** (after the backend job; `.github/workflows/site.yml`)
 
 1. Checks out both `prod` and `dev`. A Pages deploy replaces the whole site, so both trees
    are rebuilt on every run regardless of which branch was pushed.
 2. Copies `prod`'s `frontend/` and `data/` to the artifact root and `dev`'s under `/staging/`.
 3. Writes `config.js` into each tree from `PROD_WEB_APP_URL` / `STAGING_WEB_APP_URL`.
-4. Fails the build if `script.google.com/macros` appears anywhere else in the artifact.
-5. Replaces every `__BUILD_ID__` with the commit SHA. Fails if no token is found or any
+4. Fetches the reference lists from each tree's own backend (`?action=reference`) and
+   writes them over that tree's `data/<list>.json`, one file per list. A backend that does
+   not answer, or does not have the action yet, leaves that tree on its committed copies
+   with a warning; the Config tab shows when the forms' copy is behind.
+5. Fails the build if `script.google.com/macros` appears anywhere else in the artifact.
+6. Replaces every `__BUILD_ID__` with the commit SHA. Fails if no token is found or any
    survives.
-6. Publishes the artifact to GitHub Pages.
+7. Publishes the artifact to GitHub Pages.
 
 The backend deploys first so that a still-cached old frontend talks to a backend that already
 understands the new contract. The two platforms cannot be made atomic, so contract changes
 must stay backward-compatible for one release cycle.
+
+**Publish-lists workflow** (`.github/workflows/publish-lists.yml`)
+
+A save on the dashboard's Config tab writes the `Reference` sheet, then the backend sends a
+`repository_dispatch` (`reference-changed`) with `DISPATCH_TOKEN`. That runs the site
+job alone, so the lists reach the forms in about two minutes without redeploying the
+backend. It shares the `pages` concurrency group, so a save during a code deploy queues
+behind it. If the dispatch fails, the save still stands in the sheet; the Config tab says
+the forms are behind, and the next save or deploy publishes them.
 
 ## Releasing to production
 
 Releases are made by hand on GitHub, never by pushing `prod` from a terminal. A release is a
 pull request from `dev` to `prod`, merged there, then published as a GitHub Release.
 
-1. Confirm staging is healthy: `npm run ping:staging` and `npm run mail:staging`, and open
-   `/staging/dashboard/`. Whatever is wrong on staging will be wrong on production.
+1. Confirm staging is healthy: `node scripts/admin-action.js staging ping` and
+   `node scripts/admin-action.js staging mailStatus`, and open `/staging/dashboard/`.
+   Whatever is wrong on staging will be wrong on production.
 2. Confirm the production secrets exist for anything the release adds. The reconcile step
    fails the deploy if a Script Property it pushes has no secret behind it.
 3. Open a pull request from `dev` to `prod`. No checks run on it: the workflow triggers on
@@ -90,8 +119,8 @@ pull request from `dev` to `prod`, merged there, then published as a GitHub Rele
    rebase are both wrong here, because `prod` is a record of what was released and its
    history should keep the shape of the branch it came from.
 5. Watch the run under Actions until the backend and site jobs are both green.
-6. Confirm production directly: `npm run ping:production`, then load the live dashboard and
-   one form.
+6. Confirm production directly: `npm run prod:ping`, then load the live dashboard and one
+   form.
 7. Publish a GitHub Release against `prod`, continuing the existing tag sequence. Creating
    the release creates the tag, so do not also push one from a terminal. Auto-generated notes
    list the merged commits; add a line for anything an operator must do by hand, such as
@@ -125,6 +154,7 @@ stays; only the code goes back. Monthly operations files and Script Properties s
 
 ```
 CLASPRC_JSON
+DISPATCH_TOKEN
 PROD_SCRIPT_ID              STAGING_SCRIPT_ID
 PROD_DEPLOYMENT_ID          STAGING_DEPLOYMENT_ID
 PROD_WEB_APP_URL            STAGING_WEB_APP_URL
@@ -144,30 +174,50 @@ Workspace organizational unit must exempt the clasp OAuth client from Google Clo
 control, or the token expires within a day of each `clasp login` and the backend job fails
 at `clasp push` with `invalid_grant`.
 
+`DISPATCH_TOKEN` is a GitHub personal access token the backend uses to trigger
+`publish-lists.yml` after a Config-tab save, shared by both environments like
+`CLASPRC_JSON`. Its `.env` row has no prefix. Either kind works:
+
+- A **fine-grained** token with **Contents: read and write** on this repository and nothing
+  else. Only the account that owns the repository can scope one to it.
+- A **classic** token with the **`public_repo`** scope, from any collaborator with write
+  access. The repository is public, so that scope reaches it; it also reaches every other
+  public repository that account can write to.
+
+When the token expires or is revoked, saves still write the sheet but stop publishing, and
+the Config tab reports the forms as behind until a new token is set and deployed.
+
 ### OAuth scopes
 
 `backend/appsscript.json` lists the scopes explicitly, so the project gets exactly those and
 nothing more. A change to that list takes effect on the next push, but the deploying account
 must then approve the new set before the web app serves again. Until it does, every request
 returns an authorisation error, so make scope changes when someone can finish the approval.
+The deploy's "wait for the redeployed web app to serve" step fails in that state; re-run the
+workflow once the approval is done.
 
 Re-authorising, once per environment:
 
 1. Push first, so the project holds the new scope list. Merge to `dev` or `prod`, or run the
    workflow by hand; the backend job pushes before anything else.
-2. Open the project as the deploying account: `npm run open:staging` or
-   `npm run open:production`. Sign in as that account if the browser opens as someone else,
-   or the approval will be recorded against the wrong one.
-3. Revoke the project's existing access first, at
-   https://myaccount.google.com/permissions, as that account. Apps Script will not re-prompt
-   while an older grant is still valid: the function runs and then fails at the first call
-   needing a scope that grant lacks. Revoking is what forces the new list to be offered. The
-   web app stops serving until step 5 completes, so expect a short outage.
-4. Pick `authorize` from the function dropdown, press Run, and approve the prompt. It lists the whole declared scope set, not just what changed. The
-   unverified-app warning is expected: choose Advanced, then go to the project.
+2. Open the project in the Apps Script editor as the deploying account: it is listed at
+   https://script.google.com under that account. Sign in as that account if the browser
+   opens as someone else, or the approval will be recorded against the wrong one.
+3. Pick `authorize` from the function dropdown and press Run. Normally the editor shows the
+   consent dialog before running anything: approve it. It lists the whole declared scope
+   set, not just what changed, and the unverified-app warning is expected: choose Advanced,
+   then go to the project.
+4. If the editor ran the function without a dialog, the grant still lacks the new scope. The
+   execution log's first line, `authorization`, then says `REQUIRED` and prints a consent
+   URL: open it as the deploying account and approve. Only if that also fails, revoke the
+   project's existing access at https://myaccount.google.com/permissions as that account
+   (the project is listed under its editor title) and run `authorize` again. Revoking stops
+   the web app until the approval completes.
 5. Read the execution log. `authorize` names each folder, spreadsheet, mail quota, sending
-   account and verified alias it reached, and marks anything it could not as FAILED.
-6. Confirm from outside with `npm run ping:<env>` and `npm run mail:<env>`.
+   account, verified alias and the GitHub API it reached, and marks anything it could not as
+   FAILED. Run it once more after approving and expect no FAILED lines.
+6. Confirm from outside with `node scripts/admin-action.js <env> ping` and
+   `node scripts/admin-action.js <env> mailStatus`.
 
 If requests still fail after that, re-run the deploy workflow. The redeploy picks up the
 refreshed grant.
@@ -183,4 +233,4 @@ deploy reports itself once rather than once per driver.
 account the deployment runs as. A non-empty value works only if that address is a verified
 "Send mail as" alias on that account; otherwise the deploy logs a warning, alerts still go
 out from the account address, and the fallback is recorded on the execution row. Check with
-`npm run mail:<env>` before relying on a new address.
+`node scripts/admin-action.js <env> mailStatus` before relying on a new address.

@@ -1,0 +1,24 @@
+{
+  "cooks": [
+    {
+      "id": "b366fa0e-7576-4945-8b62-d10f1a3e4cdb",
+      "name": "Anna",
+      "deletedAt": "",
+      "sortOrder": 1
+    },
+    {
+      "id": "a588d0fb-6fb1-480c-bf66-99ecae07125c",
+      "name": "Lucia",
+      "deletedAt": "",
+      "sortOrder": 2
+    },
+    {
+      "id": "bf6ca106-a9b8-4e13-b7f5-e0c959add56b",
+      "name": "Jiang",
+      "deletedAt": "",
+      "sortOrder": 3
+    }
+  ],
+  "version": "r5-06212c46",
+  "generatedAt": "2026-10-29T15:29:24-04:00"
+}

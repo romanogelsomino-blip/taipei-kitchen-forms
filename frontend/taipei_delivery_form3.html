@@ -32,16 +32,10 @@
     <div style="font-family:'DM Mono',monospace;font-size:.78rem;color:var(--soft);margin-top:2px;" id="store-location"></div>
   </div>
 
-
   <div class="form-card">
     <div class="card-header">
       <h2>Delivery Information</h2>
       <p>Fill out before starting the store drop</p>
-    </div>
-    <div style="padding:12px 20px;background:var(--row-alt);border-bottom:1px solid var(--border);">
-      <button id="recall-btn" onclick="lastSubmission.recall()" style="background:var(--green);color:#fff;border:none;border-radius:6px;padding:10px 16px;font-family:'DM Mono',monospace;font-size:.78rem;cursor:pointer;display:none;transition:background .15s;">
-        ⚡ Use Last Values
-      </button>
     </div>
     <div class="field-group fg-3">
       <div class="field">
@@ -117,7 +111,7 @@
   <div class="form-card">
     <div class="card-header">
       <h2>After Stocking Photo</h2>
-      <p>Take photo after stocking · uploads automatically to Google Drive</p>
+      <p>Required · take photo after stocking · uploads automatically to Google Drive</p>
     </div>
     <div class="photo-section" style="grid-template-columns:1fr;">
       <div>
@@ -138,7 +132,7 @@
     <div class="card-header"><h2>Notes</h2></div>
     <div class="field-group" style="grid-template-columns:1fr;padding:16px 20px;">
       <div class="field">
-        <label>Store Notes / Issues / Feedback</label>
+        <label>Store Notes / Issues / Feedback (optional)</label>
         <textarea id="f-notes" placeholder="Equipment issues, store requests, expired product details, anything unusual…"></textarea>
       </div>
       <div class="field">
@@ -174,23 +168,23 @@
     <div class="dish-modal-body">
       <div class="modal-field">
         <label>Added to Shelf</label>
-        <input type="number" id="modal-added" min="0" placeholder="0" oninput="recalcModal()">
+        <input type="number" inputmode="numeric" id="modal-added" min="0" placeholder="0" oninput="recalcModal()">
       </div>
       <div class="modal-field">
         <label>On Shelf (Before)</label>
-        <input type="number" id="modal-before" min="0" placeholder="0" oninput="recalcModal()">
+        <input type="number" inputmode="numeric" id="modal-before" min="0" placeholder="0" oninput="recalcModal()">
       </div>
       <div class="modal-field">
-        <label>Removed (Expired)</label>
-        <input type="number" id="modal-removed" min="0" placeholder="0" oninput="recalcModal()">
+        <label>Removed</label>
+        <input type="number" inputmode="numeric" id="modal-removed" min="0" placeholder="0" oninput="recalcModal()">
       </div>
       <div class="modal-field">
-        <label>Expire Reason</label>
+        <label>Removal Reason</label>
         <select id="modal-reason" onchange="handleModalReasonChange(true)">
           <option value="">—</option>
-          <option value="Out of date">Out of date</option>
           <option value="Damaged">Damaged</option>
-          <option value="Quality issue">Quality issue</option>
+          <option value="Expired">Expired</option>
+          <option value="Quality Issue">Quality Issue</option>
           <option value="__other__">Other (specify)</option>
         </select>
         <input type="text" id="modal-reason-custom" placeholder="Specify reason" style="display:none;margin-top:8px;">
