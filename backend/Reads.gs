@@ -93,7 +93,7 @@ function action_dashboard(e) {
       waste: waste,
       violations: violations,
       stores: storeList(),
-      reference: referencePayload(),   // the five lists, for the Config tab; same memo as storeList()
+      reference: referencePayload(),   // the six lists, for the Config tab; same memo as storeList()
       window: { from: win.from, to: win.to, months: win.months, missingMonths: deliveryRead.missing },
       lastUpdated: formatInstant(new Date())
     });

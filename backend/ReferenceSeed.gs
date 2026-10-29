@@ -57,6 +57,11 @@ function referenceSeed() {
       { id: 'e967dcb5-77ba-41b6-a8ac-db46806230e7', name: 'Owen' },
       { id: '0b32d496-b2b5-4dc2-b68e-ba28a8e911b9', name: 'Sam Blumenthal' },
       { id: '179fe668-826d-4fa3-abcd-130194eefdf4', name: 'Andy' }
+    ],
+
+    supervisors: [
+      { id: '4b1b2e17-4a9f-423e-9c48-d749452be887', name: 'Romano' },
+      { id: 'f75404de-c203-4992-bad9-dc83f19891d5', name: 'Sam' }
     ]
   };
 }

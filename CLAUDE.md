@@ -27,11 +27,13 @@
 - **The monthly files are the only store for records.** The single-spreadsheet system they
   replaced is retired: nothing reads or writes it. Do not reintroduce a second write target
   for submissions.
-- **Reference lists live in the `Reference` sheet.** Kitchens, stores, dishes, cooks
-  and drivers, in that order wherever the five appear (the one place production-first does
-  not apply), are one tab each in a spreadsheet at the root of `SPREADSHEET_FOLDER_ID`,
-  edited from the dashboard's Config tab and published to `data/<list>.json` by the site
-  build; a form only ever reads those static files. Every entry is keyed by a UUID the
+- **Reference lists live in the `Reference` sheet.** Kitchens, stores, dishes, cooks,
+  drivers and supervisors, in that order wherever the six appear (the one place
+  production-first does not apply), are one tab each in a spreadsheet at the root of
+  `SPREADSHEET_FOLDER_ID`, edited from the dashboard's Config tab and published to
+  `data/<list>.json` by the site build; a form only ever reads those static files.
+  Supervisors are who may resolve a violation: the dashboard offers them on a violation's
+  card, and no form reads them. Every entry is keyed by a UUID the
   backend assigns and never changes; kitchens and stores also carry a Type (Taipei or Giant)
   and that organisation's own id, and a store's Store ID is the number its delivery rows
   carry. QR codes carry the location's UUID: a kitchen has one for the production form and

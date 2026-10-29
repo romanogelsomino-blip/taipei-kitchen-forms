@@ -89,11 +89,12 @@ Push to `dev` to check `/staging/`, then merge to `prod`.
 
 ## Reference data
 
-The kitchen, store, dish, cook and driver lists live in a `Reference` spreadsheet at
+The kitchen, store, dish, cook, driver and supervisor lists live in a `Reference` spreadsheet at
 the root of the operations folder, one tab per list, and are edited from the dashboard's
 Config tab. A save writes the sheet and asks GitHub to republish the site, which writes each
 list to `data/<list>.json` for the forms; a phone has it within about ten minutes. The
-Config tab shows whether the forms' copy is current.
+Config tab shows whether the forms' copy is current. Supervisors are the people who may
+resolve a violation; the dashboard offers them on the violation's card, and no form reads them.
 
 Every entry is keyed by a UUID the backend assigns and never changes. An entry is deleted to
 retire it (hidden from the forms and the Config tab, restorable from its deleted list), and a

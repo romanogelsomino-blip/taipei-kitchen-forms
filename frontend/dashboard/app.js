@@ -17,7 +17,7 @@ let DATA = {
   sales: [],
   waste: [],
   stores: [],
-  reference: null,   // the five reference lists plus their version, for the Config panel
+  reference: null,   // the six reference lists plus their version, for the Config panel
   violations: [],
   window: null,
   lastUpdated: null
@@ -2228,7 +2228,7 @@ async function salesImportRun() {
 // ─── Violations ──────────────────────────────────────────────────────────────
 // One card per violation, built with DOM calls and textContent: store names, notes and
 // corrective actions are typed by people. A violation is resolved on its own card by naming
-// the cook and the corrective action; both are required here and on the backend.
+// the supervisor and the corrective action; both are required here and on the backend.
 
 let violationStatusFilter = 'open';   // open | resolved | all
 let violationRange = 30;              // 'today' | 7 | 30 | 'all', by the reading's date, like the other panels' ranges
@@ -2278,9 +2278,9 @@ function violationWhen(instant) {
   return isNaN(date) ? String(instant || '') : date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
-/** Active cooks by name, for the "resolved by" picker. */
+/** Active supervisors by name, for the "resolved by" picker. */
 function violationResolvers() {
-  const list = (DATA.reference && DATA.reference.cooks) || [];
+  const list = (DATA.reference && DATA.reference.supervisors) || [];
   return list.filter(referenceOffered)
     .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0))
     .map(s => s.name);
@@ -2348,7 +2348,7 @@ function violationCard(v, resolvers) {
   const select = document.createElement('select');
   const blank = document.createElement('option');
   blank.value = '';
-  blank.textContent = resolvers.length ? '— Select a cook —' : 'No cooks on the list';
+  blank.textContent = resolvers.length ? '— Select a supervisor —' : 'No supervisors on the list';
   select.appendChild(blank);
   resolvers.forEach(name => {
     const option = document.createElement('option');
@@ -2988,12 +2988,12 @@ function exportShrinkToCSV() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Config panel: the reference lists
 // ═══════════════════════════════════════════════════════════════════════════════
-// Five lists, one on screen at a time. The owner edits a buffer per list and saves it as a
+// Six lists, one on screen at a time. The owner edits a buffer per list and saves it as a
 // batch of ops (type: 'config'); the backend writes the Reference sheet and asks GitHub to
 // republish data/<list>.json for the forms. A row is never removed from the sheet: an entry
 // is deleted (Deleted At set; folded away here, restorable) and a dish may also be switched
 // off, and ids never change once saved. Store numbers are on printed QR codes, and the
-// four name-keyed lists are stored in the records by name, so a rename there splits history
+// five name-keyed lists are stored in the records by name, so a rename there splits history
 // and the panel says so before it happens.
 //
 // Every server-supplied string is set with textContent or .value, never innerHTML: these
@@ -3029,7 +3029,9 @@ const CONFIG_LISTS = [
     blurb: 'Who cooks a batch. The production form offers these and also accepts a typed name.' },
   { key: 'drivers',     label: 'Drivers',     noun: 'driver',     byName: true, attrs: [],
     records: [{ source: 'deliveries', field: 'driver' }],
-    blurb: 'Who loads the coolers and delivers. The packaging and delivery forms offer these and also accept a typed name.' }
+    blurb: 'Who loads the coolers and delivers. The packaging and delivery forms offer these and also accept a typed name.' },
+  { key: 'supervisors', label: 'Supervisors', noun: 'supervisor', byName: true, attrs: [],
+    blurb: 'Who may resolve a violation. The dashboard offers these on a violation\'s card; no form reads them.' }
 ];
 const CONFIG_TYPES_FALLBACK = { kitchens: ['Taipei', 'Giant'], stores: ['Giant'] };   // what the backend serves as `types`; for a payload without it
 const CONFIG_ORG_ID_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;                     // the backend's rule: URL- and filename-safe
@@ -3085,7 +3087,7 @@ function configSetStatus(text, cls) {
   status.className = 'config-status' + (cls ? ' ' + cls : '');
 }
 
-/** The five published data/<list>.json files, as the forms read them. */
+/** The six published data/<list>.json files, as the site publishes them. */
 async function loadStaticReference() {
   const out = { version: null, lists: {} };
   await Promise.all(CONFIG_LISTS.map(async def => {

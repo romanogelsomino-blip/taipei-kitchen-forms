@@ -48,7 +48,7 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
    authoritative. `ALERT_FROM` is the one that may be empty, which means alerts send as the
    deploying account. `GITHUB_REPOSITORY` comes from the runner's environment, not a secret.
 6. Calls `init`, which creates and seeds the `Reference` sheet the first time and repairs a
-   missing tab on any later run, then reads the lists back and requires all five to be
+   missing tab on any later run, then reads the lists back and requires all six to be
    non-empty.
 7. Pings the deployment and asserts the operations folder id and the current month's file
    name. The month file itself is created by the first record written in the month, never by
@@ -66,7 +66,7 @@ cancel a run in flight, or the site can be left serving a half-assembled artifac
    version to change, which proves the write path and its cache invalidation. Last, it
    raises one simulated violation for a random real store, driver and dish, noted
    `CI SMOKE TEST - run <run id> - safe to resolve` (one alert email per run, to staging's
-   `ALERT_RECIPIENTS`), resolves it over POST as a random real cook, requires a second
+   `ALERT_RECIPIENTS`), resolves it over POST as a random real supervisor, requires a second
    resolve to be refused, and reads it back resolved.
 
 Every call to the web app after the redeploy retries while Google's error page comes back

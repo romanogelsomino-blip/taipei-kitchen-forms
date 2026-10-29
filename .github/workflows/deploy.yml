@@ -189,7 +189,7 @@ jobs:
             echo "- version $(webapp_field "$REF" .version), from the $(webapp_field "$REF" .source)"
             echo "- [Reference sheet]($REF_URL)"
           } >> "$GITHUB_STEP_SUMMARY"
-          for LIST in kitchens stores dishes cooks drivers; do
+          for LIST in kitchens stores dishes cooks drivers supervisors; do
             N=$(jq -r --arg l "$LIST" '(.[$l] // []) | length' <<<"$REF")
             [ "$N" -gt 0 ] || { echo "::error::the reference store has no $LIST."; exit 1; }
             echo "$LIST: $N"
@@ -344,7 +344,7 @@ jobs:
 
           # One real violation for a real store, driver and dish, marked only by its note: the
           # Violations row, the alert email (one per run, to staging's ALERT_RECIPIENTS), the
-          # resolve over POST by a real cook, the refusal of a second resolve, the read-back.
+          # resolve over POST by a real supervisor, the refusal of a second resolve, the read-back.
           SIM=$(WEBAPP_ATTEMPTS=1 webapp_get test "note=CI SMOKE TEST - run ${{ github.run_id }} - safe to resolve") \
             || { echo "::error::test (simulated violation) did not answer with JSON; it is sent once, as it writes and emails."; exit 1; }
           jq '{status, store, raised, notes}' <<<"$SIM"
@@ -352,8 +352,8 @@ jobs:
             || { echo "::error::the simulated violation did not raise and alert: $(jq -c '[.error, .raised, .notes]' <<<"$SIM")"; exit 1; }
           VIOLATION_ID=$(jq -r '.raised[0].violationId' <<<"$SIM")
           MONTH=$(TZ=America/New_York date +%Y-%m)
-          COOKS=$(jq '[.cooks[] | select(.deletedAt == "")]' reference.json)
-          RESOLVER=$(jq -r --argjson i "$(( RANDOM % $(jq length <<<"$COOKS") ))" '.[$i].name' <<<"$COOKS")
+          SUPERVISORS=$(jq '[.supervisors[] | select(.deletedAt == "")]' reference.json)
+          RESOLVER=$(jq -r --argjson i "$(( RANDOM % $(jq length <<<"$SUPERVISORS") ))" '.[$i].name' <<<"$SUPERVISORS")
           jq -n --arg id "$VIOLATION_ID" --arg month "$MONTH" --arg who "$RESOLVER" --arg run "${{ github.run_id }}" \
             '{type:"resolveViolation", violationId:$id, month:$month, resolvedBy:$who,
               correctiveAction:("CI SMOKE TEST - run " + $run + " - simulated violation, nothing to correct")}' > resolve.json

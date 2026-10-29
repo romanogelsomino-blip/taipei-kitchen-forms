@@ -92,7 +92,7 @@ jobs:
               echo "::warning::$dir: the backend did not serve the reference lists ($(webapp_field "$out" .message)); keeping the committed data/*.json for this tree."
               return 0
             fi
-            for list in kitchens stores dishes cooks drivers; do
+            for list in kitchens stores dishes cooks drivers supervisors; do
               jq --arg l "$list" --arg now "$NOW" '{($l): (.[$l] // []), version: .version, generatedAt: $now}' <<<"$out" \
                 > "$dir/data/$list.json"
               echo "$dir/data/$list.json: $(jq -r --arg l "$list" '(.[$l] // []) | length' <<<"$out") entries"

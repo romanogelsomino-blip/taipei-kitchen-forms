@@ -1,4 +1,4 @@
-// Reference.gs — the reference lists: kitchens, stores, dishes, cooks, drivers.
+// Reference.gs — the reference lists: kitchens, stores, dishes, cooks, drivers, supervisors.
 //
 // One spreadsheet, `Reference`, at the root of SPREADSHEET_FOLDER_ID beside the year folders,
 // one tab per list. The dashboard's Config tab edits it through doPost (type: 'config'); the
@@ -19,7 +19,7 @@
 // A row is never removed from the sheet. An entry is deactivated to pause it (hidden from
 // the forms, shown greyed on the Config tab, one switch to resume) or deleted to retire it
 // (hidden from the Config tab too, restorable from its deleted list); either way history
-// still resolves its name. The four name-keyed lists are stored in the monthly rows by
+// still resolves its name. The five name-keyed lists are stored in the monthly rows by
 // display name, so history depends on names staying put; the Config tab warns before a
 // rename and the backend never rewrites a record.
 
@@ -40,8 +40,8 @@ const REFERENCE_CATCHALL_DISH_UUID = '00000000-0000-4000-8000-000000000001';    
 // ─── The lists ───────────────────────────────────────────────────────────────
 
 /**
- * The five lists, in the order the sheet's tabs, the payload and the Config tab show them:
- * Kitchens, Stores, Dishes, Cooks, Drivers.
+ * The six lists, in the order the sheet's tabs, the payload and the Config tab show them:
+ * Kitchens, Stores, Dishes, Cooks, Drivers, Supervisors.
  *
  * `attrs` are the columns beyond name: kind 'type' is one of `types`, 'orgId' is the
  * organisation's own identifier (unique on its own, or per type when `uniqueWith` names the
@@ -78,7 +78,9 @@ function referenceLists() {
     { tab: 'Cooks', key: 'cooks', noun: 'cook', types: null, active: false, verified: false, attrs: [],
       storedAs: [{ tab: 'Production', field: 'cook', attr: 'name' }] },
     { tab: 'Drivers', key: 'drivers', noun: 'driver', types: null, active: false, verified: false, attrs: [],
-      storedAs: [{ tab: 'Deliveries', field: 'driver', attr: 'name' }] }
+      storedAs: [{ tab: 'Deliveries', field: 'driver', attr: 'name' }] },
+    { tab: 'Supervisors', key: 'supervisors', noun: 'supervisor', types: null, active: false, verified: false, attrs: [],   // who may resolve a violation; offered on the dashboard, read by no form
+      storedAs: [{ tab: 'Violations', field: 'resolvedBy', attr: 'name' }] }
   ];
 }
 
@@ -86,7 +88,7 @@ function referenceTabNames() {
   return referenceLists().map(list => list.tab);
 }
 
-/** The list entry for a tab name or a payload key. Rejects naming the five valid ones. */
+/** The list entry for a tab name or a payload key. Rejects naming the six valid ones. */
 function referenceListFor(name) {
   const wanted = String(name || '').toLowerCase();
   const found = referenceLists().find(list => list.tab.toLowerCase() === wanted || list.key === wanted);
@@ -154,7 +156,7 @@ function openReference(create) {
   return REFERENCE_MEMO.opened;
 }
 
-/** A brand-new Reference file: New York time zone, the five tabs in order, each seeded. */
+/** A brand-new Reference file: New York time zone, the six tabs in order, each seeded. */
 function initReferenceFile(ss) {
   ss.setSpreadsheetTimeZone(NY_TZ);
   const tabs = referenceTabNames();
@@ -312,7 +314,7 @@ function referenceTypes() {
 }
 
 /**
- * The five lists plus version, updatedAt, source and types. Memoised per execution and
+ * The six lists plus version, updatedAt, source and types. Memoised per execution and
  * cached for REFERENCE_CACHE_SEC. The cache is checked before the file is resolved, so a hit
  * does no Drive work at all. Never creates the file: without one, the seed stands in.
  */
@@ -796,7 +798,7 @@ function handleConfigWrite(payload, ctx) {
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
-/** The five lists. `?version=<current>` answers notModified instead of the payload. Public. */
+/** The six lists. `?version=<current>` answers notModified instead of the payload. Public. */
 function action_reference(e) {
   try {
     const params = (e && e.parameter) || {};
@@ -810,7 +812,7 @@ function action_reference(e) {
   }
 }
 
-/** The Reference file as it stands: id and url, row counts and header drift per tab, any tab that is not one of the five. Admin. */
+/** The Reference file as it stands: id and url, row counts and header drift per tab, any tab that is not one of the six. Admin. */
 function action_referenceStatus(e) {
   try {
     const opened = openReference(false);
