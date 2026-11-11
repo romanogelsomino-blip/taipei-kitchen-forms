@@ -83,13 +83,11 @@ function effectiveReason(data) {
 }
 
 /**
- * What one dish still needs, or null. Only the added count is required outright — the rest
- * stand at zero — but a removal has to say why the product came off the shelf.
+ * What is wrong with one dish, or null: a removal has to say why the product came off the
+ * shelf. The added count is not required here. Save & Next must move on without one, and
+ * submit refuses any dish still missing it.
  */
 function dishProblem(data) {
-  if (data.added === '') {
-    return { id: 'modal-added', message: 'Enter how many were added to the shelf. Enter 0 if none.' };
-  }
   if ((parseInt(data.removed) || 0) > 0 && !effectiveReason(data)) {
     return {
       id: data.reason === '__other__' ? 'modal-reason-custom' : 'modal-reason',
