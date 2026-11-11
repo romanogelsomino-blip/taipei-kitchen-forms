@@ -300,10 +300,10 @@ function reportMissing(intro, items) {
 //
 //   dishes()       current dish name list (set once the reference lists load)
 //   fields         [{ key, id, default }]: record key, modal input id, empty value ('')
-//   status(record) 'complete' | 'partial' | 'empty'
-//   validate(record) optional { id, message } naming the first thing the dish still needs,
-//                  or null when it is good; Save & Next will not leave a dish that fails it,
-//                  and submit re-checks every dish through it
+//   status(record) 'complete' | 'partial' | 'empty'; submit refuses a dish that is not complete
+//   validate(record) optional { id, message } naming what is wrong with the dish, or null when
+//                  it is good; Save & Next will not leave a dish that fails it, and submit
+//                  re-checks every dish through it
 //   summary(record) optional card status line when the record has data
 //                  (default: "Complete" / "Partial")
 //   totals         [{ key, id }]: record key summed into the element with that id
@@ -454,9 +454,12 @@ function createDishEntry({ dishes, fields, status, summary, validate, totals = [
     else close();
   }
 
-  /** Dish names whose record still fails `validate`, in list order. */
+  /** Dish names submit must refuse, in list order: not complete, or still failing `validate`. */
   function invalidDishes() {
-    return validate ? dishes().filter(dish => validate(get(dish))) : [];
+    return dishes().filter(dish => {
+      const record = get(dish);
+      return status(record) !== 'complete' || (validate && validate(record));
+    });
   }
 
   /** Forget every dish, drop the stored copy, and redraw. */

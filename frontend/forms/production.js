@@ -16,13 +16,11 @@ function effectiveDiscardReason(data) {
 }
 
 /**
- * What one dish still needs, or null. Only the produced count is required outright — the
- * rest stand at zero — but a discard has to say why it was discarded.
+ * What is wrong with one dish, or null: a discard has to say why. The produced count is not
+ * required here. Save & Next must move on without one, and submit refuses any dish still
+ * missing it.
  */
 function dishProblem(data) {
-  if (data.produced === '') {
-    return { id: 'modal-produced', message: 'Enter a produced count for this dish. Enter 0 if none were made.' };
-  }
   if ((parseInt(data.discarded) || 0) > 0 && !effectiveDiscardReason(data)) {
     return {
       id: data.discardReason === '__other__' ? 'modal-discard-reason-custom' : 'modal-discard-reason',
