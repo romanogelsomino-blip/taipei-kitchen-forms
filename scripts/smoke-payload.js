@@ -41,8 +41,8 @@ function hhmm(minutes) {
   return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 }
 
-const DISCARD_REASONS = ['Damaged', 'Quality Issue'];
-const REMOVAL_REASONS = ['Damaged', 'Expired', 'Quality Issue'];
+const DISCARD_REASONS = ['Damaged', 'Quality Issue', 'Temperature'];
+const REMOVAL_REASONS = ['Damaged', 'Expired', 'Quality Issue', 'Temperature'];
 const CASE_FILL = ['0-25%', '25-50%', '50-75%', '75-100%'];
 
 /** `count` distinct entries of a list, in list order. */
