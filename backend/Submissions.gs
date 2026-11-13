@@ -25,21 +25,53 @@ function normaliseRows(rows, ctx) {
 }
 
 /**
- * Refuse a submission missing a temperature its form requires: every rule of the source in
- * violationSources() needs a number on every row. Null when nothing is missing, else the
- * response to send. Checked before writing, so a refused submission writes nothing; the form
- * keeps it on the device.
+ * What each form requires on every row, mirroring what the form itself refuses to submit
+ * without: `text` must be non-blank, `numbers` must parse, and `reasons` names the reason a
+ * non-zero count needs. The temperatures are the rules of the same source in
+ * violationSources(), so a temperature that is checked is also required. Presence only:
+ * nothing here checks a name against the reference lists.
  */
-function refuseMissingReadings(rows, source, tab, ctx) {
-  const headerOf = key => (schemaFor(tab).find(col => col.key === key) || {}).header || key;
-  const missing = violationSources()[source].rules
-    .filter(rule => rows.some(row => isNaN(parseFloat(row[rule.key]))))
-    .map(rule => headerOf(rule.key));
+function requiredFields() {
+  return {
+    production: { tab: 'Production', text: ['date', 'kitchen', 'cook', 'cookStart', 'cookEnd', 'dish'],
+                  numbers: ['qtyProduced', 'qtyDiscarded'], reasons: { qtyDiscarded: 'discardReason' } },
+    packaging:  { tab: 'Packaging', text: ['date', 'time', 'kitchen', 'driver', 'store', 'dish'],
+                  numbers: ['loaded', 'discarded'], reasons: { discarded: 'discardReason' } },
+    delivery:   { tab: 'Deliveries', text: ['date', 'driver', 'arrive', 'storeId', 'dish', 'casePrefillPercent', 'receivedBy'],
+                  numbers: ['added', 'before', 'removed'], reasons: { removed: 'reason' } }
+  };
+}
+
+/**
+ * Refuse a submission that is empty or missing anything its form requires. Null when it is
+ * complete, else the response to send. Checked before writing, so a refused submission writes
+ * nothing; the form keeps it on the device.
+ */
+function refuseIncomplete(rows, source, ctx) {
+  const spec = requiredFields()[source];
+  const schema = schemaFor(spec.tab);
+  const headerOf = key => (schema.find(col => col.key === key) || {}).header || key;
+  const blank = value => String(value === undefined || value === null ? '' : value).trim() === '';
+  const notNumber = value => isNaN(parseFloat(value));
+  const numbers = spec.numbers.concat(violationSources()[source].rules.map(rule => rule.key));
+
+  const missing = [];
+  const add = label => { if (missing.indexOf(label) < 0) missing.push(label); };
+  if (!rows.length) add('at least one dish');
+  rows.forEach(row => {
+    spec.text.forEach(key => { if (blank(row[key])) add(headerOf(key)); });
+    numbers.forEach(key => { if (notNumber(row[key])) add(headerOf(key)); });
+    Object.keys(spec.reasons).forEach(countKey => {
+      const reasonKey = spec.reasons[countKey];
+      if ((parseFloat(row[countKey]) || 0) > 0 && blank(row[reasonKey])) add(headerOf(reasonKey) + ' (for ' + headerOf(countKey) + ')');
+    });
+  });
   if (!missing.length) return null;
+
   const message = 'Required and missing: ' + missing.join(', ');
   ctx.logEntry.status = 'REJECTED';
   ctx.logEntry.errorMessage = message;
-  note(ctx, 'missing_readings');
+  note(ctx, 'incomplete_submission');
   return jsonResponse({ status: 'error', message: message });
 }
 
@@ -58,7 +90,7 @@ function handleBugReport(payload, ctx) {
  */
 function handleProductionSubmission(payload, ctx) {
   const rows = normaliseRows(payload.rows || [], ctx);
-  const refused = refuseMissingReadings(rows, 'production', 'Production', ctx);
+  const refused = refuseIncomplete(rows, 'production', ctx);
   if (refused) return refused;
   writeRecords('production', rows, ctx);
   if (!ctx.duplicate) {
@@ -80,7 +112,7 @@ function handleProductionSubmission(payload, ctx) {
  */
 function handlePackagingSubmission(payload, ctx) {
   const rows = normaliseRows(payload.rows || [], ctx);
-  const refused = refuseMissingReadings(rows, 'packaging', 'Packaging', ctx);
+  const refused = refuseIncomplete(rows, 'packaging', ctx);
   if (refused) return refused;
   writeRecords('packaging', rows, ctx);
   if (!ctx.duplicate) {
@@ -97,7 +129,7 @@ function handlePackagingSubmission(payload, ctx) {
 
 function handleDeliverySubmission(payload, ctx) {
   const rows = normaliseRows(payload.rows || [], ctx);
-  const refused = refuseMissingReadings(rows, 'delivery', 'Deliveries', ctx);
+  const refused = refuseIncomplete(rows, 'delivery', ctx);
   if (refused) return refused;
   writeRecords('deliveries', rows, ctx);
 

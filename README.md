@@ -150,7 +150,8 @@ The HACCP cooling rule is printed on the production form: hot food must cool fro
   store — the first reading after cooling — and flags it above 41°F.
 - The delivery form flags both temperatures it records, the product temperature on arrival
   and the store cooler temperature, above 41°F.
-- The backend refuses a submission missing any of these temperatures, and writes none of it.
+- The backend refuses a submission missing anything its form requires, these temperatures
+  included, and writes none of it.
 - The backend checks each submission once, not once per dish. Each breach sends one email and
   writes one row on the month's Violations tab: the reading, the kitchen or store it belongs
   to, when it was taken, the cook or driver and their notes, and later the corrective action
