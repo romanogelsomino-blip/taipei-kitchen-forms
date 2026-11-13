@@ -24,6 +24,25 @@ function normaliseRows(rows, ctx) {
   }));
 }
 
+/**
+ * Refuse a submission missing a temperature its form requires: every rule of the source in
+ * violationSources() needs a number on every row. Null when nothing is missing, else the
+ * response to send. Checked before writing, so a refused submission writes nothing; the form
+ * keeps it on the device.
+ */
+function refuseMissingReadings(rows, source, tab, ctx) {
+  const headerOf = key => (schemaFor(tab).find(col => col.key === key) || {}).header || key;
+  const missing = violationSources()[source].rules
+    .filter(rule => rows.some(row => isNaN(parseFloat(row[rule.key]))))
+    .map(rule => headerOf(rule.key));
+  if (!missing.length) return null;
+  const message = 'Required and missing: ' + missing.join(', ');
+  ctx.logEntry.status = 'REJECTED';
+  ctx.logEntry.errorMessage = message;
+  note(ctx, 'missing_readings');
+  return jsonResponse({ status: 'error', message: message });
+}
+
 function handleBugReport(payload, ctx) {
   ctx.logEntry.formType = 'bugReport';
   const sent = sendMail(supportRecipients(), payload.subject, payload.body);
@@ -33,9 +52,23 @@ function handleBugReport(payload, ctx) {
   return jsonResponse({ status: 'ok', message: 'Bug report sent' });
 }
 
+/**
+ * One production run: the rows are written, then the run's cook temperature is checked.
+ * Written first, checked second, for the same reason as deliveries.
+ */
 function handleProductionSubmission(payload, ctx) {
   const rows = normaliseRows(payload.rows || [], ctx);
+  const refused = refuseMissingReadings(rows, 'production', 'Production', ctx);
+  if (refused) return refused;
   writeRecords('production', rows, ctx);
+  if (!ctx.duplicate) {
+    try {
+      checkViolations(rows, ctx, 'production');
+    } catch (alertError) {
+      note(ctx, 'violation_check_failed=' + alertError.message);
+      Logger.log(`Warning: violation check failed: ${alertError}`);
+    }
+  }
   ctx.logEntry.status = 'SUCCESS';
   return jsonResponse({ status: 'ok', duplicate: !!ctx.duplicate });
 }
@@ -47,6 +80,8 @@ function handleProductionSubmission(payload, ctx) {
  */
 function handlePackagingSubmission(payload, ctx) {
   const rows = normaliseRows(payload.rows || [], ctx);
+  const refused = refuseMissingReadings(rows, 'packaging', 'Packaging', ctx);
+  if (refused) return refused;
   writeRecords('packaging', rows, ctx);
   if (!ctx.duplicate) {
     try {
@@ -62,6 +97,8 @@ function handlePackagingSubmission(payload, ctx) {
 
 function handleDeliverySubmission(payload, ctx) {
   const rows = normaliseRows(payload.rows || [], ctx);
+  const refused = refuseMissingReadings(rows, 'delivery', 'Deliveries', ctx);
+  if (refused) return refused;
   writeRecords('deliveries', rows, ctx);
 
   // A replay has already been checked and alerted on; checking again would send a second

@@ -1,36 +1,60 @@
 // Violations.gs — HACCP temperature violations: detection, alerts, read and resolve.
 //
-// The limit is regulatory, not configurable: cold-held product must stay at or below 41°F.
-// Detection runs once per submission, not once per dish row, so one warm cooler is one email
-// and one row rather than one of each per dish. A row is the food-safety record: the reading,
-// where and when it was taken, the driver's notes, and what was done about it. Its location
-// is a store (a delivery's readings) or a kitchen (a cooler loaded at packaging). Whether the
-// alert email went out is noted on the request's Executions row, not here.
+// The limits are regulatory, not configurable: food is cooked to at least 165°F, and cold-held
+// product must stay at or below 41°F. Detection runs once per submission, not once per dish
+// row, so one bad reading is one email and one row rather than one of each per dish. A row is
+// the food-safety record: the reading, where and when it was taken, who took it, their notes,
+// and what was done about it. Its location is a kitchen (a production run's cook temperature
+// or a cooler loaded at packaging) or a store (a delivery's readings). Whether the alert email
+// went out is noted on the request's Executions row, not here.
 
-const TEMP_LIMIT_F = 41;
+const TEMP_LIMIT_F = 41;    // cold-holding maximum
+const COOK_MIN_F = 165;     // cooking minimum, the strictest of the proteins cooked
 const VIOLATION_ACTION_MAX = 500;   // characters of corrective action, more than a cell should hold
 
 /**
- * What each form records that can breach the limit, and where the breach belongs. A delivery
- * records two temperatures at a store; packaging records one per cooler at a kitchen. The
- * field names are the submission's own.
+ * What each form records that can breach a limit, and where the breach belongs. Production
+ * records one cook temperature per run at a kitchen; packaging records one per cooler at a
+ * kitchen; a delivery records two at a store. A rule breaches above its `max` or below its
+ * `min`. `person` names who took the reading and the row fields that carry them. The field
+ * names are the submission's own.
  */
 function violationSources() {
   return {
+    production: {
+      rules: [
+        { key: 'cookTemp', type: 'Cook Temperature', label: 'cook temperature', min: COOK_MIN_F }
+      ],
+      location: { type: 'Kitchen', name: 'kitchen', systemId: 'kitchenSystemId', orgId: 'kitchenId', time: 'cookEnd' },
+      person: { label: 'Cook', name: 'cook', systemId: 'cookSystemId' }
+    },
     packaging: {
       rules: [
-        { key: 'productTemp', type: 'Product Loading Temperature', label: 'product when loaded' }
+        { key: 'productTemp', type: 'Product Loading Temperature', label: 'product when loaded', max: TEMP_LIMIT_F }
       ],
-      location: { type: 'Kitchen', name: 'kitchen', systemId: 'kitchenSystemId', orgId: 'kitchenId', time: 'time' }
+      location: { type: 'Kitchen', name: 'kitchen', systemId: 'kitchenSystemId', orgId: 'kitchenId', time: 'time' },
+      person: { label: 'Driver', name: 'driver', systemId: 'driverSystemId' }
     },
     delivery: {
       rules: [
-        { key: 'coolerTemp',  type: 'Store Cooler Temperature',    label: 'store cooler' },
-        { key: 'arrivalTemp', type: 'Product Arrival Temperature', label: 'product on arrival at the store' }
+        { key: 'coolerTemp',  type: 'Store Cooler Temperature',    label: 'store cooler',                    max: TEMP_LIMIT_F },
+        { key: 'arrivalTemp', type: 'Product Arrival Temperature', label: 'product on arrival at the store', max: TEMP_LIMIT_F }
       ],
-      location: { type: 'Store', name: 'store', systemId: 'storeSystemId', orgId: 'storeId', time: 'arrive' }
+      location: { type: 'Store', name: 'store', systemId: 'storeSystemId', orgId: 'storeId', time: 'arrive' },
+      person: { label: 'Driver', name: 'driver', systemId: 'driverSystemId' }
     }
   };
+}
+
+/** Whether a reading breaches its rule. A blank or non-numeric reading never does. */
+function breachesRule(rule, value) {
+  if (isNaN(value)) return false;
+  return (rule.max !== undefined && value > rule.max) || (rule.min !== undefined && value < rule.min);
+}
+
+/** The rule's limit as people read it: "165°F minimum" or "41°F maximum". */
+function ruleLimitText(rule) {
+  return rule.min !== undefined ? rule.min + '°F minimum' : rule.max + '°F maximum';
 }
 
 function violationRules() {
@@ -38,8 +62,8 @@ function violationRules() {
 }
 
 /**
- * Check one submission and raise a violation per breached rule of its source ('delivery' or
- * 'packaging'). Each breach sends one email and writes one Violations row; the row is written
+ * Check one submission and raise a violation per breached rule of its source ('production',
+ * 'packaging' or 'delivery'). Each breach sends one email and writes one Violations row; the row is written
  * whether or not the mail went, and a failed alert is noted on the Executions row. Nothing
  * here throws: losing an alert is recoverable, losing the record is not. The rows carry the
  * location's name and System ID as the form sent them.
@@ -59,23 +83,26 @@ function checkViolations(rows, ctx, source) {
 
   spec.rules.forEach(rule => {
     const value = parseFloat(first[rule.key]);
-    if (isNaN(value) || value <= TEMP_LIMIT_F) return;
+    if (!breachesRule(rule, value)) return;
 
     const sent = sendMail(
       alertRecipients(),
       'HACCP Violation Alert: ' + rule.type + ' - ' + locationLabel,
-      violationEmailBody(rule, value, first, locationLabel, where)
+      violationEmailBody(rule, value, rows, locationLabel, spec)
     );
     if (sent.note) note(ctx, sent.note);
     if (sent.status !== 'SUCCESS') note(ctx, 'alert_failed=' + rule.type + ':' + sent.error);
 
+    const isCook = spec.person.name === 'cook';
     const row = {
       date: first.date,
       time: first[where.time] || '',
       location: locationName,
       locationType: where.type,
-      driver: first.driver || '',
-      driverSystemId: first.driverSystemId || '',
+      driver: isCook ? '' : first.driver || '',
+      driverSystemId: isCook ? '' : first.driverSystemId || '',
+      cook: isCook ? first.cook || '' : '',
+      cookSystemId: isCook ? first.cookSystemId || '' : '',
       violationType: rule.type,
       value: value,
       notes: first.notes || '',
@@ -102,7 +129,16 @@ function checkViolations(rows, ctx, source) {
   return raised;
 }
 
-function violationEmailBody(rule, value, row, locationLabel, where) {
+/**
+ * The alert's text. The last detail line depends on the source: the dishes of a production
+ * run, the intended store of a cooler, or who received a delivery.
+ */
+function violationEmailBody(rule, value, rows, locationLabel, spec) {
+  const row = rows[0];
+  const where = spec.location;
+  const detail = spec.person.name === 'cook'
+    ? 'Dishes: ' + (rows.map(r => r.dish).filter(Boolean).join(', ') || 'N/A')
+    : where.type === 'Store' ? 'Received by: ' + (row.receivedBy || 'N/A') : 'Intended store: ' + (row.store || 'N/A');
   return [
     '═══════════════════════════════════════════════════',
     '   TAIPEI KITCHEN · HACCP VIOLATION ALERT',
@@ -116,10 +152,10 @@ function violationEmailBody(rule, value, row, locationLabel, where) {
     '',
     'Violation type: ' + rule.type + ' (' + rule.label + ')',
     'Recorded temperature: ' + value + '°F',
-    'Limit: ' + TEMP_LIMIT_F + '°F',
+    'Limit: ' + ruleLimitText(rule),
     '',
-    'Driver: ' + (row.driver || 'N/A'),
-    where.type === 'Store' ? 'Received by: ' + (row.receivedBy || 'N/A') : 'Intended store: ' + (row.store || 'N/A'),
+    spec.person.label + ': ' + (row[spec.person.name] || 'N/A'),
+    detail,
     'Notes: ' + (row.notes || 'None'),
     '',
     '─────────────────────────────────────────────────',

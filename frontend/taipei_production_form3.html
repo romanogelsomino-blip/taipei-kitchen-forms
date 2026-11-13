@@ -68,7 +68,7 @@
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
         <div class="field">
           <label>Cook Temp °F</label>
-          <input type="number" id="b-cook-temp" min="100" max="500" placeholder="°F">
+          <input type="number" id="b-cook-temp" min="100" max="500" placeholder="°F" oninput="flagCookTemp(this)">
         </div>
         <div class="field">
           <label>Cook Start</label>

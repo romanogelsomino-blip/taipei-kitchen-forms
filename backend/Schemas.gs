@@ -152,7 +152,7 @@ function salesSchema() {
 
 /**
  * One row per violation; open until Resolved At is filled. A violation belongs to a location,
- * a store (from a delivery) or a kitchen (from packaging): the row keys on the location's
+ * a store (from a delivery) or a kitchen (from production or packaging): the row keys on the location's
  * System ID and carries its name and type; the organisation's own id is not stored, the
  * dashboard attaches it when needed. Files written when violations were store-shaped held
  * the store number or name under Store; see normaliseRecords.
@@ -163,7 +163,8 @@ function violationsSchema() {
     { header: 'Time',               key: 'time',             type: 'time',    width: 90,  aliases: ['Arrival Time'] },
     { header: 'Location',           key: 'location',         type: 'text',    width: 150, aliases: ['Store'] },
     { header: 'Location Type',      key: 'locationType',     type: 'text',    width: 110 },   // Kitchen | Store
-    { header: 'Driver',             key: 'driver',           type: 'text' },
+    { header: 'Driver',             key: 'driver',           type: 'text' },   // packaging and delivery violations
+    { header: 'Cook',               key: 'cook',             type: 'text',    width: 140 },   // production violations
     { header: 'Type',               key: 'violationType',    type: 'text',    width: 170 },
     { header: 'Temp °F',            key: 'value',            type: 'number' },
     { header: 'Notes',              key: 'notes',            type: 'text',    width: 260, aliases: ['Store Notes'] },
@@ -173,6 +174,7 @@ function violationsSchema() {
     { header: 'Detected At',        key: 'timestamp',        type: 'instant' },
     { header: 'Location System ID', key: 'locationSystemId', type: 'text',    width: 290, aliases: ['Store System ID'] },
     { header: 'Driver System ID',   key: 'driverSystemId',   type: 'text',    width: 290 },
+    { header: 'Cook System ID',     key: 'cookSystemId',     type: 'text',    width: 290 },
     { header: 'Resolved By System ID', key: 'resolvedBySystemId', type: 'text', width: 290 },
     { header: 'Submission ID',      key: 'submissionId',     type: 'text',    width: 290 },
     { header: 'Violation ID',       key: 'violationId',      type: 'text',    width: 290 }

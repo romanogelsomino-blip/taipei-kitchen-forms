@@ -12,6 +12,7 @@ const GOOGLE_SCRIPT_URL = (window.APP_CONFIG && window.APP_CONFIG.webAppUrl) || 
 
 const NY_TZ = 'America/New_York';
 const TEMP_LIMIT_F = 41;   // HACCP cold-holding limit; the dashboard uses the same number
+const COOK_MIN_F = 165;    // HACCP cooking minimum; the dashboard uses the same number
 
 /**
  * One id for a whole submission: every row of it and, on the delivery form, the photos that
@@ -45,6 +46,14 @@ function flagTemp(el) {
   const value = parseFloat(el.value);
   el.style.borderColor = value > TEMP_LIMIT_F ? 'var(--red)' : (value > 0 ? 'var(--green)' : '');
   el.style.background  = value > TEMP_LIMIT_F ? 'var(--red-lt)' : '';
+}
+
+/** Colour a cook temperature input: red below the cooking minimum, green at or above it. */
+function flagCookTemp(el) {
+  const value = parseFloat(el.value);
+  const low = !isNaN(value) && value < COOK_MIN_F;
+  el.style.borderColor = low ? 'var(--red)' : (value > 0 ? 'var(--green)' : '');
+  el.style.background  = low ? 'var(--red-lt)' : '';
 }
 
 // ─── Talking to the backend ──────────────────────────────────────────────────
