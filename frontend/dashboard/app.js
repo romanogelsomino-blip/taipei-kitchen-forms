@@ -26,6 +26,7 @@ let DATA = {
 // The dashboard asks the backend for a date window rather than the whole store. The backend
 // reads one spreadsheet per month and caps a request at six of them.
 const TEMP_LIMIT_F = 41;   // regulatory cold-holding limit; matches the backend and the forms
+const COOK_MIN_F = 165;    // regulatory cooking minimum; matches the backend and the forms
 const WINDOW_MAX_MONTHS = 6;
 let REQUESTED_FROM = null;
 let REFRESH_INTERVAL = null;
@@ -773,7 +774,7 @@ function hasTemperatureViolation(delivery) {
 
 // The rule names in backend/Violations.gs, by the kind of location each applies to.
 const VIOLATION_TYPES = {
-  Kitchen: ['Product Loading Temperature'],
+  Kitchen: ['Cook Temperature', 'Product Loading Temperature'],
   Store:   ['Store Cooler Temperature', 'Product Arrival Temperature']
 };
 
@@ -816,6 +817,7 @@ function loadFoodSafety() {
     if (!locations.has(key)) locations.set(key, { type: type, name: name || (type + ' ' + id), counts: {} });
     return locations.get(key);
   };
+  (DATA.production || []).filter(r => inWeek(r.date)).forEach(r => location('Kitchen', r.kitchenSystemId || r.kitchenId, r.kitchen));
   (DATA.packaging || []).filter(r => inWeek(r.date)).forEach(r => location('Kitchen', r.kitchenSystemId || r.kitchenId, r.kitchen));
   DATA.deliveries.filter(d => inWeek(d.date)).forEach(d => { const store = storeOf(d); location('Store', store ? store.key : (d.storeId || d.store), storeNameOf(d)); });
   (DATA.violations || []).filter(v => inWeek(v.date)).forEach(v => {
@@ -2327,10 +2329,11 @@ function violationCard(v, resolvers) {
   const reading = violationNode('div', 'violation-reading');
   reading.appendChild(violationNode('span', 'violation-reading-type', v.violationType || 'Temperature'));
   reading.appendChild(violationNode('span', 'violation-reading-value', violationTemp(v.value)));
-  reading.appendChild(violationNode('span', 'violation-reading-limit', 'limit ' + TEMP_LIMIT_F + '°F'));
+  reading.appendChild(violationNode('span', 'violation-reading-limit', v.violationType === 'Cook Temperature' ? 'minimum ' + COOK_MIN_F + '°F' : 'limit ' + TEMP_LIMIT_F + '°F'));
   card.appendChild(reading);
 
   const meta = violationNode('div', 'violation-meta');
+  if (v.cook) meta.appendChild(violationField('Cook', v.cook));
   if (v.driver) meta.appendChild(violationField('Driver', v.driver));
   meta.appendChild(violationField('Notes', v.notes || 'None'));
   card.appendChild(meta);

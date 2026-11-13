@@ -290,6 +290,7 @@ function clearAll() {
 
   dishEntry.reset();
   document.querySelectorAll('.' + INVALID_CLASS).forEach(clearMissing);
+  flagCookTemp(document.getElementById('b-cook-temp'));
 
   // Reset the cook time display and the minutes it carries
   const cookTime = document.getElementById('b-cook-time');

@@ -143,18 +143,22 @@ on confirm sends it a month at a time.
 The HACCP cooling rule is printed on the production form: hot food must cool from 135°F to
 70°F within 2 hours, then to 41°F within 4 more hours. The system flags what it can measure:
 
-- A batch cools overnight from its cook end, so the production form records no cooling
-  interval or final temperature, and production submissions raise no violations.
+- The production form records one cook temperature per run and flags it below 165°F, the
+  minimum for poultry and the strictest of the proteins cooked. A batch cools overnight from
+  its cook end, so the form records no cooling interval or final temperature.
 - The packaging form records the product's temperature in each cooler as it is loaded for a
   store — the first reading after cooling — and flags it above 41°F.
 - The delivery form flags both temperatures it records, the product temperature on arrival
   and the store cooler temperature, above 41°F.
+- The backend refuses a submission missing anything its form requires, these temperatures
+  included, and writes none of it.
 - The backend checks each submission once, not once per dish. Each breach sends one email and
   writes one row on the month's Violations tab: the reading, the kitchen or store it belongs
-  to, when it was taken, the driver's notes, and later the corrective action and who resolved
-  it. The row is written even when the email fails; a failed alert is noted on that request's
-  Executions row.
-- 41°F is fixed in the code. It is the regulatory cold-holding limit, not a setting.
+  to, when it was taken, the cook or driver and their notes, and later the corrective action
+  and who resolved it. The row is written even when the email fails; a failed alert is noted
+  on that request's Executions row.
+- 165°F and 41°F are fixed in the code. They are the regulatory cooking and cold-holding
+  limits, not settings.
 - The dashboard lists those violations. One is open until someone resolves it.
 
 ---
